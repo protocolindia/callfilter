@@ -170,3 +170,96 @@ code {
 /* Make user list rows feel clickable */
 table a { color: inherit; }
 table tr a:hover { color: var(--accent); text-decoration: none; }
+
+/* Terms & Conditions page */
+.terms-wrap {
+  min-height: 100vh;
+  padding: 40px 20px;
+  display: flex;
+  justify-content: center;
+}
+.terms-page {
+  max-width: 720px;
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px;
+}
+.terms-head { margin-bottom: 24px; }
+.terms-head h1 { font-size: 28px; }
+.terms-page section { margin-bottom: 24px; }
+.terms-page section h2 {
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.terms-page section p {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.terms-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Contacts grid */
+.contacts-grid { display: flex; flex-direction: column; gap: 8px; }
+.contact-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.contact-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+}
+.contact-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  display: grid; place-items: center;
+  font-weight: 700; color: white; flex-shrink: 0;
+  overflow: hidden;
+}
+.contact-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.contact-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.contact-line {
+  font-size: 12px; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.contact-detail {
+  padding: 8px 14px 14px;
+  border-top: 1px solid var(--border);
+}
+.detail-group { margin-top: 10px; }
+.detail-label {
+  font-size: 11px; text-transform: uppercase;
+  color: var(--subtext); font-weight: 600;
+  margin-bottom: 6px; letter-spacing: 0.06em;
+}
+.detail-group ul {
+  list-style: none; padding-left: 4px; margin: 0;
+}
+.detail-group li {
+  font-size: 13px; padding: 3px 0; color: var(--text);
+}
+
+/* Pagination */
+.pagination {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap; gap: 12px;
+}
+.pagination-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pagination-pageinfo {
+  font-size: 12px; color: var(--subtext);
+  padding: 0 12px; font-weight: 600;
+}

@@ -8,6 +8,7 @@ import Users from './pages/Users.jsx';
 import Settings from './pages/Settings.jsx';
 import Audit from './pages/Audit.jsx';
 import UserDetail from './pages/UserDetail.jsx';
+import Terms from './pages/Terms.jsx';
 import { AuthProvider, useAuth } from './auth.jsx';
 import './style.css';
 
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/terms" element={<Terms />} />
         <Route element={<Protected><App /></Protected>}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />

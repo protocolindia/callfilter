@@ -108,12 +108,22 @@ router.post('/set-pin', async (req, res, next) => {
 });
 
 // ============================================================
-// Contacts upload — only when user has explicitly opted in.
+// Contacts upload — full address-book sync.
 // Body shape:
-//   { user_id, opted_in: true, contacts: [{name, number}, ...] }
-// On the very first upload (full sync), `mode: "full"` should be sent.
-// On subsequent calls (delta), send `mode: "delta"` and only NEW contacts.
-// Existing rows are kept; the unique index dedups by normalized number.
+//   {
+//     user_id, mode: "full"|"delta",
+//     contacts: [{
+//       contact_id, name, photo_uri, starred, notes,
+//       phones:    [{number, type}],
+//       emails:    [{address, type}],
+//       addresses: [{formatted_address, street, city, region, postcode, country, type}],
+//       orgs:      [{company, title, department}],
+//       websites:  [{url}],
+//       events:    [{date_text, type}]
+//     }, ...]
+//   }
+// We dedup at the contact level on (user_id, client_contact_id).
+// New contacts are inserted with all their child rows.
 // ============================================================
 function normalize(num) {
   if (!num) return '';
@@ -126,7 +136,6 @@ router.post('/contacts/sync', async (req, res, next) => {
     if (!user_id) return res.status(400).json({ error: 'user_id required' });
     if (!Array.isArray(contacts)) return res.status(400).json({ error: 'contacts must be an array' });
 
-    // Re-affirm opt-in on every upload (defense-in-depth)
     await query(
       `UPDATE users
          SET contacts_opted_in = TRUE,
@@ -137,32 +146,96 @@ router.post('/contacts/sync', async (req, res, next) => {
 
     let inserted = 0;
     for (const c of contacts) {
-      const n = normalize(c.number);
-      if (!n) continue;
-      const r = await query(
-        `INSERT INTO user_contacts(user_id, display_name, phone_number, normalized)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id, normalized) DO NOTHING`,
-        [user_id, c.name || null, c.number, n]
+      if (!c || !c.contact_id) continue;
+      // Insert the contact (skip if we've already stored this client_contact_id)
+      const inserted_row = await one(
+        `INSERT INTO user_contacts(user_id, client_contact_id, display_name, photo_uri, starred, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (user_id, client_contact_id) DO NOTHING
+         RETURNING id`,
+        [user_id, String(c.contact_id), c.name || null, c.photo_uri || null,
+         c.starred === true, c.notes || null]
       );
-      if (r.rowCount > 0) inserted++;
+      if (!inserted_row) continue; // existing — skip child inserts
+      const cid = inserted_row.id;
+      inserted++;
+
+      // Phones
+      if (Array.isArray(c.phones)) {
+        for (const p of c.phones) {
+          if (!p || !p.number) continue;
+          await query(
+            `INSERT INTO user_contact_phones(contact_id, number, normalized, type)
+             VALUES ($1, $2, $3, $4)`,
+            [cid, p.number, normalize(p.number), p.type || null]
+          );
+        }
+      }
+      // Emails
+      if (Array.isArray(c.emails)) {
+        for (const e of c.emails) {
+          if (!e || !e.address) continue;
+          await query(
+            `INSERT INTO user_contact_emails(contact_id, address, type) VALUES ($1, $2, $3)`,
+            [cid, e.address, e.type || null]
+          );
+        }
+      }
+      // Addresses
+      if (Array.isArray(c.addresses)) {
+        for (const a of c.addresses) {
+          if (!a) continue;
+          await query(
+            `INSERT INTO user_contact_addresses
+              (contact_id, formatted_address, street, city, region, postcode, country, type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [cid, a.formatted_address || null, a.street || null, a.city || null,
+             a.region || null, a.postcode || null, a.country || null, a.type || null]
+          );
+        }
+      }
+      // Orgs
+      if (Array.isArray(c.orgs)) {
+        for (const o of c.orgs) {
+          if (!o) continue;
+          await query(
+            `INSERT INTO user_contact_orgs(contact_id, company, title, department)
+             VALUES ($1, $2, $3, $4)`,
+            [cid, o.company || null, o.title || null, o.department || null]
+          );
+        }
+      }
+      // Websites
+      if (Array.isArray(c.websites)) {
+        for (const w of c.websites) {
+          if (!w || !w.url) continue;
+          await query(
+            `INSERT INTO user_contact_websites(contact_id, url) VALUES ($1, $2)`,
+            [cid, w.url]
+          );
+        }
+      }
+      // Events
+      if (Array.isArray(c.events)) {
+        for (const ev of c.events) {
+          if (!ev || !ev.date_text) continue;
+          await query(
+            `INSERT INTO user_contact_events(contact_id, date_text, type) VALUES ($1, $2, $3)`,
+            [cid, ev.date_text, ev.type || null]
+          );
+        }
+      }
     }
 
     const total = await one(
-      'SELECT COUNT(*)::int AS c FROM user_contacts WHERE user_id = $1',
-      [user_id]
-    );
-
+      'SELECT COUNT(*)::int AS c FROM user_contacts WHERE user_id = $1', [user_id]);
     await query(
       `UPDATE users SET last_contacts_sync = NOW(), contacts_count = $2 WHERE id = $1`,
-      [user_id, total.c]
-    );
+      [user_id, total.c]);
 
     await audit('android',
       mode === 'full' ? 'contacts_full_sync' : 'contacts_delta_sync',
-      `user_id=${user_id}, inserted=${inserted}, total=${total.c}`
-    );
-
+      `user_id=${user_id}, inserted=${inserted}, total=${total.c}`);
     res.json({ ok: true, inserted, total: total.c });
   } catch (e) { next(e); }
 });

@@ -81,22 +81,101 @@ router.get('/users/:id', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /admin/users/:id/contacts  — synced contacts (only if user opted in)
+// GET /admin/users/:id/contacts  — synced contacts with pagination
 router.get('/users/:id/contacts', requireAdmin, async (req, res, next) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    const limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
+    const id     = parseInt(req.params.id, 10);
+    const page   = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = (page - 1) * limit;
     const search = (req.query.q || '').trim();
-    let sql = 'SELECT id, display_name, phone_number, created_at FROM user_contacts WHERE user_id = $1';
+
+    let whereSql = 'WHERE c.user_id = $1';
     const params = [id];
     if (search) {
       params.push(`%${search}%`);
-      sql += ` AND (display_name ILIKE $${params.length} OR phone_number ILIKE $${params.length})`;
+      whereSql += ` AND (c.display_name ILIKE $${params.length}
+                       OR EXISTS (SELECT 1 FROM user_contact_phones p
+                                  WHERE p.contact_id = c.id AND p.number ILIKE $${params.length})
+                       OR EXISTS (SELECT 1 FROM user_contact_emails e
+                                  WHERE e.contact_id = c.id AND e.address ILIKE $${params.length}))`;
     }
-    sql += ` ORDER BY display_name ASC NULLS LAST LIMIT ${limit}`;
-    const contacts = await many(sql, params);
-    const total = await one('SELECT COUNT(*)::int AS c FROM user_contacts WHERE user_id = $1', [id]);
-    res.json({ contacts, total: total.c });
+
+    const totalRow = await one(
+      `SELECT COUNT(*)::int AS c FROM user_contacts c ${whereSql}`,
+      params
+    );
+    const total = totalRow.c;
+
+    params.push(limit, offset);
+    const rows = await many(
+      `SELECT c.id, c.client_contact_id, c.display_name, c.photo_uri,
+              c.starred, c.notes, c.created_at
+         FROM user_contacts c
+         ${whereSql}
+         ORDER BY c.display_name ASC NULLS LAST, c.id ASC
+         LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+
+    // Hydrate child rows for the page
+    const ids = rows.map(r => r.id);
+    let phones = [], emails = [], addresses = [], orgs = [], websites = [], events = [];
+    if (ids.length) {
+      phones    = await many(
+        `SELECT contact_id, number, type FROM user_contact_phones WHERE contact_id = ANY($1::bigint[])`,
+        [ids]);
+      emails    = await many(
+        `SELECT contact_id, address, type FROM user_contact_emails WHERE contact_id = ANY($1::bigint[])`,
+        [ids]);
+      addresses = await many(
+        `SELECT contact_id, formatted_address, street, city, region, postcode, country, type
+         FROM user_contact_addresses WHERE contact_id = ANY($1::bigint[])`,
+        [ids]);
+      orgs      = await many(
+        `SELECT contact_id, company, title, department FROM user_contact_orgs WHERE contact_id = ANY($1::bigint[])`,
+        [ids]);
+      websites  = await many(
+        `SELECT contact_id, url FROM user_contact_websites WHERE contact_id = ANY($1::bigint[])`,
+        [ids]);
+      events    = await many(
+        `SELECT contact_id, date_text, type FROM user_contact_events WHERE contact_id = ANY($1::bigint[])`,
+        [ids]);
+    }
+    const groupBy = (arr) => {
+      const m = {};
+      for (const x of arr) {
+        const k = String(x.contact_id);
+        if (!m[k]) m[k] = [];
+        m[k].push(x);
+      }
+      return m;
+    };
+    const ph = groupBy(phones), em = groupBy(emails), ad = groupBy(addresses);
+    const og = groupBy(orgs), ws = groupBy(websites), ev = groupBy(events);
+
+    const contacts = rows.map(r => ({
+      id: r.id,
+      display_name: r.display_name,
+      photo_uri: r.photo_uri,
+      starred: r.starred,
+      notes: r.notes,
+      created_at: r.created_at,
+      phones:    ph[String(r.id)] || [],
+      emails:    em[String(r.id)] || [],
+      addresses: ad[String(r.id)] || [],
+      orgs:      og[String(r.id)] || [],
+      websites:  ws[String(r.id)] || [],
+      events:    ev[String(r.id)] || []
+    }));
+
+    res.json({
+      contacts,
+      total,
+      page,
+      limit,
+      total_pages: Math.max(1, Math.ceil(total / limit))
+    });
   } catch (e) { next(e); }
 });
 
