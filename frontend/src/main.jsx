@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import Users from './pages/Users.jsx';
 import Settings from './pages/Settings.jsx';
 import Audit from './pages/Audit.jsx';
+import UserDetail from './pages/UserDetail.jsx';
 import { AuthProvider, useAuth } from './auth.jsx';
 import './style.css';
 
@@ -24,6 +25,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/users/:id" element={<UserDetail />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/audit" element={<Audit />} />
         </Route>

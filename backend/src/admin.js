@@ -70,6 +70,48 @@ router.get('/users', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /admin/users/:id  — full user detail with counts
+router.get('/users/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const u = await one('SELECT * FROM users WHERE id = $1', [id]);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    delete u.pin_hash; // never expose hash to admin UI
+    res.json({ user: u });
+  } catch (e) { next(e); }
+});
+
+// GET /admin/users/:id/contacts  — synced contacts (only if user opted in)
+router.get('/users/:id/contacts', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
+    const search = (req.query.q || '').trim();
+    let sql = 'SELECT id, display_name, phone_number, created_at FROM user_contacts WHERE user_id = $1';
+    const params = [id];
+    if (search) {
+      params.push(`%${search}%`);
+      sql += ` AND (display_name ILIKE $${params.length} OR phone_number ILIKE $${params.length})`;
+    }
+    sql += ` ORDER BY display_name ASC NULLS LAST LIMIT ${limit}`;
+    const contacts = await many(sql, params);
+    const total = await one('SELECT COUNT(*)::int AS c FROM user_contacts WHERE user_id = $1', [id]);
+    res.json({ contacts, total: total.c });
+  } catch (e) { next(e); }
+});
+
+// GET /admin/users/:id/rules  — synced blocking rules
+router.get('/users/:id/rules', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const rules = await many(
+      'SELECT id, rule_type, pattern, action, created_at FROM user_rules WHERE user_id = $1 ORDER BY id',
+      [id]
+    );
+    res.json({ rules });
+  } catch (e) { next(e); }
+});
+
 // DELETE /admin/users/:id
 router.delete('/users/:id', requireAdmin, async (req, res, next) => {
   try {

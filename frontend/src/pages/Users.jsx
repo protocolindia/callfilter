@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 
 export default function Users() {
@@ -78,8 +79,8 @@ export default function Users() {
             <tbody>
               {users.map(u => (
                 <tr key={u.id}>
-                  <td>#{u.id}</td>
-                  <td><strong>{u.dial_code}{u.mobile}</strong></td>
+                  <td><Link to={`/users/${u.id}`}>#{u.id}</Link></td>
+                  <td><Link to={`/users/${u.id}`}><strong>{u.dial_code}{u.mobile}</strong></Link></td>
                   <td>{u.country_iso || '—'}</td>
                   <td><span className={`pill pill-${u.status}`}>{u.status}</span></td>
                   <td>{u.pin_set_at ? '✓' : '—'}</td>

@@ -157,3 +157,16 @@ code {
 .orange { color: var(--orange); }
 .red { color: var(--red); }
 .loading { padding: 40px; text-align: center; color: var(--muted); }
+
+/* User-detail tabs */
+.tab-btn {
+  background: transparent; border: 0; color: var(--subtext);
+  padding: 12px 16px; cursor: pointer; font-size: 13px; font-weight: 600;
+  font-family: inherit; border-bottom: 2px solid transparent;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Make user list rows feel clickable */
+table a { color: inherit; }
+table tr a:hover { color: var(--accent); text-decoration: none; }
