@@ -294,4 +294,32 @@ router.post('/rules/sync', async (req, res, next) => {
 // GET /api/health
 router.get('/health', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
+// POST /api/check-account
+// App calls this on every launch to verify the user_id it has cached
+// still exists on the server. If the admin has deleted the user, this
+// returns 404 and the app wipes local state.
+//
+// Body: { user_id, dial_code, mobile }
+// Response: { exists: true, user_id } or 404 { error }
+router.post('/check-account', async (req, res, next) => {
+  try {
+    const { user_id, dial_code, mobile } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+
+    const u = await one('SELECT id, dial_code, mobile, status, pin_set_at FROM users WHERE id = $1',
+                        [user_id]);
+    if (!u) return res.status(404).json({ error: 'User not found', exists: false });
+
+    // Also flag if the dial_code/mobile have changed (user re-registered with same id, unusual)
+    const numberMatches = u.dial_code === dial_code && u.mobile === mobile;
+    res.json({
+      exists: true,
+      user_id: u.id,
+      number_matches: numberMatches,
+      status: u.status,
+      pin_set: !!u.pin_set_at
+    });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;
