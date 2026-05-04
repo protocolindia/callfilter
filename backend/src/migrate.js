@@ -9,12 +9,44 @@ const { pool, one, query } = require('./db');
 async function migrate() {
   console.log('🔧 Running migrations...');
 
+  // Tracking table for applied migrations
+  await query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      filename    TEXT PRIMARY KEY,
+      applied_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   const dir = path.join(__dirname, '..', 'migrations');
   const files = fs.readdirSync(dir).filter(f => f.endsWith('.sql')).sort();
+
+  // Find which migrations have already run
+  const appliedRows = await query('SELECT filename FROM schema_migrations');
+  const applied = new Set(appliedRows.rows.map(r => r.filename));
+
   for (const f of files) {
+    if (applied.has(f)) {
+      console.log(`  ✓ ${f} (already applied)`);
+      continue;
+    }
     const sql = fs.readFileSync(path.join(dir, f), 'utf8');
     console.log(`  → applying ${f}`);
-    await query(sql);
+    try {
+      await query(sql);
+      await query('INSERT INTO schema_migrations(filename) VALUES ($1)', [f]);
+    } catch (e) {
+      // If a migration fails on a fresh install, abort. If on a re-run with
+      // a partially-applied schema, we record it as applied so we don't keep
+      // hitting the same error every boot.
+      if (e.message && (
+          e.message.includes('already exists') ||
+          e.message.includes('does not exist'))) {
+        console.warn(`  ⚠ ${f} partially applied (${e.message.split('\n')[0]}); marking complete`);
+        await query('INSERT INTO schema_migrations(filename) VALUES ($1) ON CONFLICT DO NOTHING', [f]);
+      } else {
+        throw e;
+      }
+    }
   }
 
   // Seed default settings

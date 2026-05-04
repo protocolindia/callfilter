@@ -41,7 +41,8 @@ router.get('/stats', requireAdmin, async (req, res, next) => {
       pending_users:  (await one("SELECT COUNT(*)::int AS c FROM users WHERE status='pending'")).c,
       pin_set_users:  (await one('SELECT COUNT(*)::int AS c FROM users WHERE pin_set_at IS NOT NULL')).c,
       total_otps:     (await one('SELECT COUNT(*)::int AS c FROM otps')).c,
-      used_otps:      (await one('SELECT COUNT(*)::int AS c FROM otps WHERE consumed_at IS NOT NULL')).c
+      used_otps:      (await one('SELECT COUNT(*)::int AS c FROM otps WHERE consumed_at IS NOT NULL')).c,
+      blocked_calls_total: (await one('SELECT COUNT(*)::int AS c FROM blocked_calls')).c
     };
     const recent_users  = await many('SELECT * FROM users ORDER BY id DESC LIMIT 10');
     const recent_log    = await many('SELECT * FROM audit_log ORDER BY id DESC LIMIT 15');
@@ -188,6 +189,44 @@ router.get('/users/:id/rules', requireAdmin, async (req, res, next) => {
       [id]
     );
     res.json({ rules });
+  } catch (e) { next(e); }
+});
+
+// GET /admin/users/:id/blocked-calls — paginated blocked-call log
+router.get('/users/:id/blocked-calls', requireAdmin, async (req, res, next) => {
+  try {
+    const id     = parseInt(req.params.id, 10);
+    const page   = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = (page - 1) * limit;
+    const search = (req.query.q || '').trim();
+
+    let whereSql = 'WHERE user_id = $1';
+    const params = [id];
+    if (search) {
+      params.push(`%${search}%`);
+      whereSql += ` AND (number ILIKE $${params.length}
+                       OR rule_pattern ILIKE $${params.length})`;
+    }
+
+    const totalRow = await one(
+      `SELECT COUNT(*)::int AS c FROM blocked_calls ${whereSql}`, params);
+    const total = totalRow.c;
+
+    params.push(limit, offset);
+    const calls = await many(
+      `SELECT id, number, rule_type, rule_pattern, rule_action,
+              blocked_at_ms, blocked_at
+         FROM blocked_calls
+         ${whereSql}
+         ORDER BY blocked_at DESC
+         LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params);
+
+    res.json({
+      calls, total, page, limit,
+      total_pages: Math.max(1, Math.ceil(total / limit))
+    });
   } catch (e) { next(e); }
 });
 

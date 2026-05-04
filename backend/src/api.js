@@ -291,6 +291,46 @@ router.post('/rules/sync', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ============================================================
+// Blocked-calls sync — append-only.
+// Body: { user_id, calls: [{client_id, number, rule_type, rule_pattern,
+//                           rule_action, blocked_at_ms}, ...] }
+// We dedup by (user_id, client_id) so re-uploads are idempotent.
+// ============================================================
+router.post('/blocked-calls/sync', async (req, res, next) => {
+  try {
+    const { user_id, calls } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    if (!Array.isArray(calls)) return res.status(400).json({ error: 'calls must be an array' });
+
+    let inserted = 0;
+    for (const c of calls) {
+      if (!c || !c.client_id || !c.blocked_at_ms) continue;
+      const r = await query(
+        `INSERT INTO blocked_calls
+           (user_id, client_id, number, rule_type, rule_pattern, rule_action,
+            blocked_at_ms, blocked_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::bigint, to_timestamp($7::bigint / 1000.0))
+         ON CONFLICT (user_id, client_id) DO NOTHING`,
+        [user_id, String(c.client_id), c.number || null,
+         c.rule_type || null, c.rule_pattern || null, c.rule_action || null,
+         Number(c.blocked_at_ms)]
+      );
+      if (r.rowCount > 0) inserted++;
+    }
+
+    const total = await one(
+      `SELECT COUNT(*)::int AS c FROM blocked_calls WHERE user_id = $1`, [user_id]);
+    await query(
+      `UPDATE users SET blocked_calls_count = $2 WHERE id = $1`,
+      [user_id, total.c]);
+
+    await audit('android', 'blocked_calls_sync',
+      `user_id=${user_id}, inserted=${inserted}, total=${total.c}`);
+    res.json({ ok: true, inserted, total: total.c });
+  } catch (e) { next(e); }
+});
+
 // GET /api/health
 router.get('/health', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 

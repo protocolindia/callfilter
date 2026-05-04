@@ -18,6 +18,15 @@ export default function UserDetail() {
   const [contactsLoading, setContactsLoading] = useState(false);
 
   const [rules, setRules] = useState([]);
+
+  // Blocked calls state
+  const [calls, setCalls] = useState([]);
+  const [callsTotal, setCallsTotal] = useState(0);
+  const [callsPage, setCallsPage] = useState(1);
+  const [callsTotalPages, setCallsTotalPages] = useState(1);
+  const [callsSearch, setCallsSearch] = useState('');
+  const [callsLoading, setCallsLoading] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState({}); // contactId → bool
@@ -39,6 +48,28 @@ export default function UserDetail() {
     loadContacts();
     // eslint-disable-next-line
   }, [tab, page, search]);
+
+  // Load blocked calls when tab=blocked
+  useEffect(() => {
+    if (tab !== 'blocked') return;
+    loadBlockedCalls();
+    // eslint-disable-next-line
+  }, [tab, callsPage, callsSearch]);
+
+  async function loadBlockedCalls() {
+    setCallsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', callsPage);
+      params.set('limit', PAGE_SIZE);
+      if (callsSearch) params.set('q', callsSearch);
+      const r = await api.get(`/admin/users/${id}/blocked-calls?${params}`);
+      setCalls(r.calls);
+      setCallsTotal(r.total);
+      setCallsTotalPages(r.total_pages || 1);
+    } catch (e) { setError(e.message); }
+    finally { setCallsLoading(false); }
+  }
 
   async function loadContacts() {
     setContactsLoading(true);
@@ -81,6 +112,9 @@ export default function UserDetail() {
         </button>
         <button className={`tab-btn ${tab === 'rules' ? 'tab-active' : ''}`} onClick={() => setTab('rules')}>
           🛡️ Rules ({rules.length})
+        </button>
+        <button className={`tab-btn ${tab === 'blocked' ? 'tab-active' : ''}`} onClick={() => setTab('blocked')}>
+          🚫 Blocked Calls ({user.blocked_calls_count || 0})
         </button>
       </div>
 
@@ -146,6 +180,56 @@ export default function UserDetail() {
           )}
         </section>
       )}
+
+      {tab === 'blocked' && (
+        <section className="card">
+          <input
+            type="text"
+            placeholder="🔍 Search by number or pattern…"
+            value={callsSearch}
+            onChange={e => { setCallsSearch(e.target.value); setCallsPage(1); }}
+            style={{ marginBottom: 14 }}
+          />
+
+          {callsLoading ? <p className="muted">Loading…</p>
+           : calls.length === 0 ? <p className="muted">No blocked calls yet.</p>
+           : (
+            <>
+              <table>
+                <thead>
+                  <tr>
+                    <th>When</th><th>Number</th><th>Matched rule</th><th>Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calls.map(c => (
+                    <tr key={c.id}>
+                      <td className="muted">{fmt(c.blocked_at)}</td>
+                      <td><code>{c.number || '—'}</code></td>
+                      <td>
+                        {c.rule_pattern
+                          ? <code>{c.rule_pattern.includes('~')
+                              ? c.rule_pattern.replace('~', ' → ')
+                              : c.rule_pattern}</code>
+                          : <span className="muted">—</span>}
+                      </td>
+                      <td><span className="pill">{c.rule_type || '—'}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <Pagination
+                page={callsPage}
+                totalPages={callsTotalPages}
+                total={callsTotal}
+                pageSize={calls.length}
+                onPage={setCallsPage}
+              />
+            </>
+          )}
+        </section>
+      )}
     </>
   );
 }
@@ -177,6 +261,7 @@ function InfoTab({ user }) {
           <Row label="Last contacts sync"  value={fmt(user.last_contacts_sync)} />
           <Row label="Rules synced"        value={`${user.rules_count || 0} rules`} />
           <Row label="Last rules sync"     value={fmt(user.last_rules_sync)} />
+          <Row label="Blocked calls"       value={`${user.blocked_calls_count || 0} calls`} />
         </tbody>
       </table>
     </section>

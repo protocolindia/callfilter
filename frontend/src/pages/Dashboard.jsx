@@ -43,6 +43,7 @@ export default function Dashboard() {
         <Stat n={stats.pin_set_users}  label="PIN Set"    color="blue"/>
         <Stat n={stats.total_otps}     label="OTPs Sent"/>
         <Stat n={stats.used_otps}      label="OTPs Used"  color="green"/>
+        <Stat n={stats.blocked_calls_total || 0} label="Calls Blocked" color="red"/>
       </div>
 
       <div className="grid-2">
