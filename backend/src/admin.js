@@ -314,4 +314,228 @@ router.get('/audit', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ============================================================
+// BILLING — admin endpoints
+// ============================================================
+
+// --- Plans ---
+router.get('/plans', requireAdmin, async (req, res, next) => {
+  try {
+    const plans = await many('SELECT * FROM plans ORDER BY id');
+    res.json({ plans });
+  } catch (e) { next(e); }
+});
+
+router.post('/plans', requireAdmin, async (req, res, next) => {
+  try {
+    const { name, duration_days, actual_price, offer_price, currency } = req.body || {};
+    if (!name || !duration_days || actual_price == null || offer_price == null) {
+      return res.status(400).json({ error: 'name, duration_days, actual_price, offer_price required' });
+    }
+    const r = await one(
+      `INSERT INTO plans(name, duration_days, actual_price, offer_price, currency)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name, duration_days, actual_price, offer_price, currency || 'INR']
+    );
+    await audit(req.admin.username, 'plan_created', `id=${r.id}, name=${name}`);
+    res.json({ plan: r });
+  } catch (e) { next(e); }
+});
+
+router.put('/plans/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { name, duration_days, actual_price, offer_price, currency, is_active } = req.body || {};
+    const r = await one(
+      `UPDATE plans
+          SET name = COALESCE($2, name),
+              duration_days = COALESCE($3, duration_days),
+              actual_price = COALESCE($4, actual_price),
+              offer_price = COALESCE($5, offer_price),
+              currency = COALESCE($6, currency),
+              is_active = COALESCE($7, is_active),
+              updated_at = NOW()
+        WHERE id = $1 RETURNING *`,
+      [id, name, duration_days, actual_price, offer_price, currency, is_active]
+    );
+    if (!r) return res.status(404).json({ error: 'Plan not found' });
+    await audit(req.admin.username, 'plan_updated', `id=${id}`);
+    res.json({ plan: r });
+  } catch (e) { next(e); }
+});
+
+router.delete('/plans/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await query(`UPDATE plans SET is_active = FALSE WHERE id = $1`, [id]);
+    await audit(req.admin.username, 'plan_deactivated', `id=${id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// --- Coupons ---
+router.get('/coupons', requireAdmin, async (req, res, next) => {
+  try {
+    const coupons = await many('SELECT * FROM coupons ORDER BY id DESC');
+    res.json({ coupons });
+  } catch (e) { next(e); }
+});
+
+router.post('/coupons', requireAdmin, async (req, res, next) => {
+  try {
+    const { code, discount_type, discount_value, valid_until, max_uses } = req.body || {};
+    if (!code || !discount_type || discount_value == null || !valid_until) {
+      return res.status(400).json({ error: 'code, discount_type, discount_value, valid_until required' });
+    }
+    if (!['percent', 'flat'].includes(discount_type)) {
+      return res.status(400).json({ error: 'discount_type must be percent or flat' });
+    }
+    const r = await one(
+      `INSERT INTO coupons(code, discount_type, discount_value, valid_until, max_uses)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [code.toUpperCase(), discount_type, discount_value, valid_until, max_uses || null]
+    );
+    await audit(req.admin.username, 'coupon_created', `code=${code}`);
+    res.json({ coupon: r });
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'Coupon code already exists' });
+    next(e);
+  }
+});
+
+router.put('/coupons/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { discount_type, discount_value, valid_until, max_uses, is_active } = req.body || {};
+    const r = await one(
+      `UPDATE coupons
+          SET discount_type  = COALESCE($2, discount_type),
+              discount_value = COALESCE($3, discount_value),
+              valid_until    = COALESCE($4, valid_until),
+              max_uses       = COALESCE($5, max_uses),
+              is_active      = COALESCE($6, is_active)
+        WHERE id = $1 RETURNING *`,
+      [id, discount_type, discount_value, valid_until, max_uses, is_active]
+    );
+    if (!r) return res.status(404).json({ error: 'Coupon not found' });
+    await audit(req.admin.username, 'coupon_updated', `id=${id}`);
+    res.json({ coupon: r });
+  } catch (e) { next(e); }
+});
+
+router.delete('/coupons/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await query(`UPDATE coupons SET is_active = FALSE WHERE id = $1`, [id]);
+    await audit(req.admin.username, 'coupon_deactivated', `id=${id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// --- Subscriptions overview ---
+router.get('/subscriptions', requireAdmin, async (req, res, next) => {
+  try {
+    const page   = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = (page - 1) * limit;
+    const filter = (req.query.status || '').trim();
+
+    let where = '';
+    const params = [];
+    if (filter) {
+      where = ' WHERE s.status = $1';
+      params.push(filter);
+    }
+
+    const total = (await one(
+      `SELECT COUNT(*)::int AS c FROM subscriptions s ${where}`, params)).c;
+
+    params.push(limit, offset);
+    const rows = await many(
+      `SELECT s.id, s.user_id, s.status, s.is_trial, s.starts_at, s.expires_at,
+              s.amount_paid, p.name AS plan_name,
+              u.dial_code, u.mobile
+         FROM subscriptions s
+         LEFT JOIN users u ON u.id = s.user_id
+         LEFT JOIN plans p ON p.id = s.plan_id
+         ${where}
+         ORDER BY s.expires_at DESC
+         LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params);
+
+    res.json({
+      subscriptions: rows, total, page, limit,
+      total_pages: Math.max(1, Math.ceil(total / limit))
+    });
+  } catch (e) { next(e); }
+});
+
+// Get a specific user's subscription history
+router.get('/users/:id/subscriptions', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const subs = await many(
+      `SELECT s.*, p.name AS plan_name, p.duration_days, c.code AS coupon_code
+         FROM subscriptions s
+         LEFT JOIN plans   p ON p.id = s.plan_id
+         LEFT JOIN coupons c ON c.id = s.coupon_id
+        WHERE s.user_id = $1
+        ORDER BY s.id DESC`, [id]);
+    res.json({ subscriptions: subs });
+  } catch (e) { next(e); }
+});
+
+// Manually grant a subscription / extend trial for a specific user
+router.post('/users/:id/subscriptions', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { plan_id, days, is_trial } = req.body || {};
+    let durationDays;
+    if (plan_id) {
+      const plan = await one('SELECT * FROM plans WHERE id = $1', [plan_id]);
+      if (!plan) return res.status(404).json({ error: 'Plan not found' });
+      durationDays = plan.duration_days;
+    } else if (days) {
+      durationDays = parseInt(days, 10);
+    } else {
+      return res.status(400).json({ error: 'plan_id or days required' });
+    }
+    const r = await one(
+      `INSERT INTO subscriptions(user_id, plan_id, status, is_trial, expires_at)
+       VALUES ($1, $2, $3, $4, NOW() + ($5 || ' days')::interval) RETURNING *`,
+      [id, plan_id || null, is_trial ? 'trial' : 'active', !!is_trial, String(durationDays)]
+    );
+    await audit(req.admin.username, 'subscription_granted',
+      `user_id=${id}, plan_id=${plan_id}, days=${durationDays}, trial=${!!is_trial}`);
+    res.json({ subscription: r });
+  } catch (e) { next(e); }
+});
+
+// --- Payments overview ---
+router.get('/payments', requireAdmin, async (req, res, next) => {
+  try {
+    const page   = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = (page - 1) * limit;
+
+    const total = (await one('SELECT COUNT(*)::int AS c FROM payments')).c;
+    const rows = await many(
+      `SELECT p.id, p.user_id, p.amount, p.currency, p.status,
+              p.razorpay_order_id, p.razorpay_payment_id,
+              p.created_at,
+              pl.name AS plan_name,
+              u.dial_code, u.mobile
+         FROM payments p
+         LEFT JOIN users u  ON u.id = p.user_id
+         LEFT JOIN plans pl ON pl.id = p.plan_id
+         ORDER BY p.id DESC
+         LIMIT $1 OFFSET $2`,
+      [limit, offset]);
+    res.json({
+      payments: rows, total, page, limit,
+      total_pages: Math.max(1, Math.ceil(total / limit))
+    });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

@@ -235,6 +235,37 @@ export default function UserDetail() {
 }
 
 function InfoTab({ user }) {
+  const [sub, setSub] = useState(null);
+  const [loadingSub, setLoadingSub] = useState(true);
+  const [grant, setGrant] = useState(false);
+  const [plans, setPlans] = useState([]);
+  const [grantPlanId, setGrantPlanId] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get(`/admin/users/${user.id}/subscriptions`);
+        setSub(r.subscriptions[0] || null);
+      } finally { setLoadingSub(false); }
+    })();
+  }, [user.id]);
+
+  useEffect(() => {
+    if (grant) api.get('/admin/plans').then(r => {
+      const active = r.plans.filter(p => p.is_active);
+      setPlans(active);
+      if (active.length) setGrantPlanId(active[0].id);
+    });
+  }, [grant]);
+
+  async function handleGrant() {
+    if (!grantPlanId) return;
+    await api.post(`/admin/users/${user.id}/subscriptions`, { plan_id: parseInt(grantPlanId, 10) });
+    const r = await api.get(`/admin/users/${user.id}/subscriptions`);
+    setSub(r.subscriptions[0]);
+    setGrant(false);
+  }
+
   return (
     <section className="card">
       <h2>Account</h2>
@@ -249,6 +280,51 @@ function InfoTab({ user }) {
           <Row label="Device"        value={user.device_info || '—'} />
         </tbody>
       </table>
+
+      <h2 style={{ marginTop: 24 }}>💳 Subscription</h2>
+      {loadingSub ? <p className="muted">Loading…</p>
+       : !sub ? <p className="muted">No subscription record.</p>
+       : (() => {
+          const expired = new Date(sub.expires_at) < new Date();
+          return (
+            <table>
+              <tbody>
+                <Row label="Plan"     value={sub.plan_name || (sub.is_trial ? 'Trial (no plan)' : '—')} />
+                <Row label="Status"   value={
+                  <span className={`pill pill-${expired ? 'pending' : (sub.is_trial ? 'pending' : 'verified')}`}>
+                    {expired ? 'expired' : sub.status}
+                  </span>
+                } />
+                <Row label="Started"  value={fmt(sub.starts_at)} />
+                <Row label="Expires"  value={fmt(sub.expires_at)} />
+                <Row label="Trial?"   value={sub.is_trial ? 'Yes' : 'No'} />
+                <Row label="Paid"     value={sub.amount_paid != null ? `₹${(sub.amount_paid / 100).toFixed(2)}` : '—'} />
+                {sub.coupon_code && <Row label="Coupon" value={<code>{sub.coupon_code}</code>} />}
+              </tbody>
+            </table>
+          );
+        })()}
+
+      {!grant ? (
+        <button className="btn btn-secondary" onClick={() => setGrant(true)} style={{ marginTop: 12 }}>
+          Grant subscription
+        </button>
+      ) : (
+        <div style={{ marginTop: 12, padding: 14, background: 'var(--surface)', borderRadius: 8 }}>
+          <label>Plan</label>
+          <select value={grantPlanId} onChange={e => setGrantPlanId(e.target.value)}>
+            {plans.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {p.duration_days} days — ₹{(p.offer_price / 100).toFixed(2)}
+              </option>
+            ))}
+          </select>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary" onClick={handleGrant}>Grant</button>
+            <button className="btn btn-ghost" onClick={() => setGrant(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <h2 style={{ marginTop: 24 }}>Sync status</h2>
       <table>

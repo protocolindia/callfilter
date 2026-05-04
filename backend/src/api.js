@@ -46,6 +46,17 @@ router.post('/signup', async (req, res, next) => {
         [mobile, dial_code, country_iso || '', device_info || '']
       );
       await audit('android', 'user_created', `${dial_code}${mobile}`);
+
+      // Grant a free trial. Trial duration is configurable via settings.trial_days.
+      const trialDays = parseInt((await getSetting('trial_days')) || '7', 10);
+      if (trialDays > 0) {
+        await query(
+          `INSERT INTO subscriptions(user_id, status, is_trial, expires_at)
+           VALUES ($1, 'trial', TRUE, NOW() + ($2 || ' days')::interval)`,
+          [user.id, String(trialDays)]
+        );
+        await audit('system', 'trial_granted', `user_id=${user.id}, days=${trialDays}`);
+      }
     }
 
     const code = await genOtp();
@@ -334,6 +345,107 @@ router.post('/blocked-calls/sync', async (req, res, next) => {
 // GET /api/health
 router.get('/health', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
+// ============================================================
+// BILLING — public endpoints called from the Android app
+// ============================================================
+
+// GET /api/subscription/:user_id  — current subscription status
+router.get('/subscription/:user_id', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.user_id, 10);
+    if (!userId) return res.status(400).json({ error: 'user_id required' });
+
+    // Get the user's most recent / active subscription
+    const sub = await one(
+      `SELECT s.id, s.status, s.is_trial, s.starts_at, s.expires_at, s.amount_paid,
+              p.id AS plan_id, p.name AS plan_name, p.duration_days,
+              p.actual_price, p.offer_price, p.currency
+         FROM subscriptions s
+         LEFT JOIN plans p ON p.id = s.plan_id
+        WHERE s.user_id = $1
+        ORDER BY s.expires_at DESC
+        LIMIT 1`,
+      [userId]
+    );
+
+    const now = new Date();
+    let active = false;
+    let secondsRemaining = 0;
+    if (sub) {
+      const expires = new Date(sub.expires_at);
+      active = expires > now && (sub.status === 'trial' || sub.status === 'active');
+      secondsRemaining = Math.max(0, Math.floor((expires - now) / 1000));
+
+      // Auto-flip status to "expired" if it's past expiry but still marked active/trial
+      if (!active && sub.status !== 'expired' && sub.status !== 'cancelled') {
+        await query(`UPDATE subscriptions SET status = 'expired' WHERE id = $1`, [sub.id]);
+        sub.status = 'expired';
+      }
+    }
+
+    res.json({
+      ok: true,
+      has_subscription: !!sub,
+      active,
+      seconds_remaining: secondsRemaining,
+      subscription: sub
+    });
+  } catch (e) { next(e); }
+});
+
+// GET /api/plans — all active plans (the app shows these on the paywall)
+router.get('/plans', async (req, res, next) => {
+  try {
+    const plans = await many(
+      `SELECT id, name, duration_days, actual_price, offer_price, currency
+         FROM plans WHERE is_active = TRUE ORDER BY duration_days`
+    );
+    res.json({ plans });
+  } catch (e) { next(e); }
+});
+
+// POST /api/coupons/validate  — { code, plan_id }
+// Returns whether the coupon is currently valid and the resulting price
+router.post('/coupons/validate', async (req, res, next) => {
+  try {
+    const { code, plan_id } = req.body || {};
+    if (!code || !plan_id) return res.status(400).json({ error: 'code and plan_id required' });
+
+    const coupon = await one(
+      `SELECT * FROM coupons WHERE LOWER(code) = LOWER($1)`, [code]);
+    if (!coupon)              return res.json({ valid: false, reason: 'Coupon not found' });
+    if (!coupon.is_active)    return res.json({ valid: false, reason: 'Coupon inactive' });
+    const now = new Date();
+    if (new Date(coupon.valid_until) < now)
+      return res.json({ valid: false, reason: 'Coupon expired' });
+    if (new Date(coupon.valid_from) > now)
+      return res.json({ valid: false, reason: 'Coupon not yet valid' });
+    if (coupon.max_uses && coupon.uses_count >= coupon.max_uses)
+      return res.json({ valid: false, reason: 'Coupon usage limit reached' });
+
+    const plan = await one(`SELECT * FROM plans WHERE id = $1`, [plan_id]);
+    if (!plan) return res.json({ valid: false, reason: 'Plan not found' });
+
+    const base = plan.offer_price;
+    let discount = 0;
+    if (coupon.discount_type === 'percent') {
+      discount = Math.floor((base * coupon.discount_value) / 100);
+    } else {
+      discount = coupon.discount_value;
+    }
+    const finalPrice = Math.max(0, base - discount);
+
+    res.json({
+      valid: true,
+      coupon_id: coupon.id,
+      base_price: base,
+      discount,
+      final_price: finalPrice,
+      currency: plan.currency
+    });
+  } catch (e) { next(e); }
+});
+
 // POST /api/check-account
 // App calls this on every launch to verify the user_id it has cached
 // still exists on the server. If the admin has deleted the user, this
@@ -350,14 +462,45 @@ router.post('/check-account', async (req, res, next) => {
                         [user_id]);
     if (!u) return res.status(404).json({ error: 'User not found', exists: false });
 
-    // Also flag if the dial_code/mobile have changed (user re-registered with same id, unusual)
     const numberMatches = u.dial_code === dial_code && u.mobile === mobile;
+
+    // Latest subscription
+    const sub = await one(
+      `SELECT s.id, s.status, s.is_trial, s.expires_at,
+              p.name AS plan_name, p.duration_days
+         FROM subscriptions s
+         LEFT JOIN plans p ON p.id = s.plan_id
+        WHERE s.user_id = $1
+        ORDER BY s.expires_at DESC
+        LIMIT 1`,
+      [user_id]
+    );
+    const now = new Date();
+    let subActive = false;
+    let secondsRemaining = 0;
+    if (sub) {
+      const expires = new Date(sub.expires_at);
+      subActive = expires > now && (sub.status === 'trial' || sub.status === 'active');
+      secondsRemaining = Math.max(0, Math.floor((expires - now) / 1000));
+      if (!subActive && sub.status !== 'expired' && sub.status !== 'cancelled') {
+        await query(`UPDATE subscriptions SET status = 'expired' WHERE id = $1`, [sub.id]);
+      }
+    }
+
     res.json({
       exists: true,
       user_id: u.id,
       number_matches: numberMatches,
       status: u.status,
-      pin_set: !!u.pin_set_at
+      pin_set: !!u.pin_set_at,
+      subscription: sub ? {
+        active: subActive,
+        is_trial: sub.is_trial,
+        status: subActive ? sub.status : 'expired',
+        expires_at: sub.expires_at,
+        seconds_remaining: secondsRemaining,
+        plan_name: sub.plan_name
+      } : null
     });
   } catch (e) { next(e); }
 });

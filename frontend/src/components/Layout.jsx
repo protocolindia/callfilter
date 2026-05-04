@@ -26,6 +26,7 @@ export default function Layout({ children }) {
         <nav>
           <NavLink to="/dashboard" className={linkClass}>📊 Dashboard</NavLink>
           <NavLink to="/users" className={linkClass}>👥 Users</NavLink>
+          <NavLink to="/billing" className={linkClass}>💳 Billing</NavLink>
           <NavLink to="/settings" className={linkClass}>⚙️ Settings</NavLink>
           <NavLink to="/audit" className={linkClass}>📋 Audit Log</NavLink>
         </nav>
