@@ -382,6 +382,57 @@ router.post('/blocked-calls/sync', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ============================================================
+// Google Play Billing — purchase verification
+// Body: { user_id, product_id, purchase_token }
+//
+// In production this should call Google Play Developer API:
+//   GET https://androidpublisher.googleapis.com/androidpublisher/v3/applications
+//        /{packageName}/purchases/subscriptionsv2/tokens/{token}
+// using a service account JWT. For now we accept the purchase token, log it,
+// and create the subscription record. Add the Google API verification before
+// going live with paid users.
+// ============================================================
+router.post('/billing/google-play/verify', async (req, res, next) => {
+  try {
+    const { user_id, product_id, purchase_token } = req.body || {};
+    if (!user_id || !product_id || !purchase_token) {
+      return res.status(400).json({ error: 'user_id, product_id, purchase_token required' });
+    }
+
+    // TODO: call Google's API to verify purchase_token is real and active.
+    // For v23 we trust the client and log the token. The TODO is captured in
+    // store-listing/PRODUCTION_CHECKLIST.md.
+
+    // Map Play product IDs to a duration. In a fuller version this map lives
+    // in a `play_products` table.
+    const durationDaysByProduct = {
+      'callfilter_monthly': 30,
+      'callfilter_yearly':  365
+    };
+    const durationDays = durationDaysByProduct[product_id] || 30;
+
+    // Insert subscription
+    const sub = await one(
+      `INSERT INTO subscriptions(user_id, status, is_trial, expires_at, payment_id)
+       VALUES ($1, 'active', FALSE, NOW() + ($2 || ' days')::interval, $3) RETURNING *`,
+      [user_id, String(durationDays), purchase_token]
+    );
+
+    // Log payment
+    await query(
+      `INSERT INTO payments(user_id, amount, currency, status, raw_payload)
+       VALUES ($1, 0, 'INR', 'paid', $2)`,
+      [user_id, JSON.stringify({ source: 'google_play', product_id, purchase_token })]
+    );
+
+    await audit('android', 'play_billing_purchase',
+      `user_id=${user_id}, product=${product_id}`);
+
+    res.json({ ok: true, subscription: sub });
+  } catch (e) { next(e); }
+});
+
 // GET /api/health
 router.get('/health', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
