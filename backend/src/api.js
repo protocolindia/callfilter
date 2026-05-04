@@ -100,7 +100,15 @@ router.post('/verify-otp', async (req, res, next) => {
       [user_id]
     );
     await audit('android', 'otp_verified', `user_id=${user_id}`);
-    res.json({ ok: true });
+
+    // Tell the client whether this user already has a PIN (returning user re-install)
+    // so the app can route to LoginActivity instead of SetPinActivity.
+    const u = await one('SELECT pin_set_at, pin_hash FROM users WHERE id = $1', [user_id]);
+    res.json({
+      ok: true,
+      pin_set: !!(u && u.pin_set_at),
+      pin_hash: u && u.pin_hash ? u.pin_hash : null
+    });
   } catch (e) { next(e); }
 });
 
@@ -302,6 +310,38 @@ router.post('/rules/sync', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/rules/list?user_id=N — pull this user's rules down (used after reinstall)
+router.get('/rules/list', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.query.user_id, 10);
+    if (!userId) return res.status(400).json({ error: 'user_id required' });
+    const rules = await many(
+      `SELECT id, rule_type, pattern, action, client_id
+         FROM user_rules WHERE user_id = $1 ORDER BY id`,
+      [userId]
+    );
+    res.json({ ok: true, rules });
+  } catch (e) { next(e); }
+});
+
+// GET /api/blocked-calls/list?user_id=N&limit=200 — pull blocked-call log
+router.get('/blocked-calls/list', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.query.user_id, 10);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 1000);
+    if (!userId) return res.status(400).json({ error: 'user_id required' });
+    const calls = await many(
+      `SELECT client_id, number, rule_type, rule_pattern, rule_action, blocked_at_ms
+         FROM blocked_calls
+        WHERE user_id = $1
+        ORDER BY blocked_at DESC
+        LIMIT $2`,
+      [userId, limit]
+    );
+    res.json({ ok: true, calls });
+  } catch (e) { next(e); }
+});
+
 // ============================================================
 // Blocked-calls sync — append-only.
 // Body: { user_id, calls: [{client_id, number, rule_type, rule_pattern,
@@ -355,7 +395,9 @@ router.get('/subscription/:user_id', async (req, res, next) => {
     const userId = parseInt(req.params.user_id, 10);
     if (!userId) return res.status(400).json({ error: 'user_id required' });
 
-    // Get the user's most recent / active subscription
+    // Get the user's BEST subscription: prefer one whose expiry hasn't passed yet,
+    // then fall back to the most recent. This way a still-valid 30-day trial isn't
+    // hidden by a later expired row from a different grant.
     const sub = await one(
       `SELECT s.id, s.status, s.is_trial, s.starts_at, s.expires_at, s.amount_paid,
               p.id AS plan_id, p.name AS plan_name, p.duration_days,
@@ -363,7 +405,9 @@ router.get('/subscription/:user_id', async (req, res, next) => {
          FROM subscriptions s
          LEFT JOIN plans p ON p.id = s.plan_id
         WHERE s.user_id = $1
-        ORDER BY s.expires_at DESC
+        ORDER BY
+          CASE WHEN s.expires_at > NOW() AND s.status IN ('trial','active') THEN 0 ELSE 1 END,
+          s.expires_at DESC
         LIMIT 1`,
       [userId]
     );
@@ -376,7 +420,7 @@ router.get('/subscription/:user_id', async (req, res, next) => {
       active = expires > now && (sub.status === 'trial' || sub.status === 'active');
       secondsRemaining = Math.max(0, Math.floor((expires - now) / 1000));
 
-      // Auto-flip status to "expired" if it's past expiry but still marked active/trial
+      // Auto-flip status to "expired" only if this single row is past expiry
       if (!active && sub.status !== 'expired' && sub.status !== 'cancelled') {
         await query(`UPDATE subscriptions SET status = 'expired' WHERE id = $1`, [sub.id]);
         sub.status = 'expired';
@@ -388,7 +432,12 @@ router.get('/subscription/:user_id', async (req, res, next) => {
       has_subscription: !!sub,
       active,
       seconds_remaining: secondsRemaining,
-      subscription: sub
+      subscription: sub ? {
+        ...sub,
+        active,
+        seconds_remaining: secondsRemaining,
+        is_trial: sub.is_trial
+      } : null
     });
   } catch (e) { next(e); }
 });
@@ -464,14 +513,16 @@ router.post('/check-account', async (req, res, next) => {
 
     const numberMatches = u.dial_code === dial_code && u.mobile === mobile;
 
-    // Latest subscription
+    // Best subscription (prefer one that's still valid)
     const sub = await one(
       `SELECT s.id, s.status, s.is_trial, s.expires_at,
               p.name AS plan_name, p.duration_days
          FROM subscriptions s
          LEFT JOIN plans p ON p.id = s.plan_id
         WHERE s.user_id = $1
-        ORDER BY s.expires_at DESC
+        ORDER BY
+          CASE WHEN s.expires_at > NOW() AND s.status IN ('trial','active') THEN 0 ELSE 1 END,
+          s.expires_at DESC
         LIMIT 1`,
       [user_id]
     );
