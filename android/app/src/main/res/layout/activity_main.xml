@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg">
+
+    <!-- Top bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="16dp">
+        <TextView
+            android:id="@+id/topBarUserInfo"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Signed in"
+            android:textSize="12sp"
+            android:textColor="@color/subtext"
+            android:singleLine="true"
+            android:ellipsize="end"/>
+        <ImageButton
+            android:id="@+id/btnTopMenu"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_more"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:tint="@color/text"
+            android:contentDescription="Menu"/>
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="16dp">
+
+            <!-- Stat row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/card_bg"
+                    android:padding="14dp"
+                    android:layout_marginEnd="6dp">
+                    <TextView
+                        android:id="@+id/statAccept"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/accept"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ACCEPT"
+                        android:textSize="10sp"
+                        android:textColor="@color/muted"
+                        android:letterSpacing="0.1"/>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/card_bg"
+                    android:padding="14dp"
+                    android:layout_marginStart="3dp"
+                    android:layout_marginEnd="3dp">
+                    <TextView
+                        android:id="@+id/statReject"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/reject"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="REJECT"
+                        android:textSize="10sp"
+                        android:textColor="@color/muted"
+                        android:letterSpacing="0.1"/>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:background="@drawable/card_bg"
+                    android:padding="14dp"
+                    android:layout_marginStart="6dp">
+                    <TextView
+                        android:id="@+id/statTotal"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/accent"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="TOTAL"
+                        android:textSize="10sp"
+                        android:textColor="@color/muted"
+                        android:letterSpacing="0.1"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Blocked Calls card -->
+            <LinearLayout
+                android:id="@+id/blockedCallsCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginTop="12dp"
+                android:clickable="true"
+                android:focusable="true">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🚫"
+                    android:textSize="28sp"
+                    android:layout_marginEnd="14dp"/>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Calls Blocked"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Tap to view history"
+                        android:textSize="12sp"
+                        android:textColor="@color/subtext"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/blockedCallsCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/reject"
+                    android:layout_marginEnd="8dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="›"
+                    android:textSize="22sp"
+                    android:textColor="@color/subtext"/>
+            </LinearLayout>
+
+            <!-- Contacts Only Mode -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginTop="12dp">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📇"
+                    android:textSize="28sp"
+                    android:layout_marginEnd="14dp"/>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Contacts Only Mode"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Block every caller not in your contacts"
+                        android:textSize="12sp"
+                        android:textColor="@color/subtext"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+                <Switch
+                    android:id="@+id/contactsOnlySwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:thumbTint="@color/text"
+                    android:trackTint="@color/accent"/>
+            </LinearLayout>
+
+            <!-- Schedules tile -->
+            <include layout="@layout/home_schedules_card"/>
+
+            <!-- Add new rule card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="ADD NEW RULE"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/muted"
+                    android:letterSpacing="0.1"/>
+
+                <!-- Type selector row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+                    <Button
+                        android:id="@+id/btnTypePrefix"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:text="PREFIX"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"
+                        android:background="@drawable/btn_type_active"
+                        android:layout_marginEnd="4dp"/>
+                    <Button
+                        android:id="@+id/btnTypeBetween"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:text="BETWEEN"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"
+                        android:background="@drawable/btn_type_inactive"
+                        android:layout_marginStart="2dp"
+                        android:layout_marginEnd="2dp"/>
+                    <Button
+                        android:id="@+id/btnTypeSuffix"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:text="SUFFIX"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"
+                        android:background="@drawable/btn_type_inactive"
+                        android:layout_marginStart="4dp"/>
+                </LinearLayout>
+
+                <!-- Country + pattern row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+                    <Spinner
+                        android:id="@+id/countryDialSpinner"
+                        android:layout_width="100dp"
+                        android:layout_height="48dp"
+                        android:background="@drawable/input_bg"/>
+                    <EditText
+                        android:id="@+id/patternInput"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:hint="e.g. 9494"
+                        android:textColor="@color/text"
+                        android:textColorHint="@color/muted"
+                        android:background="@drawable/input_bg"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:inputType="phone"
+                        android:layout_marginStart="8dp"/>
+                </LinearLayout>
+
+                <!-- Action selector row + Add button -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+                    <Button
+                        android:id="@+id/btnAccept"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:text="✓"
+                        android:textSize="20sp"
+                        android:textColor="@color/text"
+                        android:background="@drawable/btn_accept_inactive"
+                        android:layout_marginEnd="4dp"/>
+                    <Button
+                        android:id="@+id/btnReject"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:text="✗"
+                        android:textSize="20sp"
+                        android:textColor="@color/text"
+                        android:background="@drawable/btn_reject_active"
+                        android:layout_marginStart="2dp"
+                        android:layout_marginEnd="2dp"/>
+                    <Button
+                        android:id="@+id/btnAddRule"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:text="+ Add"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/white"
+                        android:background="@drawable/btn_accent"
+                        android:layout_marginStart="4dp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Rules list -->
+            <TextView
+                android:id="@+id/rulesCountLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ACTIVE RULES (0)"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/muted"
+                android:letterSpacing="0.1"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="8dp"/>
+
+            <LinearLayout
+                android:id="@+id/rulesContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

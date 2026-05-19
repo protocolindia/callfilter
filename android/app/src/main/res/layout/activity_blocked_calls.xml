@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/bg">
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="8dp" android:paddingEnd="16dp">
+        <ImageButton android:id="@+id/btnBack"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_revert"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:tint="@color/text" android:contentDescription="Back"/>
+        <TextView android:layout_width="0dp" android:layout_weight="1"
+            android:layout_height="wrap_content" android:text="Blocked Calls"
+            android:textSize="18sp" android:textStyle="bold"
+            android:textColor="@color/text" android:layout_marginStart="8dp"/>
+        <TextView android:id="@+id/totalBlockedCount"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="0" android:textSize="18sp" android:textStyle="bold"
+            android:textColor="@color/reject"/>
+    </LinearLayout>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="vertical"
+            android:padding="16dp">
+            <TextView android:id="@+id/emptyBlockedView"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="No blocked calls yet."
+                android:textColor="@color/subtext" android:textSize="14sp"
+                android:gravity="center" android:padding="32dp"
+                android:visibility="gone"/>
+            <LinearLayout android:id="@+id/blockedList"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+        </LinearLayout>
+    </ScrollView>
+    <Button android:id="@+id/btnClearBlocked"
+        android:layout_width="match_parent" android:layout_height="48dp"
+        android:text="Clear log" android:textSize="13sp"
+        android:textColor="@color/reject"
+        android:background="@android:color/transparent" android:layout_margin="16dp"/>
+</LinearLayout>

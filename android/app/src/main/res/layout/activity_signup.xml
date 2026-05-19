@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:gravity="center" android:padding="24dp"
+    android:background="@color/bg">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="📱 Call Filter" android:textSize="32sp" android:textStyle="bold"
+        android:textColor="@color/text" android:layout_marginBottom="8dp"/>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="Block unwanted calls"
+        android:textSize="14sp" android:textColor="@color/subtext"
+        android:layout_marginBottom="40dp"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="COUNTRY" android:textSize="11sp" android:textStyle="bold"
+        android:textColor="@color/muted" android:letterSpacing="0.1"/>
+    <Spinner android:id="@+id/countrySpinner"
+        android:layout_width="match_parent" android:layout_height="48dp"
+        android:background="@drawable/input_bg" android:layout_marginTop="4dp"
+        android:layout_marginBottom="16dp"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="MOBILE NUMBER" android:textSize="11sp" android:textStyle="bold"
+        android:textColor="@color/muted" android:letterSpacing="0.1"/>
+    <EditText android:id="@+id/mobileInput"
+        android:layout_width="match_parent" android:layout_height="48dp"
+        android:hint="e.g. 9876543210" android:textColor="@color/text"
+        android:textColorHint="@color/muted" android:background="@drawable/input_bg"
+        android:paddingStart="12dp" android:paddingEnd="12dp" android:inputType="phone"
+        android:layout_marginTop="4dp" android:layout_marginBottom="24dp"/>
+    <Button android:id="@+id/btnContinue"
+        android:layout_width="match_parent" android:layout_height="52dp"
+        android:text="CONTINUE" android:textStyle="bold" android:textSize="14sp"
+        android:textColor="@color/white" android:background="@drawable/btn_accent"/>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="By continuing you agree to our Privacy Policy at onephone.pro/privacy"
+        android:textSize="11sp" android:textColor="@color/muted"
+        android:layout_marginTop="14dp" android:gravity="center"/>
+</LinearLayout>
