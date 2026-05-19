@@ -41,8 +41,8 @@ public class MainActivity extends AppCompatActivity {
     // Add rule form
     private Spinner countryDial;
     private EditText patternInput;
-    private Button btnTypePrefix, btnTypeBetween, btnTypeSuffix;
-    private Button btnAccept, btnReject, btnAddRule;
+    private TextView btnTypePrefix, btnTypeBetween, btnTypeSuffix;
+    private TextView btnAccept, btnReject, btnAddRule;
     private LinearLayout rulesContainer;
     private TextView rulesCountLabel;
     private View blockedCallsCard, cardSchedules;
@@ -146,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
         cardSchedules.setOnClickListener(v ->
             startActivity(new Intent(MainActivity.this, SchedulesActivity.class)));
 
-        btnTopMenu.setOnClickListener(v -> showAccountMenu(v));
+        btnTopMenu.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
 
         // Block All Now
         btnBlockAll.setOnClickListener(v -> {
@@ -167,22 +167,44 @@ public class MainActivity extends AppCompatActivity {
 
     private void selectType(String type) {
         currentType = type;
-        btnTypePrefix.setBackgroundResource(
-            type.equals(Rule.TYPE_PREFIX)  ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
-        btnTypeBetween.setBackgroundResource(
-            type.equals(Rule.TYPE_BETWEEN) ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
-        btnTypeSuffix.setBackgroundResource(
-            type.equals(Rule.TYPE_SUFFIX)  ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
+        int whiteColor = getResources().getColor(R.color.white, null);
+        int dimColor   = getResources().getColor(R.color.subtext, null);
+
+        boolean isPrefix  = type.equals(Rule.TYPE_PREFIX);
+        boolean isBetween = type.equals(Rule.TYPE_BETWEEN);
+        boolean isSuffix  = type.equals(Rule.TYPE_SUFFIX);
+
+        btnTypePrefix.setBackgroundResource(isPrefix
+            ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
+        btnTypePrefix.setTextColor(isPrefix ? whiteColor : dimColor);
+
+        btnTypeBetween.setBackgroundResource(isBetween
+            ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
+        btnTypeBetween.setTextColor(isBetween ? whiteColor : dimColor);
+
+        btnTypeSuffix.setBackgroundResource(isSuffix
+            ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
+        btnTypeSuffix.setTextColor(isSuffix ? whiteColor : dimColor);
+
         patternInput.setHint(
-            type.equals(Rule.TYPE_BETWEEN) ? "e.g. 9000000000-9999999999" : "e.g. 9494");
+            isBetween ? "e.g. 9000000000-9999999999" : "e.g. 9494");
     }
 
     private void selectAction(String action) {
         currentAction = action;
-        btnAccept.setBackgroundResource(
-            action.equals(Rule.ACTION_ACCEPT) ? R.drawable.btn_accept_active : R.drawable.btn_accept_inactive);
-        btnReject.setBackgroundResource(
-            action.equals(Rule.ACTION_REJECT) ? R.drawable.btn_reject_active : R.drawable.btn_reject_inactive);
+        int whiteColor = getResources().getColor(R.color.white, null);
+        int dimColor   = getResources().getColor(R.color.subtext, null);
+
+        boolean isAccept = action.equals(Rule.ACTION_ACCEPT);
+        boolean isReject = action.equals(Rule.ACTION_REJECT);
+
+        btnAccept.setBackgroundResource(isAccept
+            ? R.drawable.btn_accept_active : R.drawable.btn_accept_inactive);
+        btnAccept.setTextColor(isAccept ? whiteColor : dimColor);
+
+        btnReject.setBackgroundResource(isReject
+            ? R.drawable.btn_reject_active : R.drawable.btn_reject_inactive);
+        btnReject.setTextColor(isReject ? whiteColor : dimColor);
     }
 
     private void addRule() {
@@ -209,7 +231,9 @@ public class MainActivity extends AppCompatActivity {
     private void refreshUI() {
         AuthManager auth = AuthManager.getInstance(this);
         SubscriptionManager sub = SubscriptionManager.getInstance(this);
-        topBarUserInfo.setText("Signed in: " + auth.getFullNumber() + "  ·  " + sub.getStatusLabel());
+        // Reload rules in case cloud pull happened in the background
+        rulesManager.reload();
+        topBarUserInfo.setText("Signed in: " + auth.getFullNumber() + "  \u00B7  " + sub.getStatusLabel());
 
         List<Rule> rules = rulesManager.getRules();
         int acc = 0, rej = 0;
@@ -253,13 +277,15 @@ public class MainActivity extends AppCompatActivity {
             TextView typeBadge   = item.findViewById(R.id.ruleTypeBadge);
             TextView patternView = item.findViewById(R.id.rulePattern);
             TextView actionBadge = item.findViewById(R.id.ruleActionBadge);
-            Button   delBtn      = item.findViewById(R.id.btnDelete);
+            TextView delBtn      = item.findViewById(R.id.btnDelete);
 
             typeBadge.setText(r.getType().toUpperCase());
             patternView.setText(r.getPattern());
-            actionBadge.setText(Rule.ACTION_ACCEPT.equals(r.getAction()) ? "✓ Accept" : "✗ Reject");
-            actionBadge.setTextColor(getResources().getColor(
-                Rule.ACTION_ACCEPT.equals(r.getAction()) ? R.color.accept : R.color.reject, null));
+
+            boolean isAccept = Rule.ACTION_ACCEPT.equals(r.getAction());
+            actionBadge.setText(isAccept ? "✓ ACCEPT" : "✗ REJECT");
+            actionBadge.setBackgroundResource(isAccept ? R.drawable.badge_accept : R.drawable.badge_reject);
+
             delBtn.setOnClickListener(v -> {
                 rulesManager.removeRule(r.getId());
                 refreshUI();
@@ -344,6 +370,10 @@ public class MainActivity extends AppCompatActivity {
         BlockAllManager.getInstance(this).pullFromCloud();
         refreshBlockAllUI();
         banner_handler.postDelayed(banner_tick, 30_000L);
+        // Pull rules from cloud after login/resume (HTTP async; refresh UI when done)
+        SyncManager.getInstance(this).forcePullRulesFromCloud();
+        banner_handler.postDelayed(() -> refreshUI(), 2_000L);
+        banner_handler.postDelayed(() -> refreshUI(), 5_000L);
         SubscriptionManager subMgr = SubscriptionManager.getInstance(this);
         if (subMgr.hasBeenChecked() && !subMgr.isActive()) {
             startActivity(new Intent(this, PaywallActivity.class));

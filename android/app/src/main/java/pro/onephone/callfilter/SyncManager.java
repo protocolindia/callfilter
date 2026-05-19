@@ -95,6 +95,42 @@ public class SyncManager {
         } catch (Exception e) { Log.e(TAG, "Rules sync failed", e); }
     }
 
+    /**
+     * UNCONDITIONALLY replace local rules with cloud rules. Used on login so
+     * the device always reflects what the user added on any other device.
+     */
+    public void forcePullRulesFromCloud() {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        final RulesManager rm = RulesManager.getInstance(appCtx);
+        String url = AuthManager.BACKEND_URL + "/api/rules/list?user_id=" + auth.getUserId();
+        BackendClient.get(url, new BackendClient.Callback() {
+            public void onResult(boolean ok, JSONObject resp, String error) {
+                if (!ok || resp == null) {
+                    Log.w(TAG, "forcePullRules failed: " + error);
+                    return;
+                }
+                JSONArray arr = resp.optJSONArray("rules");
+                if (arr == null) return;
+                // Clear local first
+                appCtx.getSharedPreferences("CallFilterRules", Context.MODE_PRIVATE)
+                    .edit().remove("rules").commit();
+                rm.reload();
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject r = arr.optJSONObject(i);
+                    if (r == null) continue;
+                    String type    = r.optString("rule_type", "");
+                    String pattern = r.optString("pattern", "");
+                    String action  = r.optString("action", "reject");
+                    if (!type.isEmpty() && !pattern.isEmpty()) {
+                        rm.addRule(pattern, type, action);
+                    }
+                }
+                Log.d(TAG, "forcePullRules: " + arr.length() + " rules pulled");
+            }
+        });
+    }
+
     public void pullRulesFromCloudIfEmpty() {
         AuthManager auth = AuthManager.getInstance(appCtx);
         if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;

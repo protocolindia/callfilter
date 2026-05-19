@@ -37,6 +37,7 @@
         <activity android:name=".LoginActivity"        android:exported="false"/>
         <activity android:name=".PermissionsActivity"  android:exported="false"/>
         <activity android:name=".MainActivity"         android:exported="false"/>
+        <activity android:name=".ProfileActivity"      android:exported="false"/>
         <activity android:name=".ChangePinActivity"    android:exported="false"/>
         <activity android:name=".BlockedCallsActivity" android:exported="false"/>
         <activity android:name=".PaywallActivity"      android:exported="false"/>

@@ -30,17 +30,27 @@ public class CallBlockerService extends CallScreeningService {
         String rType = "", rPattern = "", rAction = "reject";
         Schedule activeSchedule = null;
 
-        // 1. Block All Now (global)
+        RulesManager rules = RulesManager.getInstance(this);
+
+        // 1. ACCEPT rules FIRST — explicit accept overrides everything (except Block All Now).
+        //    User policy: accept rules are checked first, then reject rules.
+        String acceptVerdict = rules.evaluateAccept(number);
+        if ("accept".equals(acceptVerdict)) {
+            Log.d(TAG, "ACCEPT rule matched — letting " + number + " through");
+            respondToCall(callDetails, new CallResponse.Builder().build());
+            return;
+        }
+
+        // 2. Block All Now (global panic mode)
         BlockAllManager blockAll = BlockAllManager.getInstance(this);
         if (blockAll.isActive() && !blockAll.isCallerAllowed(this, number)) {
             shouldReject = true;
             rType = "block_all"; rPattern = blockAll.getMode();
         }
 
-        // 2. Block rules
+        // 3. REJECT rules
         if (!shouldReject) {
-            RulesManager rules = RulesManager.getInstance(this);
-            String verdict = rules.evaluate(number);
+            String verdict = rules.evaluateReject(number);
             if ("reject".equals(verdict)) {
                 shouldReject = true;
                 for (Rule r : rules.getRules()) {
@@ -49,9 +59,6 @@ public class CallBlockerService extends CallScreeningService {
                         break;
                     }
                 }
-            } else if ("accept".equals(verdict)) {
-                respondToCall(callDetails, new CallResponse.Builder().build());
-                return;
             }
         }
 

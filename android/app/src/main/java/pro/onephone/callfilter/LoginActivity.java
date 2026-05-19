@@ -68,7 +68,7 @@ public class LoginActivity extends AppCompatActivity {
                 Intent i = new Intent(LoginActivity.this, PermissionsActivity.class);
                 i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                 // Pull data on reinstall
-                SyncManager.getInstance(LoginActivity.this).pullRulesFromCloudIfEmpty();
+                SyncManager.getInstance(LoginActivity.this).forcePullRulesFromCloud();
                 SyncManager.getInstance(LoginActivity.this).pullBlockedCallsFromCloudIfEmpty();
                 ScheduleManager.getInstance(LoginActivity.this).pullFromCloudIfEmpty();
                 startActivity(i);

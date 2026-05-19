@@ -90,14 +90,32 @@ public class RulesManager {
      *   "reject" — reject rule matched
      *   null     — no rule matched
      */
-    public synchronized String evaluate(String number) {
-        // Accept rules win
+    /**
+     * Returns "accept" if any ACCEPT rule matches, else null.
+     * Used by the call blocker to short-circuit BEFORE checking Block-All etc.
+     */
+    public synchronized String evaluateAccept(String number) {
         for (Rule r : rules) {
             if (Rule.ACTION_ACCEPT.equals(r.getAction()) && r.matches(number)) return "accept";
         }
+        return null;
+    }
+
+    /**
+     * Returns "reject" if any REJECT rule matches, else null.
+     * Used after accept + Block-All checks.
+     */
+    public synchronized String evaluateReject(String number) {
         for (Rule r : rules) {
             if (Rule.ACTION_REJECT.equals(r.getAction()) && r.matches(number)) return "reject";
         }
         return null;
+    }
+
+    /** Legacy combined evaluator. Accept wins over Reject. */
+    public synchronized String evaluate(String number) {
+        String a = evaluateAccept(number);
+        if (a != null) return a;
+        return evaluateReject(number);
     }
 }

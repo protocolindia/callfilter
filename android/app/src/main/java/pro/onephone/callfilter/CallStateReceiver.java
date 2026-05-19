@@ -25,17 +25,24 @@ public class CallStateReceiver extends BroadcastReceiver {
         String rType = "", rPattern = "", rAction = "reject";
         Schedule activeSchedule = null;
 
-        // 1. Block All Now
+        RulesManager rules = RulesManager.getInstance(context);
+
+        // 1. ACCEPT rules first — explicit accept wins over Block All Now too
+        if ("accept".equals(rules.evaluateAccept(number))) {
+            Log.d(TAG, "ACCEPT rule matched — letting " + number + " through");
+            return;
+        }
+
+        // 2. Block All Now
         BlockAllManager blockAll = BlockAllManager.getInstance(context);
         if (blockAll.isActive() && !blockAll.isCallerAllowed(context, number)) {
             shouldReject = true;
             rType = "block_all"; rPattern = blockAll.getMode();
         }
 
-        // 2. Rules
+        // 3. Reject rules
         if (!shouldReject) {
-            RulesManager rules = RulesManager.getInstance(context);
-            String verdict = rules.evaluate(number);
+            String verdict = rules.evaluateReject(number);
             if ("reject".equals(verdict)) {
                 shouldReject = true;
                 for (Rule r : rules.getRules()) {
@@ -44,8 +51,6 @@ public class CallStateReceiver extends BroadcastReceiver {
                         break;
                     }
                 }
-            } else if ("accept".equals(verdict)) {
-                return;
             }
         }
 
