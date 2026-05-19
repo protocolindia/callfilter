@@ -1,151 +1,146 @@
-CallFilter v25.2 — full cumulative drop
+CallFilter v25.3 — full cumulative drop
 =========================================
 
-This zip is the COMPLETE monorepo. Replace android/, backend/, frontend/
-in your repo with the contents of this archive and push.
+Six UX/UI/logic fixes addressing feedback on the Add New Rule card,
+rule evaluation order, profile menu, and rule list readability.
 
 ============================================================
-NEW IN v25.2 — Frequency bypass + Block All Now
+NEW IN v25.3
 ============================================================
 
-FEATURE 1 — Per-schedule frequency bypass ("urgent caller")
------------------------------------------------------------
-Each schedule has a new section in its edit screen:
-   ☐ Allow repeated callers to break through
-        Count: [5]    in [10] minutes
+1) RULE TYPE / ACTION BUTTONS NOW SHOW SELECTION STATE
+---------------------------------------------------------
+Previously: all three PREFIX/BETWEEN/SUFFIX buttons appeared identical
+solid blue regardless of which was selected. Same for ✓ ACCEPT and
+✗ REJECT.
 
-When ON for a schedule, if the SAME number is rejected freqCount times
-within freqWindowMin minutes (sliding window), the NEXT call from that
-number rings through, regardless of which rule rejected the earlier ones.
+Cause: Material3 theme was overriding the android:background drawable.
+Fix: Replaced <Button> with <TextView> styled as buttons (with ripple).
+Material3 ignores TextView, so the drawables apply cleanly. Text color
+also flips between white (selected) and gray (unselected) so the state
+is unmistakable.
 
-  Default for new schedules: 5 calls in 10 minutes (OFF until you enable
-  the toggle).
+2) ADD-NEW-RULE CARD REDESIGNED
+---------------------------------------------------------
+- Header: "+ ADD NEW RULE" with subtitle "Match by pattern, then accept or reject"
+- Three numbered steps: "1. PATTERN TYPE", "2. PATTERN", "3. ACTION"
+- Each section labeled so the flow is obvious
+- Larger primary "+ ADD RULE" button at the bottom
+- Single-line button text (no more "BETWE / EN" wrapping)
 
-FEATURE 2 — Block All Now (top-bar 🛑 icon)
-------------------------------------------
-A new 🛑 icon in the top bar (left of the ⋮ menu) opens a 2-step picker:
+3) ACCEPT RULES NOW CHECKED FIRST
+---------------------------------------------------------
+Call evaluation order in CallBlockerService + CallStateReceiver:
+   1. ACCEPT rules    ← explicit accept wins over everything (incl. Block-All)
+   2. Block All Now
+   3. REJECT rules
+   4. Contacts-only mode
+   5. Schedule allowlist
+   6. Frequency bypass (overrides 2-5 reject only)
 
-   STEP 1 — Choose blocking mode:
-       ⛔ Block everything (no exceptions)
-       📇 Block everyone except my contacts
-       ✅ Block everyone except specific contacts I pick
+Added two new methods: rules.evaluateAccept(number) and
+rules.evaluateReject(number) for clean separation.
 
-   STEP 2 — Choose duration:
-       15 minutes | 30 minutes | 1 hour | 2 hours | 4 hours
-       Custom...                 ← lets you enter any hh:mm
-       Until I turn it off       ← indefinite, until you tap STOP
+4) CLOUD RULES PULLED ON EVERY LOGIN/RESUME
+---------------------------------------------------------
+Previously: rules were only pulled if local list was empty
+("pullRulesFromCloudIfEmpty"). If you had even one local rule, the cloud
+copy wasn't fetched.
 
-When active:
-   - The 🛑 icon shows a red countdown chip (e.g. "1h 23m")
-   - A red banner appears below the top bar with mode + remaining time
-     and a STOP button to deactivate
-   - Tapping the 🛑 icon while active = same as STOP
+Now: forcePullRulesFromCloud() runs on login AND on every onResume.
+Local rules are replaced with what's in the cloud. UI refreshes 2s and 5s
+after resume to catch the async HTTP completion.
 
-ARBITRATION
------------
-  If Block All is active AND someone hits the frequency threshold:
-     → Frequency-bypass wins. The urgent caller rings through.
+5) RULES LIST CARDS REDESIGNED
+---------------------------------------------------------
+Previously: PREFIX badge had blue text on blue background — invisible.
+Number, badge, action all on one line — paragraph-like.
 
-  If a schedule allows a caller AND Block All blocks them:
-     → Block All wins. (When you panic-mode the phone, you really
-       want quiet.)
+Now:
+   • Phone number is the prominent header (17sp bold)
+   • Below it: side-by-side "PREFIX" + "✗ REJECT" badges, white text on
+     colored pills (PREFIX = blue, ACCEPT = green, REJECT = red)
+   • Delete X is a clean 40dp button on the right
+   • More vertical space between rules (10dp margin)
 
-  Block All has no own frequency-bypass — it's pure block.
+6) PROFILE / ACCOUNT MENU IS NOW A FULL SCREEN
+---------------------------------------------------------
+Tapping the ⋮ icon top-right now opens a dedicated ProfileActivity
+instead of a cramped AlertDialog. The screen has:
 
-REMOVED
--------
-Per-schedule ⚡ "Activate now for 30m/1h/2h/4h" button — replaced by
-the global 🛑 Block All Now. The Schedule data model still has the
-quickUntilMs field for backward compatibility with existing cloud data,
-but no UI exposes it. Schedules now activate only via their time window.
+   👤 Identity card
+      Shows your signed-in mobile number
+
+   ✨ Subscription card
+      Live status (Active / Inactive / Checking…)
+      Plan name and renewal info
+      "Manage subscription" button (deep-links to Play Store
+       subscriptions page for this app) when active
+      "View plans & subscribe" button when inactive
+
+   ⚙️ Settings
+      📇 Cloud contact sync (with explanation)
+      🔐 Change PIN (row with chevron)
+
+   🚪 Sign out (red row at bottom)
+
+   Footer: "Call Filter · v1.0.25"
 
 ============================================================
-BACKEND CHANGES
+ANDROID FILES CHANGED
 ============================================================
-NEW    backend/migrations/007_frequency_and_blockall.sql
-       - Adds freq_bypass_enabled, freq_count, freq_window_min to schedules
-       - Creates block_all_state table (1 row per user)
+NEW
+   ProfileActivity.java + activity_profile.xml
+   drawable/badge_type.xml
 
-CHG    backend/src/api.js
-       - /schedules/sync and /schedules/list now include freq_* fields
-       - NEW POST /api/block-all/set   (activate/update/deactivate)
-       - NEW GET  /api/block-all/get   (read current state)
+MODIFIED
+   AndroidManifest.xml         (registers ProfileActivity)
+   res/layout/activity_main.xml (Add New Rule card rebuilt)
+   res/layout/rule_item.xml    (vertical card layout, visible badges)
+   MainActivity.java           (TextView refs, text-color flip,
+                                ProfileActivity launch, force-pull on resume)
+   RulesManager.java           (evaluateAccept + evaluateReject)
+   CallBlockerService.java     (accept-first evaluation order)
+   CallStateReceiver.java      (same)
+   SyncManager.java            (forcePullRulesFromCloud method)
+   LoginActivity.java          (force-pull on login)
 
 ============================================================
-FRONTEND CHANGES
+BACKEND / FRONTEND
 ============================================================
-None in v25.2. (No admin-panel UI for these yet — they're user-controlled
-on the Android app.)
-
-============================================================
-ANDROID CHANGES
-============================================================
-NEW    FrequencyTracker.java       — sliding-window per-number rejection log
-NEW    BlockAllManager.java        — panic-mode state + cloud sync
-NEW    BlockAllNowDialog.java      — multi-step picker (mode → duration)
-NEW    drawable/banner_block_all.xml
-NEW    drawable/btn_stop_block_all.xml
-
-CHG    Schedule.java               — freq_bypass_enabled JSON key sync
-CHG    CallBlockerService.java     — frequency bypass + Block All arbitration
-CHG    CallStateReceiver.java      — same logic for Samsung-compat path
-CHG    AuthManager.java            — resetAccount() clears block_all + freq prefs
-CHG    MainActivity.java           — 🛑 icon, banner, countdown ticker
-CHG    res/layout/activity_main.xml — top-bar 🛑 icon + countdown + banner
-
-UNCHANGED (still present from earlier work)
-       EditScheduleActivity + activity_edit_schedule.xml
-         already have the frequency-bypass toggle UI
-
-DELETED
-       BlockAllActivity.java       — was an unused stub from earlier
-       res/layout/activity_block_all.xml — same
+No changes. v25.3 is Android-only.
 
 ============================================================
 DEPLOY
 ============================================================
+cd D:\\callfilter
+git pull origin main
 
-    cd D:\callfilter
-    git pull origin main
+# Extract this zip to e.g. C:\\temp\\v253, then:
+robocopy C:\\temp\\v253\\callfilter-monorepo\\android  android  /E
+robocopy C:\\temp\\v253\\callfilter-monorepo\\backend  backend  /E
+robocopy C:\\temp\\v253\\callfilter-monorepo\\frontend frontend /E
+copy C:\\temp\\v253\\callfilter-monorepo\\README.md .
+copy C:\\temp\\v253\\callfilter-monorepo\\INTEGRATION_README.txt .
 
-    # Extract this zip to a temp folder, then mirror into your repo:
-    robocopy <extracted>\callfilter-monorepo\android  android  /E
-    robocopy <extracted>\callfilter-monorepo\backend  backend  /E
-    robocopy <extracted>\callfilter-monorepo\frontend frontend /E
-    copy <extracted>\callfilter-monorepo\README.md .
-    copy <extracted>\callfilter-monorepo\INTEGRATION_README.txt .
+git status
+git add .
+git commit -m "v25.3 — Add New Rule UX, rule eval order, profile screen"
+git push origin main
 
-    git status
-    git add .
-    git commit -m "v25.2 — frequency bypass + Block All Now"
-    git push origin main
-
-Railway redeploys both services. On boot you should see:
-    Running migration 007_frequency_and_blockall.sql
+# Build Android in Android Studio: Run ▶ or Build → Build APK(s)
 
 ============================================================
-POST-DEPLOY SMOKE TESTS
+WHAT TO TEST
 ============================================================
-
-1. Schedules sync (new fields):
-   curl https://api.app.onephone.pro/api/schedules/list?user_id=1
-   Each schedule row should include "freq_bypass_enabled":false,
-   "freq_count":5, "freq_window_min":10
-
-2. Block All state:
-   curl https://api.app.onephone.pro/api/block-all/get?user_id=1
-   → {"ok":true,"state":null}  (no panic mode active yet)
-
-3. Build and install the Android app:
-   cd D:\callfilter\android
-   .\gradlew.bat clean
-   .\gradlew.bat assembleRelease
-
-4. App behavior:
-   [ ] 🛑 icon visible in top bar
-   [ ] Tap 🛑 → mode picker → duration picker → activate
-   [ ] Red countdown chip + banner appear
-   [ ] Banner STOP button deactivates
-   [ ] Edit schedule shows "Allow repeated callers" toggle
-   [ ] When ON, count/window fields appear
-   [ ] Per-schedule ⚡ button is GONE
+[ ] Tap PREFIX / BETWEEN / SUFFIX — selected one turns blue with white text;
+    others stay dark with gray text
+[ ] Tap ✓ ACCEPT / ✗ REJECT — selected one shows green/red; other is dark
+[ ] "BETWEEN" text fits on one line
+[ ] After logging in, all your cloud rules appear in the list within ~5 seconds
+[ ] Tap ⋮ in top bar → opens full Profile screen (not AlertDialog)
+[ ] Profile screen shows your mobile number, subscription status
+[ ] If subscribed: "Manage subscription" button opens Play Store
+[ ] Rule cards: number prominent, PREFIX + REJECT badges visible
+[ ] Add an ACCEPT rule for a specific number, then make sure it overrides
+    Block All Now (call from that number rings even with Block All on)
