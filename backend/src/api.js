@@ -67,14 +67,21 @@ router.post('/signup', async (req, res, next) => {
     );
     await audit('android', 'otp_generated', `user_id=${user.id}`);
 
-    // TODO: dispatch SMS via configured provider when sms_provider !== 'none'
-    const showOtp = (await getSetting('otp_show_in_response')) === 'true';
+    // Dev mode = SMS provider is 'none' (so there's no way to actually
+    // deliver the OTP) OR the legacy otp_show_in_response toggle is on.
+    // In either case, return the OTP in the JSON response so the Android
+    // app can display it on screen.
+    const smsProvider = (await getSetting('sms_provider')) || 'none';
+    const legacyToggle = (await getSetting('otp_show_in_response')) === 'true';
+    const isDevMode = smsProvider === 'none' || legacyToggle;
+
+    // TODO: when smsProvider !== 'none', dispatch via that provider here.
 
     res.json({
       ok: true,
       user_id: user.id,
-      otp: showOtp ? code : undefined,
-      delivery: showOtp ? 'in_response' : 'sms'
+      otp: isDevMode ? code : undefined,
+      delivery: isDevMode ? 'in_response' : 'sms'
     });
   } catch (e) { next(e); }
 });

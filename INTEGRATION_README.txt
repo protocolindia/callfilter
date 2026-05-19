@@ -1,115 +1,103 @@
-CallFilter v25 — what changed since v24
-========================================
+CallFilter v25.1 — full cumulative drop
+=========================================
 
-This integration drop is meant to be merged on top of your existing repo at:
-
+This zip contains the complete repo, ready to push to:
     https://github.com/protocolindia/callfilter
 
-Replace the three top-level folders (android/, backend/, frontend/) with the
-contents of this archive, commit, and push.
+Replace the three top-level folders (android/, backend/, frontend/) with
+the contents of this archive, commit, and push. No piecemeal patches.
 
-------------------------------------------------------------
+============================================================
+CHANGES IN v25.1 — what's new vs your current live deploy
+============================================================
+
 BACKEND
-------------------------------------------------------------
+-------
+NEW    backend/migrations/006_schedules.sql
+       Creates the schedules table for time-window blocking.
+       Runs automatically when Railway redeploys.
 
-NEW FILES
-  backend/migrations/006_schedules.sql
-    Creates the schedules table for time-window blocking.
-    Runs automatically when Railway redeploys (migrate.js handles it).
+CHG    backend/src/api.js
+       - Added POST /api/schedules/sync
+       - Added GET  /api/schedules/list?user_id=N
+       - FIXED: SMS Provider dropdown "None (dev mode — OTP on screen)"
+         in the admin panel now correctly drives OTP-in-response mode.
+         Previously the dropdown did nothing; only the hidden checkbox
+         "Return OTP in signup response" worked. Now sms_provider='none'
+         is treated as dev mode (legacy checkbox still works too).
 
-MODIFIED FILES
-  backend/src/api.js
-    Two endpoints added near the end (before module.exports = router):
-       POST /api/schedules/sync
-       GET  /api/schedules/list?user_id=N
-
-NO CHANGES TO
-  backend/package.json, Procfile, railway.json, or any other files.
-
-------------------------------------------------------------
 FRONTEND
-------------------------------------------------------------
+--------
+CHG    frontend/src/pages/Settings.jsx
+       - Removed the misleading hidden checkbox.
+       - Added a clear status banner under the SMS Provider section:
+            GREEN  "DEV MODE active. OTPs returned in API response..."
+            BLUE   "Production mode. OTPs dispatched via {provider}..."
 
-No changes in v25.
-
-------------------------------------------------------------
 ANDROID
-------------------------------------------------------------
+-------
+NEW    Schedules feature (5 new activities + cloud sync)
+NEW    PermissionsActivity (two-step permissions, fixes login crash)
+CHG    AndroidManifest.xml — removed FG service (fixes Android 14 crash)
+CHG    CallBlockerService / CallStateReceiver — apply schedule allowlist
+CHG    MainActivity — home Schedules tile + button color fix
+CHG    LoginActivity / SetPinActivity — route via PermissionsActivity
+CHG    AuthManager / SignupActivity / OtpActivity — OTP-in-response fix
 
-This is the full v25 source tree. The previous version (v23/v24) is replaced
-wholesale. Key changes:
+============================================================
+DEPLOYMENT
+============================================================
 
-NEW FILES (Java)
-  android/app/src/main/java/pro/onephone/callfilter/
-    Schedule.java                — POJO with time-window logic
-    ScheduleManager.java         — persistence + cloud sync + overlap resolution
-    SchedulesActivity.java       — list screen
-    EditScheduleActivity.java    — add/edit a schedule
-    ContactPickerActivity.java   — pick contacts for allowlist
-    PermissionsActivity.java     — two-step permissions UX
+    cd D:\callfilter
+    git pull origin main
 
-NEW FILES (resources)
-  android/app/src/main/res/layout/
-    activity_schedules.xml
-    activity_edit_schedule.xml
-    activity_contact_picker.xml
-    activity_permissions.xml
-    schedule_tile.xml
-    contact_pick_row.xml
-    home_schedules_card.xml
+    # Extract this zip somewhere temporary, e.g. C:\temp\v251
+    # Then mirror the three folders into your repo:
+    robocopy C:\temp\v251\callfilter-monorepo\android  android  /E
+    robocopy C:\temp\v251\callfilter-monorepo\backend  backend  /E
+    robocopy C:\temp\v251\callfilter-monorepo\frontend frontend /E
+    copy C:\temp\v251\callfilter-monorepo\README.md .
+    copy C:\temp\v251\callfilter-monorepo\INTEGRATION_README.txt .
 
-MODIFIED
-  android/app/src/main/AndroidManifest.xml
-    Removed: FOREGROUND_SERVICE, FOREGROUND_SERVICE_PHONE_CALL,
-             <service .CallFilterForegroundService>,
-             <receiver .BootReceiver>
-    Added:   <activity> entries for the 4 new screens
+    git status                       # verify before committing
+    git add .
+    git commit -m "v25.1 — schedules + OTP dev mode + Android v25"
+    git push origin main
 
-  android/app/src/main/java/pro/onephone/callfilter/
-    CallBlockerService.java      — applies active schedule's allowlist
-    CallStateReceiver.java       — same (Samsung-compat fallback)
-    MainActivity.java            — home tile + summary text + onCreate wiring
-    LoginActivity.java           — pulls schedules from cloud on re-install
-    SetPinActivity.java          — routes through PermissionsActivity
-    AuthManager.java             — OTP fix (carries devOtp from backend resp)
-    SignupActivity.java          — OTP fix (passes devOtp via intent extra)
-    OtpActivity.java             — OTP fix (auto-fills input in dev mode)
+Railway auto-redeploys both services in ~2 minutes.
 
-  android/app/src/main/res/drawable/
-    btn_type_active.xml, btn_type_inactive.xml,
-    btn_accept_active.xml, btn_accept_inactive.xml,
-    btn_reject_active.xml, btn_reject_inactive.xml,
-    btn_delete.xml
-    (button color fix — text & symbols now visible in all states)
+============================================================
+POST-DEPLOY SMOKE TESTS
+============================================================
 
-------------------------------------------------------------
-ANDROID BUILD CHECKLIST
-------------------------------------------------------------
+1. Backend schedules endpoint:
+   curl https://api.app.onephone.pro/api/schedules/list?user_id=1
+   Expected: {"ok":true,"schedules":[]}
 
-When building locally, ensure your repo also contains (NOT in this archive):
+2. SMS dev mode (with sms_provider='none' in admin):
+   curl -X POST https://api.app.onephone.pro/api/signup \
+     -H "Content-Type: application/json" \
+     -d '{"dial_code":"+91","mobile":"9999999999"}'
+   Expected: response includes "otp":"123456"
 
-  android/keystore/release.keystore       — your private signing key
-  android/keystore/keystore.properties    — alias + passwords
-  android/gradle/wrapper/gradle-wrapper.jar  (Android Studio auto-creates)
-  android/gradlew, android/gradlew.bat        (Android Studio auto-creates)
+3. Admin panel Settings (https://app.onephone.pro/settings):
+   GREEN banner visible when SMS Provider = "None (dev mode...)"
 
-If migrating from your v23/v24 project, copy the keystore/ and wrapper files
-across from the old tree.
+4. Android build:
+   cd D:\callfilter\android
+   .\gradlew.bat clean
+   .\gradlew.bat assembleRelease
+   APK at: app\build\outputs\apk\release\app-release.apk
 
-------------------------------------------------------------
-TESTING CHECKLIST AFTER DEPLOY
-------------------------------------------------------------
+5. Install on device → signup → OtpActivity shows the OTP banner
+   and auto-fills the input.
 
-[ ] Railway backend redeploys; log shows "Running migration 006_schedules.sql"
-[ ] curl https://api.app.onephone.pro/api/schedules/list?user_id=1
-    → {"ok":true,"schedules":[]}
-[ ] Build APK locally with .\gradlew.bat assembleRelease
-[ ] Install on Android 14 device
-[ ] Login flow works WITHOUT crash (FG service issue fixed)
-[ ] Buttons (PREFIX/BETWEEN/SUFFIX/✓/✗/×) all show visible text & symbols
-[ ] OTP screen shows the code in DEV MODE when admin setting is on
-[ ] Home screen shows the 🗓️ Schedules tile
-[ ] Tap tile → list works → + NEW SCHEDULE → edit → save → returns to list
-[ ] During active window, non-allowlisted callers are silently rejected
-[ ] Quick-activate works (Activate now → 30m / 1h / 2h / 4h)
-[ ] Logout → log back in → schedules pulled from cloud
+============================================================
+NOT IN THIS ZIP (by design — keep your local copies)
+============================================================
+
+- android/keystore/                  (your signing keys)
+- android/local.properties           (auto-generated)
+- android/gradle/wrapper/gradle-wrapper.jar  (auto-generated)
+- android/gradlew, android/gradlew.bat       (auto-generated)
+- node_modules/, build/, .gradle/, dist/     (build artifacts)

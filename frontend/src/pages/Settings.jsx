@@ -120,12 +120,30 @@ export default function Settings() {
                 onChange={e => update('otp_expiry_minutes', e.target.value)}/>
             </div>
           </div>
-          <label className="checkbox">
-            <input type="checkbox"
-              checked={settings.otp_show_in_response === 'true'}
-              onChange={e => update('otp_show_in_response', e.target.checked ? 'true' : 'false')}/>
-            Return OTP in signup response (DEV MODE — turn off after wiring real SMS)
-          </label>
+          {settings.sms_provider === 'none' ? (
+            <div style={{
+                marginTop: 12, padding: '10px 14px', borderRadius: 8,
+                background: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                color: '#22C55E', fontSize: 13
+              }}>
+              <strong>DEV MODE active.</strong> OTPs are returned in the
+              /api/signup response and shown on the Android signup screen.
+              No SMS is sent. To switch to production, pick an SMS provider
+              above and configure its credentials.
+            </div>
+          ) : (
+            <div style={{
+                marginTop: 12, padding: '10px 14px', borderRadius: 8,
+                background: 'rgba(79, 142, 247, 0.1)',
+                border: '1px solid rgba(79, 142, 247, 0.3)',
+                color: '#4F8EF7', fontSize: 13
+              }}>
+              <strong>Production mode.</strong> OTPs are dispatched via
+              {' '}{settings.sms_provider}. The Android app will not show
+              the code on screen.
+            </div>
+          )}
         </section>
 
         <button type="submit" className="btn btn-primary" disabled={saving}>
