@@ -211,6 +211,11 @@ public class AuthManager {
 
     public void logout() {
         prefs.edit().putBoolean(KEY_LOGGED_IN, false).commit();
+        // Clear sync sentinels so the next login force-pulls cloud rules.
+        if (appContext != null) {
+            appContext.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+                .edit().remove("initial_sync_done").commit();
+        }
     }
 
     public void resetAccount() {

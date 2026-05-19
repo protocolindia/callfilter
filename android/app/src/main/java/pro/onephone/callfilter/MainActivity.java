@@ -42,13 +42,12 @@ public class MainActivity extends AppCompatActivity {
     private Spinner countryDial;
     private EditText patternInput;
     private TextView btnTypePrefix, btnTypeBetween, btnTypeSuffix;
-    private TextView btnAccept, btnReject, btnAddRule;
+    private TextView btnAccept, btnReject;
     private LinearLayout rulesContainer;
     private TextView rulesCountLabel;
     private View blockedCallsCard, cardSchedules;
 
     private String currentType = Rule.TYPE_PREFIX;
-    private String currentAction = Rule.ACTION_REJECT;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,7 +95,6 @@ public class MainActivity extends AppCompatActivity {
         btnTypeSuffix    = findViewById(R.id.btnTypeSuffix);
         btnAccept        = findViewById(R.id.btnAccept);
         btnReject        = findViewById(R.id.btnReject);
-        btnAddRule       = findViewById(R.id.btnAddRule);
         rulesContainer   = findViewById(R.id.rulesContainer);
         rulesCountLabel  = findViewById(R.id.rulesCountLabel);
         btnTopMenu       = findViewById(R.id.btnTopMenu);
@@ -132,9 +130,9 @@ public class MainActivity extends AppCompatActivity {
         btnTypePrefix.setOnClickListener(v -> selectType(Rule.TYPE_PREFIX));
         btnTypeBetween.setOnClickListener(v -> selectType(Rule.TYPE_BETWEEN));
         btnTypeSuffix.setOnClickListener(v -> selectType(Rule.TYPE_SUFFIX));
-        btnAccept.setOnClickListener(v -> selectAction(Rule.ACTION_ACCEPT));
-        btnReject.setOnClickListener(v -> selectAction(Rule.ACTION_REJECT));
-        btnAddRule.setOnClickListener(v -> addRule());
+        // Action buttons COMMIT the rule directly — no separate Add button.
+        btnAccept.setOnClickListener(v -> addRule(Rule.ACTION_ACCEPT));
+        btnReject.setOnClickListener(v -> addRule(Rule.ACTION_REJECT));
 
         contactsOnlySwitch.setOnCheckedChangeListener((b, checked) -> {
             rulesManager.setContactsOnlyMode(checked);
@@ -162,7 +160,6 @@ public class MainActivity extends AppCompatActivity {
         btnStopBlockAll.setOnClickListener(v -> stopBlockAllConfirm());
 
         selectType(Rule.TYPE_PREFIX);
-        selectAction(Rule.ACTION_REJECT);
     }
 
     private void selectType(String type) {
@@ -190,40 +187,28 @@ public class MainActivity extends AppCompatActivity {
             isBetween ? "e.g. 9000000000-9999999999" : "e.g. 9494");
     }
 
-    private void selectAction(String action) {
-        currentAction = action;
-        int whiteColor = getResources().getColor(R.color.white, null);
-        int dimColor   = getResources().getColor(R.color.subtext, null);
 
-        boolean isAccept = action.equals(Rule.ACTION_ACCEPT);
-        boolean isReject = action.equals(Rule.ACTION_REJECT);
-
-        btnAccept.setBackgroundResource(isAccept
-            ? R.drawable.btn_accept_active : R.drawable.btn_accept_inactive);
-        btnAccept.setTextColor(isAccept ? whiteColor : dimColor);
-
-        btnReject.setBackgroundResource(isReject
-            ? R.drawable.btn_reject_active : R.drawable.btn_reject_inactive);
-        btnReject.setTextColor(isReject ? whiteColor : dimColor);
-    }
-
-    private void addRule() {
+    private void addRule(String action) {
         String pat = patternInput.getText().toString().trim();
         if (pat.isEmpty()) {
-            Toast.makeText(this, "Please enter a pattern", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Please enter a pattern first", Toast.LENGTH_SHORT).show();
+            patternInput.requestFocus();
             return;
         }
         CountryData cd = (CountryData) countryDial.getSelectedItem();
         String full;
         if (Rule.TYPE_BETWEEN.equals(currentType) && pat.contains("-")) {
-            // range — assume user typed both endpoints
             int dash = pat.indexOf('-');
             full = cd.dialCode + pat.substring(0, dash) + "-" + cd.dialCode + pat.substring(dash + 1);
         } else {
             full = cd.dialCode + pat;
         }
-        rulesManager.addRule(full, currentType, currentAction);
+        rulesManager.addRule(full, currentType, action);
         patternInput.setText("");
+        Toast.makeText(this,
+            (Rule.ACTION_ACCEPT.equals(action) ? "✓ ACCEPT rule added: " : "✗ REJECT rule added: ")
+                + full,
+            Toast.LENGTH_SHORT).show();
         refreshUI();
         SyncManager.getInstance(this).syncRulesAsync();
     }
@@ -370,10 +355,9 @@ public class MainActivity extends AppCompatActivity {
         BlockAllManager.getInstance(this).pullFromCloud();
         refreshBlockAllUI();
         banner_handler.postDelayed(banner_tick, 30_000L);
-        // Pull rules from cloud after login/resume (HTTP async; refresh UI when done)
-        SyncManager.getInstance(this).forcePullRulesFromCloud();
-        banner_handler.postDelayed(() -> refreshUI(), 2_000L);
-        banner_handler.postDelayed(() -> refreshUI(), 5_000L);
+        // NOTE: do NOT pull rules on resume — that races with just-added local
+        // rules and wipes them. Initial cloud pull happens only on login
+        // (LoginActivity.handleLogin) and is gated by the initial-sync flag.
         SubscriptionManager subMgr = SubscriptionManager.getInstance(this);
         if (subMgr.hasBeenChecked() && !subMgr.isActive()) {
             startActivity(new Intent(this, PaywallActivity.class));

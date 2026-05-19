@@ -450,27 +450,34 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="3. ACTION"
+                    android:text="3. TAP TO ADD"
                     android:textSize="11sp"
                     android:textColor="@color/muted"
                     android:letterSpacing="0.08"
                     android:layout_marginTop="14dp"/>
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Tap ACCEPT to whitelist or REJECT to block this pattern"
+                    android:textSize="11sp"
+                    android:textColor="@color/subtext"
+                    android:layout_marginTop="4dp"/>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:layout_marginTop="6dp">
+                    android:layout_marginTop="10dp">
                     <TextView
                         android:id="@+id/btnAccept"
                         android:layout_width="0dp"
                         android:layout_weight="1"
-                        android:layout_height="48dp"
+                        android:layout_height="56dp"
                         android:text="\u2713 ACCEPT"
-                        android:textSize="13sp"
+                        android:textSize="14sp"
                         android:textStyle="bold"
-                        android:textColor="@color/subtext"
-                        android:background="@drawable/btn_accept_inactive"
+                        android:textColor="@color/white"
+                        android:background="@drawable/btn_accept_active"
                         android:gravity="center"
                         android:maxLines="1"
                         android:clickable="true"
@@ -481,9 +488,9 @@
                         android:id="@+id/btnReject"
                         android:layout_width="0dp"
                         android:layout_weight="1"
-                        android:layout_height="48dp"
+                        android:layout_height="56dp"
                         android:text="\u2717 REJECT"
-                        android:textSize="13sp"
+                        android:textSize="14sp"
                         android:textStyle="bold"
                         android:textColor="@color/white"
                         android:background="@drawable/btn_reject_active"
@@ -494,21 +501,6 @@
                         android:foreground="?android:attr/selectableItemBackground"
                         android:layout_marginStart="4dp"/>
                 </LinearLayout>
-
-                <TextView
-                    android:id="@+id/btnAddRule"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:text="+ ADD RULE"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/white"
-                    android:background="@drawable/btn_accent"
-                    android:gravity="center"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?android:attr/selectableItemBackground"
-                    android:layout_marginTop="18dp"/>
             </LinearLayout>
 
             <!-- Rules list -->
