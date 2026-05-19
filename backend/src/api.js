@@ -631,9 +631,9 @@ router.post('/schedules/sync', async (req, res, next) => {
       await query(
         `INSERT INTO schedules(user_id, client_id, name, start_minute, end_minute,
             days_mask, is_enabled, allow_numbers, allow_names, quick_until_ms,
-            last_toggled_at)
+            last_toggled_at, freq_bypass_enabled, freq_count, freq_window_min)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10,
-                 COALESCE(to_timestamp($11 / 1000.0), NOW()))`,
+                 COALESCE(to_timestamp($11 / 1000.0), NOW()), $12, $13, $14)`,
         [
           user_id, s.client_id, s.name,
           Math.max(0, Math.min(1439, parseInt(s.start_minute, 10) || 0)),
@@ -643,7 +643,10 @@ router.post('/schedules/sync', async (req, res, next) => {
           JSON.stringify(s.allow_numbers || []),
           JSON.stringify(s.allow_names || []),
           s.quick_until_ms || null,
-          s.last_toggled_at || null
+          s.last_toggled_at || null,
+          s.freq_bypass_enabled === true,
+          Math.max(1, Math.min(99, parseInt(s.freq_count, 10) || 5)),
+          Math.max(1, Math.min(1440, parseInt(s.freq_window_min, 10) || 10))
         ]
       );
     }
@@ -661,13 +664,53 @@ router.get('/schedules/list', async (req, res, next) => {
     const rows = await many(
       `SELECT client_id, name, start_minute, end_minute, days_mask,
               is_enabled, allow_numbers, allow_names, quick_until_ms,
-              EXTRACT(EPOCH FROM last_toggled_at) * 1000 AS last_toggled_ms
+              EXTRACT(EPOCH FROM last_toggled_at) * 1000 AS last_toggled_ms,
+              freq_bypass_enabled, freq_count, freq_window_min
          FROM schedules
         WHERE user_id = $1
         ORDER BY id`,
       [userId]
     );
     res.json({ ok: true, schedules: rows });
+  } catch (e) { next(e); }
+});
+
+
+// ============================================================
+// BLOCK ALL NOW — panic-mode state (one row per user)
+// ============================================================
+router.post('/block-all/set', async (req, res, next) => {
+  try {
+    const { user_id, mode, expires_at_ms, allow_numbers, allow_names } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    if (mode && !['everything','except_contacts','except_custom'].includes(mode)) {
+      return res.status(400).json({ error: 'invalid mode' });
+    }
+    await query(
+      `INSERT INTO block_all_state(user_id, mode, expires_at_ms, allow_numbers, allow_names, updated_at)
+       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+         mode = EXCLUDED.mode,
+         expires_at_ms = EXCLUDED.expires_at_ms,
+         allow_numbers = EXCLUDED.allow_numbers,
+         allow_names = EXCLUDED.allow_names,
+         updated_at = NOW()`,
+      [user_id, mode || null, expires_at_ms || null,
+       JSON.stringify(allow_numbers || []), JSON.stringify(allow_names || [])]
+    );
+    await audit('android', 'block_all_set', `user_id=${user_id} mode=${mode}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.get('/block-all/get', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.query.user_id, 10);
+    if (!userId) return res.status(400).json({ error: 'user_id required' });
+    const row = await one(
+      `SELECT mode, expires_at_ms, allow_numbers, allow_names
+         FROM block_all_state WHERE user_id = $1`, [userId]);
+    res.json({ ok: true, state: row || null });
   } catch (e) { next(e); }
 });
 
