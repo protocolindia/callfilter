@@ -1,214 +1,115 @@
-v25 SCHEDULES INTEGRATION GUIDE
-================================
+CallFilter v25 — what changed since v24
+========================================
 
-This patch adds the "Schedules" feature: time-windowed call blocking with
-per-schedule allowlists, quick-activate, and home-screen tile entry point.
+This integration drop is meant to be merged on top of your existing repo at:
 
-============================================================================
-STEP 1 — DATABASE MIGRATION (backend)
-============================================================================
+    https://github.com/protocolindia/callfilter
 
-Drop `006_schedules.sql` into:
-   callfilter-platform/backend/migrations/006_schedules.sql
+Replace the three top-level folders (android/, backend/, frontend/) with the
+contents of this archive, commit, and push.
 
-It will be applied automatically when the backend deploys (the migrate.js
-script picks up new files in this folder).
+------------------------------------------------------------
+BACKEND
+------------------------------------------------------------
 
-============================================================================
-STEP 2 — BACKEND API ENDPOINTS
-============================================================================
+NEW FILES
+  backend/migrations/006_schedules.sql
+    Creates the schedules table for time-window blocking.
+    Runs automatically when Railway redeploys (migrate.js handles it).
 
-Open: callfilter-platform/backend/src/api.js
+MODIFIED FILES
+  backend/src/api.js
+    Two endpoints added near the end (before module.exports = router):
+       POST /api/schedules/sync
+       GET  /api/schedules/list?user_id=N
 
-Find a good spot near the other sync endpoints (e.g. just after the
-`/rules/list` endpoint, around line 320). Paste the entire contents of
-`api_schedules_snippet.js` (the file in this zip) right there.
+NO CHANGES TO
+  backend/package.json, Procfile, railway.json, or any other files.
 
-============================================================================
-STEP 3 — ANDROID FILES (new — just copy into project)
-============================================================================
+------------------------------------------------------------
+FRONTEND
+------------------------------------------------------------
 
-Copy these 5 new Java files into:
-   app/src/main/java/pro/onephone/callfilter/
+No changes in v25.
 
-  Schedule.java
-  ScheduleManager.java
-  SchedulesActivity.java
-  EditScheduleActivity.java
-  ContactPickerActivity.java
+------------------------------------------------------------
+ANDROID
+------------------------------------------------------------
 
-Copy these 5 new layout files into:
-   app/src/main/res/layout/
+This is the full v25 source tree. The previous version (v23/v24) is replaced
+wholesale. Key changes:
 
-  activity_schedules.xml
-  activity_edit_schedule.xml
-  activity_contact_picker.xml
-  schedule_tile.xml
-  contact_pick_row.xml
-  home_schedules_card.xml
+NEW FILES (Java)
+  android/app/src/main/java/pro/onephone/callfilter/
+    Schedule.java                — POJO with time-window logic
+    ScheduleManager.java         — persistence + cloud sync + overlap resolution
+    SchedulesActivity.java       — list screen
+    EditScheduleActivity.java    — add/edit a schedule
+    ContactPickerActivity.java   — pick contacts for allowlist
+    PermissionsActivity.java     — two-step permissions UX
 
-============================================================================
-STEP 4 — REGISTER ACTIVITIES IN MANIFEST
-============================================================================
+NEW FILES (resources)
+  android/app/src/main/res/layout/
+    activity_schedules.xml
+    activity_edit_schedule.xml
+    activity_contact_picker.xml
+    activity_permissions.xml
+    schedule_tile.xml
+    contact_pick_row.xml
+    home_schedules_card.xml
 
-Open: app/src/main/AndroidManifest.xml
+MODIFIED
+  android/app/src/main/AndroidManifest.xml
+    Removed: FOREGROUND_SERVICE, FOREGROUND_SERVICE_PHONE_CALL,
+             <service .CallFilterForegroundService>,
+             <receiver .BootReceiver>
+    Added:   <activity> entries for the 4 new screens
 
-Find the block of <activity> entries (around line 50). Add these three lines
-alongside the existing ones:
+  android/app/src/main/java/pro/onephone/callfilter/
+    CallBlockerService.java      — applies active schedule's allowlist
+    CallStateReceiver.java       — same (Samsung-compat fallback)
+    MainActivity.java            — home tile + summary text + onCreate wiring
+    LoginActivity.java           — pulls schedules from cloud on re-install
+    SetPinActivity.java          — routes through PermissionsActivity
+    AuthManager.java             — OTP fix (carries devOtp from backend resp)
+    SignupActivity.java          — OTP fix (passes devOtp via intent extra)
+    OtpActivity.java             — OTP fix (auto-fills input in dev mode)
 
-   <activity android:name=".SchedulesActivity"        android:exported="false"/>
-   <activity android:name=".EditScheduleActivity"     android:exported="false"/>
-   <activity android:name=".ContactPickerActivity"    android:exported="false"/>
+  android/app/src/main/res/drawable/
+    btn_type_active.xml, btn_type_inactive.xml,
+    btn_accept_active.xml, btn_accept_inactive.xml,
+    btn_reject_active.xml, btn_reject_inactive.xml,
+    btn_delete.xml
+    (button color fix — text & symbols now visible in all states)
 
-============================================================================
-STEP 5 — INTEGRATE WITH CallBlockerService (CRITICAL — this is what makes
-                                           schedules actually block calls)
-============================================================================
+------------------------------------------------------------
+ANDROID BUILD CHECKLIST
+------------------------------------------------------------
 
-Open: app/src/main/java/pro/onephone/callfilter/CallBlockerService.java
+When building locally, ensure your repo also contains (NOT in this archive):
 
-Find the part of onScreenCall that handles the contacts-only mode. Right
-AFTER the existing rules check (where `shouldReject` is decided), add the
-schedule check. The exact structure depends on your current code but the
-goal is: if a schedule is currently active AND the caller is NOT in that
-schedule's allowlist, REJECT the call.
+  android/keystore/release.keystore       — your private signing key
+  android/keystore/keystore.properties    — alias + passwords
+  android/gradle/wrapper/gradle-wrapper.jar  (Android Studio auto-creates)
+  android/gradlew, android/gradlew.bat        (Android Studio auto-creates)
 
-Here's the snippet to insert. Adapt the variable names to match what you
-already have in your file:
+If migrating from your v23/v24 project, copy the keystore/ and wrapper files
+across from the old tree.
 
-  // === Schedule check (Option C: existing rules + schedule allowlist) ===
-  // If we're about to ACCEPT, see whether a schedule wants to override that
-  // and reject because the caller isn't on the schedule's allowlist.
-  if (!shouldReject) {
-      Schedule activeSchedule = ScheduleManager.getInstance(this)
-          .getActiveSchedule(System.currentTimeMillis());
-      if (activeSchedule != null && !activeSchedule.isCallerAllowed(number)) {
-          android.util.Log.d(TAG,
-              "Schedule \"" + activeSchedule.name + "\" active — rejecting " + number);
-          shouldReject = true;
-      }
-  }
+------------------------------------------------------------
+TESTING CHECKLIST AFTER DEPLOY
+------------------------------------------------------------
 
-============================================================================
-STEP 6 — DO THE SAME IN CallStateReceiver (Samsung-compat path)
-============================================================================
-
-Open: app/src/main/java/pro/onephone/callfilter/CallStateReceiver.java
-
-Same idea — after the existing rule evaluation, add a schedule check:
-
-  // === Schedule check ===
-  boolean rejected = ...; // result of existing rule evaluation
-  if (!rejected) {
-      Schedule activeSchedule = ScheduleManager.getInstance(context)
-          .getActiveSchedule(System.currentTimeMillis());
-      if (activeSchedule != null && !activeSchedule.isCallerAllowed(number)) {
-          rejected = true;
-      }
-  }
-  if (rejected) {
-      // (your existing reject logic)
-  }
-
-============================================================================
-STEP 7 — ADD HOME-SCREEN TILE TO MainActivity
-============================================================================
-
-Two parts:
-
-A) Add the tile to activity_main.xml.
-   Open: app/src/main/res/layout/activity_main.xml
-   Find the "Contacts Only Mode" card. Right AFTER its closing </LinearLayout>,
-   include the schedules card:
-
-      <include layout="@layout/home_schedules_card"/>
-
-B) Wire up the click handler in MainActivity.java.
-   Open: app/src/main/java/pro/onephone/callfilter/MainActivity.java
-   In onCreate (or wherever you bind views), add:
-
-      View cardSchedules = findViewById(R.id.cardSchedules);
-      cardSchedules.setOnClickListener(new View.OnClickListener() {
-          public void onClick(View v) {
-              startActivity(new Intent(MainActivity.this, SchedulesActivity.class));
-          }
-      });
-
-C) Update the summary text & badge in refreshUI() (or wherever you refresh
-   the main screen). Add this code:
-
-      // Update schedules summary on home tile
-      TextView schedulesSummary = findViewById(R.id.schedulesSummary);
-      TextView schedulesBadge   = findViewById(R.id.schedulesActiveBadge);
-      List<Schedule> all = ScheduleManager.getInstance(this).getAll();
-      Schedule active = ScheduleManager.getInstance(this).getActiveSchedule(System.currentTimeMillis());
-      if (active != null) {
-          schedulesSummary.setText("\"" + active.name + "\" active now");
-          schedulesBadge.setVisibility(View.VISIBLE);
-      } else if (all.isEmpty()) {
-          schedulesSummary.setText("Time-based blocking — tap to add");
-          schedulesBadge.setVisibility(View.GONE);
-      } else {
-          schedulesSummary.setText(all.size() + " schedule" + (all.size() == 1 ? "" : "s")
-                                   + " — none active now");
-          schedulesBadge.setVisibility(View.GONE);
-      }
-
-============================================================================
-STEP 8 — PULL SCHEDULES ON LOGIN (re-install restoration)
-============================================================================
-
-Open: app/src/main/java/pro/onephone/callfilter/LoginActivity.java
-
-Find the place you call pullRulesFromCloudIfEmpty(). Add a sibling line:
-
-      SyncManager.getInstance(LoginActivity.this).pullRulesFromCloudIfEmpty();
-      SyncManager.getInstance(LoginActivity.this).pullBlockedCallsFromCloudIfEmpty();
-      ScheduleManager.getInstance(LoginActivity.this).pullFromCloudIfEmpty();    // <-- new
-
-Same in SetPinActivity if you have a similar pull there.
-
-============================================================================
-STEP 9 — REBUILD
-============================================================================
-
-In Android Studio:
-   Build → Clean Project → Rebuild Project → Run
-
-Or CLI:
-   .\gradlew.bat clean
-   .\gradlew.bat assembleRelease
-
-============================================================================
-USE
-============================================================================
-
-1. Tap "🗓️ Schedules" tile on home screen.
-2. Tap "+ NEW SCHEDULE".
-3. Name it (e.g. "Sleep"), pick start/end times, choose days.
-4. Tap "Allow these contacts" → pick people who can break through (e.g.
-   spouse, kids, boss).
-5. Save.
-
-When the schedule's time window arrives, the call blocker:
-  - Applies all your existing block rules (PREFIX, SUFFIX, BETWEEN), AND
-  - Also blocks anyone not on the schedule's allowlist.
-
-The home-screen tile shows "ACTIVE" badge and which schedule is active.
-
-QUICK ACTIVATE: tap the "⚡ Activate now" button inside a schedule tile to
-force it on for 30 min / 1h / 2h / 4h regardless of time window.
-
-OVERLAP: if two schedules are both active, the one you most recently
-created or toggled wins.
-
-============================================================================
-NOTES
-============================================================================
-
-- Schedules sync to the cloud automatically on every save/toggle.
-- On re-install, schedules are pulled back down by LoginActivity.
-- Contact allowlist normalization: numbers compared digit-by-digit so
-  "+91 9876 543 210" matches "9876543210".
-- The day labels in the day-picker (S M T W T F S) follow Sunday-first
-  convention. If you want Monday-first, swap the day0..day6 button text.
+[ ] Railway backend redeploys; log shows "Running migration 006_schedules.sql"
+[ ] curl https://api.app.onephone.pro/api/schedules/list?user_id=1
+    → {"ok":true,"schedules":[]}
+[ ] Build APK locally with .\gradlew.bat assembleRelease
+[ ] Install on Android 14 device
+[ ] Login flow works WITHOUT crash (FG service issue fixed)
+[ ] Buttons (PREFIX/BETWEEN/SUFFIX/✓/✗/×) all show visible text & symbols
+[ ] OTP screen shows the code in DEV MODE when admin setting is on
+[ ] Home screen shows the 🗓️ Schedules tile
+[ ] Tap tile → list works → + NEW SCHEDULE → edit → save → returns to list
+[ ] During active window, non-allowlisted callers are silently rejected
+[ ] Quick-activate works (Activate now → 30m / 1h / 2h / 4h)
+[ ] Logout → log back in → schedules pulled from cloud
