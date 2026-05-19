@@ -19,6 +19,12 @@ public class Schedule {
     public long quickUntilMs;
     public long lastToggledMs;
 
+    // Frequency-bypass: when ON, if the same number is rejected freqCount times
+    // within freqWindowMin minutes, the next call from that number rings through.
+    public boolean freqEnabled;
+    public int freqCount;
+    public int freqWindowMin;
+
     public Schedule() {
         this.clientId = UUID.randomUUID().toString();
         this.name = "";
@@ -30,6 +36,9 @@ public class Schedule {
         this.allowNames = new ArrayList<>();
         this.quickUntilMs = 0L;
         this.lastToggledMs = System.currentTimeMillis();
+        this.freqEnabled = false;
+        this.freqCount = 5;
+        this.freqWindowMin = 10;
     }
 
     public JSONObject toJson() throws Exception {
@@ -48,6 +57,9 @@ public class Schedule {
         o.put("allow_names", names);
         o.put("quick_until_ms", quickUntilMs);
         o.put("last_toggled_at", lastToggledMs);
+        o.put("freq_bypass_enabled", freqEnabled);
+        o.put("freq_count", freqCount);
+        o.put("freq_window_min", freqWindowMin);
         return o;
     }
 
@@ -72,6 +84,9 @@ public class Schedule {
         if (names != null) {
             for (int i = 0; i < names.length(); i++) s.allowNames.add(names.optString(i, ""));
         }
+        s.freqEnabled   = o.optBoolean("freq_bypass_enabled", false);
+        s.freqCount     = o.optInt("freq_count", 5);
+        s.freqWindowMin = o.optInt("freq_window_min", 10);
         return s;
     }
 

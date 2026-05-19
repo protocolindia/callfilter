@@ -19,7 +19,6 @@ public class CallBlockerService extends CallScreeningService {
 
         Log.d(TAG, "Incoming call from: " + number);
 
-        // Subscription gate
         SubscriptionManager sub = SubscriptionManager.getInstance(this);
         if (sub.hasBeenChecked() && !sub.isActive()) {
             Log.d(TAG, "Subscription inactive — letting call through");
@@ -29,44 +28,71 @@ public class CallBlockerService extends CallScreeningService {
 
         boolean shouldReject = false;
         String rType = "", rPattern = "", rAction = "reject";
+        Schedule activeSchedule = null;
 
-        // Evaluate rules
-        RulesManager rules = RulesManager.getInstance(this);
-        String verdict = rules.evaluate(number);
-        if ("reject".equals(verdict)) {
+        // 1. Block All Now (global)
+        BlockAllManager blockAll = BlockAllManager.getInstance(this);
+        if (blockAll.isActive() && !blockAll.isCallerAllowed(this, number)) {
             shouldReject = true;
-            for (Rule r : rules.getRules()) {
-                if (r.matches(number) && "reject".equals(r.getAction())) {
-                    rType = r.getType(); rPattern = r.getPattern(); rAction = "reject";
-                    break;
-                }
-            }
-        } else if ("accept".equals(verdict)) {
-            // explicit accept — bypass everything else
-            respondToCall(callDetails, new CallResponse.Builder().build());
-            return;
+            rType = "block_all"; rPattern = blockAll.getMode();
         }
 
-        // Contacts-only mode
-        if (!shouldReject && rules.isContactsOnlyMode()) {
-            if (!ContactsHelper.isContactNumber(this, number)) {
-                shouldReject = true;
-                rType = "contacts_only"; rPattern = ""; rAction = "reject";
-            }
-        }
-
-        // Schedule check — Option C: existing rules + schedule allowlist
+        // 2. Block rules
         if (!shouldReject) {
-            Schedule activeSchedule = ScheduleManager.getInstance(this)
-                .getActiveSchedule(System.currentTimeMillis());
-            if (activeSchedule != null && !activeSchedule.isCallerAllowed(number)) {
-                Log.d(TAG, "Schedule \"" + activeSchedule.name + "\" — rejecting " + number);
+            RulesManager rules = RulesManager.getInstance(this);
+            String verdict = rules.evaluate(number);
+            if ("reject".equals(verdict)) {
                 shouldReject = true;
-                rType = "schedule"; rPattern = activeSchedule.name; rAction = "reject";
+                for (Rule r : rules.getRules()) {
+                    if (r.matches(number) && "reject".equals(r.getAction())) {
+                        rType = r.getType(); rPattern = r.getPattern();
+                        break;
+                    }
+                }
+            } else if ("accept".equals(verdict)) {
+                respondToCall(callDetails, new CallResponse.Builder().build());
+                return;
+            }
+        }
+
+        // 3. Contacts-only
+        if (!shouldReject) {
+            RulesManager rules = RulesManager.getInstance(this);
+            if (rules.isContactsOnlyMode()
+                && !ContactsHelper.isContactNumber(this, number)) {
+                shouldReject = true;
+                rType = "contacts_only";
+            }
+        }
+
+        // 4. Schedule allowlist
+        activeSchedule = ScheduleManager.getInstance(this)
+            .getActiveSchedule(System.currentTimeMillis());
+        if (!shouldReject && activeSchedule != null
+            && !activeSchedule.isCallerAllowed(number)) {
+            shouldReject = true;
+            rType = "schedule"; rPattern = activeSchedule.name;
+        }
+
+        // 5. Frequency-bypass — overrides ALL rejections (Q3 = bypass wins).
+        // Uses the active schedule's frequency config. If no schedule is active
+        // but Block All is, frequency-bypass is OFF (Block All has no freq config).
+        if (shouldReject && activeSchedule != null && activeSchedule.freqEnabled) {
+            FrequencyTracker ft = FrequencyTracker.getInstance(this);
+            long now = System.currentTimeMillis();
+            if (ft.shouldBypass(number, now,
+                    activeSchedule.freqCount, activeSchedule.freqWindowMin)) {
+                Log.d(TAG, "Frequency-bypass triggered for " + number
+                    + " (>=" + activeSchedule.freqCount + " in "
+                    + activeSchedule.freqWindowMin + " min) — letting through");
+                respondToCall(callDetails, new CallResponse.Builder().build());
+                return;
             }
         }
 
         if (shouldReject) {
+            FrequencyTracker.getInstance(this)
+                .recordRejection(number, System.currentTimeMillis());
             BlockedCallsManager.getInstance(this)
                 .recordBlock(number, rType, rPattern, rAction);
             CallResponse.Builder b = new CallResponse.Builder()

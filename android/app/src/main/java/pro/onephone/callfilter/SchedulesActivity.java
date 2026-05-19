@@ -3,7 +3,6 @@ package pro.onephone.callfilter;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.*;
@@ -60,8 +59,9 @@ public class SchedulesActivity extends AppCompatActivity {
             TextView daysView   = tile.findViewById(R.id.scheduleDays);
             TextView allowView  = tile.findViewById(R.id.scheduleAllow);
             TextView statusView = tile.findViewById(R.id.scheduleStatus);
+            TextView freqView   = tile.findViewById(R.id.scheduleFreq);
+            View     freqRow    = tile.findViewById(R.id.scheduleFreqRow);
             Switch enableSwitch = tile.findViewById(R.id.scheduleSwitch);
-            Button quickBtn     = tile.findViewById(R.id.btnQuickActivate);
 
             nameView.setText(s.name.isEmpty() ? "Untitled" : s.name);
             windowView.setText(s.formatWindow());
@@ -72,18 +72,17 @@ public class SchedulesActivity extends AppCompatActivity {
                 ? "No exceptions — blocks everyone"
                 : (allowCount == 1 ? "1 contact allowed" : allowCount + " contacts allowed"));
 
-            boolean isActive = activeNow != null && activeNow.clientId.equals(s.clientId);
-            if (isActive) {
-                if (s.quickUntilMs > now) {
-                    statusView.setText("⚡ ACTIVE \u00B7 ends "
-                        + DateUtils.getRelativeTimeSpanString(s.quickUntilMs, now, DateUtils.MINUTE_IN_MILLIS));
-                } else {
-                    statusView.setText("ACTIVE NOW");
-                }
-                statusView.setVisibility(View.VISIBLE);
+            if (s.freqEnabled) {
+                freqRow.setVisibility(View.VISIBLE);
+                freqView.setText("Bypass: " + s.freqCount + " calls in "
+                    + s.freqWindowMin + " min");
             } else {
-                statusView.setVisibility(View.GONE);
+                freqRow.setVisibility(View.GONE);
             }
+
+            boolean isActive = activeNow != null && activeNow.clientId.equals(s.clientId);
+            statusView.setVisibility(isActive ? View.VISIBLE : View.GONE);
+            if (isActive) statusView.setText("ACTIVE NOW");
 
             enableSwitch.setOnCheckedChangeListener(null);
             enableSwitch.setChecked(s.isEnabled);
@@ -111,40 +110,7 @@ public class SchedulesActivity extends AppCompatActivity {
                 return true;
             });
 
-            quickBtn.setOnClickListener(v -> showQuickActivateDialog(s));
-
             listContainer.addView(tile);
         }
-    }
-
-    private void showQuickActivateDialog(final Schedule s) {
-        final long now = System.currentTimeMillis();
-        if (s.quickUntilMs > now) {
-            new AlertDialog.Builder(this)
-                .setTitle("Cancel quick activation?")
-                .setMessage("\"" + s.name + "\" is currently quick-activated.")
-                .setPositiveButton("Cancel it", (d, w) -> {
-                    schedules.cancelQuickActivation(s.clientId);
-                    refreshList();
-                })
-                .setNegativeButton("Keep", null)
-                .show();
-            return;
-        }
-
-        final int[] options = { 30, 60, 120, 240 };
-        final String[] labels = { "30 minutes", "1 hour", "2 hours", "4 hours" };
-
-        new AlertDialog.Builder(this)
-            .setTitle("Activate \"" + s.name + "\" for")
-            .setItems(labels, (d, which) -> {
-                schedules.quickActivate(s.clientId, options[which]);
-                Toast.makeText(SchedulesActivity.this,
-                    "\"" + s.name + "\" active for " + labels[which],
-                    Toast.LENGTH_SHORT).show();
-                refreshList();
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
     }
 }

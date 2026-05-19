@@ -222,6 +222,8 @@ public class AuthManager {
             ctx.getSharedPreferences("blocked_calls", Context.MODE_PRIVATE).edit().clear().commit();
             ctx.getSharedPreferences("subscription", Context.MODE_PRIVATE).edit().clear().commit();
             ctx.getSharedPreferences("schedules_v1", Context.MODE_PRIVATE).edit().clear().commit();
+            ctx.getSharedPreferences("block_all_state", Context.MODE_PRIVATE).edit().clear().commit();
+            ctx.getSharedPreferences("freq_tracker", Context.MODE_PRIVATE).edit().clear().commit();
         }
     }
 

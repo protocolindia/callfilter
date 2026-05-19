@@ -21,6 +21,8 @@
         <LinearLayout android:layout_width="match_parent"
             android:layout_height="wrap_content" android:orientation="vertical"
             android:padding="16dp">
+
+            <!-- Name & Enabled -->
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="16dp"
                 android:background="@drawable/card_bg">
@@ -49,6 +51,7 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- Time window -->
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="16dp"
                 android:background="@drawable/card_bg" android:layout_marginTop="12dp">
@@ -91,6 +94,7 @@
                     android:layout_marginTop="6dp"/>
             </LinearLayout>
 
+            <!-- Days -->
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="16dp"
                 android:background="@drawable/card_bg" android:layout_marginTop="12dp">
@@ -135,6 +139,7 @@
                     android:textColor="@color/subtext" android:layout_marginTop="8dp"/>
             </LinearLayout>
 
+            <!-- Allowlist -->
             <LinearLayout android:id="@+id/pickContactsCard"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:padding="16dp"
@@ -154,6 +159,63 @@
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="›" android:textSize="24sp" android:textColor="@color/subtext"/>
                 </LinearLayout>
+            </LinearLayout>
+
+            <!-- Frequency-bypass -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp"
+                android:background="@drawable/card_bg" android:layout_marginTop="12dp">
+                <LinearLayout android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content" android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="📞 Urgent caller bypass"
+                            android:textSize="14sp" android:textStyle="bold"
+                            android:textColor="@color/text"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Let repeated callers break through the block"
+                            android:textSize="11sp" android:textColor="@color/subtext"
+                            android:layout_marginTop="2dp"/>
+                    </LinearLayout>
+                    <Switch android:id="@+id/freqSwitch"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:thumbTint="@color/text" android:trackTint="@color/accent"/>
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/freqDetailsRow"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:layout_marginTop="14dp"
+                    android:gravity="center_vertical" android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="If blocked "
+                        android:textSize="14sp" android:textColor="@color/text"/>
+                    <EditText android:id="@+id/freqCountInput"
+                        android:layout_width="56dp" android:layout_height="44dp"
+                        android:text="5" android:textColor="@color/accent"
+                        android:textSize="16sp" android:textStyle="bold"
+                        android:gravity="center" android:background="@drawable/input_bg"
+                        android:inputType="number" android:maxLength="3"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text=" times within "
+                        android:textSize="14sp" android:textColor="@color/text"/>
+                    <EditText android:id="@+id/freqWindowInput"
+                        android:layout_width="56dp" android:layout_height="44dp"
+                        android:text="10" android:textColor="@color/accent"
+                        android:textSize="16sp" android:textStyle="bold"
+                        android:gravity="center" android:background="@drawable/input_bg"
+                        android:inputType="number" android:maxLength="4"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text=" min"
+                        android:textSize="14sp" android:textColor="@color/text"/>
+                </LinearLayout>
+
+                <TextView android:id="@+id/freqHint"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="11sp" android:textColor="@color/muted"
+                    android:layout_marginTop="10dp"/>
             </LinearLayout>
 
             <Button android:id="@+id/btnSaveSchedule"

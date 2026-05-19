@@ -22,6 +22,18 @@ public class MainActivity extends AppCompatActivity {
 
     private RulesManager rulesManager;
     private TextView topBarUserInfo, statAccept, statReject, statTotal;
+    // Block-All Now UI
+    private TextView btnBlockAll, btnBlockAllCountdown, blockAllStatus;
+    private android.view.View blockAllBanner;
+    private android.widget.Button btnStopBlockAll;
+    private BlockAllNowDialog blockAllDialog;
+    private final android.os.Handler banner_handler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable banner_tick = new Runnable() {
+        public void run() {
+            refreshBlockAllUI();
+            banner_handler.postDelayed(this, 30_000L);  // every 30s update countdown
+        }
+    };
     private TextView blockedCallsCount, schedulesSummary, schedulesBadge;
     private ImageButton btnTopMenu;
     private Switch contactsOnlySwitch;
@@ -88,6 +100,11 @@ public class MainActivity extends AppCompatActivity {
         rulesContainer   = findViewById(R.id.rulesContainer);
         rulesCountLabel  = findViewById(R.id.rulesCountLabel);
         btnTopMenu       = findViewById(R.id.btnTopMenu);
+        btnBlockAll          = findViewById(R.id.btnBlockAll);
+        btnBlockAllCountdown = findViewById(R.id.btnBlockAllCountdown);
+        blockAllBanner       = findViewById(R.id.blockAllBanner);
+        blockAllStatus       = findViewById(R.id.blockAllStatus);
+        btnStopBlockAll      = findViewById(R.id.btnStopBlockAll);
         cardSchedules    = findViewById(R.id.cardSchedules);
         schedulesSummary = findViewById(R.id.schedulesSummary);
         schedulesBadge   = findViewById(R.id.schedulesActiveBadge);
@@ -130,6 +147,19 @@ public class MainActivity extends AppCompatActivity {
             startActivity(new Intent(MainActivity.this, SchedulesActivity.class)));
 
         btnTopMenu.setOnClickListener(v -> showAccountMenu(v));
+
+        // Block All Now
+        btnBlockAll.setOnClickListener(v -> {
+            if (BlockAllManager.getInstance(MainActivity.this).isActive()) {
+                // Already active — tap to stop
+                stopBlockAllConfirm();
+            } else {
+                blockAllDialog = new BlockAllNowDialog(MainActivity.this,
+                    () -> { refreshBlockAllUI(); refreshUI(); });
+                blockAllDialog.show();
+            }
+        });
+        btnStopBlockAll.setOnClickListener(v -> stopBlockAllConfirm());
 
         selectType(Rule.TYPE_PREFIX);
         selectAction(Rule.ACTION_REJECT);
@@ -239,9 +269,81 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void stopBlockAllConfirm() {
+        new AlertDialog.Builder(this)
+            .setTitle("Stop Block All Now?")
+            .setMessage("Calls will follow your normal rules again.")
+            .setPositiveButton("Stop", (d, w) -> {
+                BlockAllManager.getInstance(this).deactivate();
+                refreshBlockAllUI();
+                refreshUI();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void refreshBlockAllUI() {
+        BlockAllManager ba = BlockAllManager.getInstance(this);
+        if (ba.isActive()) {
+            // Icon: red countdown chip
+            long remain = ba.getExpiresAtMs() - System.currentTimeMillis();
+            String label;
+            if (ba.getExpiresAtMs() == 0L) {
+                label = "ON";
+            } else if (remain <= 0) {
+                ba.deactivate();
+                btnBlockAllCountdown.setVisibility(android.view.View.GONE);
+                blockAllBanner.setVisibility(android.view.View.GONE);
+                return;
+            } else {
+                long h = remain / 3_600_000L;
+                long m = (remain % 3_600_000L) / 60_000L;
+                if (h > 0) label = h + "h " + m + "m";
+                else       label = Math.max(1, m) + "m";
+            }
+            btnBlockAllCountdown.setText(label);
+            btnBlockAllCountdown.setVisibility(android.view.View.VISIBLE);
+
+            // Banner
+            String modeLabel;
+            String m = ba.getMode();
+            if (BlockAllManager.MODE_EVERYTHING.equals(m)) modeLabel = "Everything blocked";
+            else if (BlockAllManager.MODE_EXCEPT_CONTACTS.equals(m)) modeLabel = "Except contacts";
+            else if (BlockAllManager.MODE_EXCEPT_CUSTOM.equals(m)) modeLabel = ba.getAllowNumbers().size() + " allowed";
+            else modeLabel = "";
+            blockAllStatus.setText(modeLabel + " \u00B7 " + ba.formatStatus());
+            blockAllBanner.setVisibility(android.view.View.VISIBLE);
+        } else {
+            btnBlockAllCountdown.setVisibility(android.view.View.GONE);
+            blockAllBanner.setVisibility(android.view.View.GONE);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == BlockAllNowDialog.REQ_PICK_CONTACTS_FOR_BLOCK_ALL
+                && resultCode == RESULT_OK && data != null && blockAllDialog != null) {
+            java.util.ArrayList<String> nums = data.getStringArrayListExtra("selected_numbers");
+            java.util.ArrayList<String> names = data.getStringArrayListExtra("selected_names");
+            if (nums == null) nums = new java.util.ArrayList<>();
+            if (names == null) names = new java.util.ArrayList<>();
+            blockAllDialog.resumeWithPickedContacts(nums, names);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        banner_handler.removeCallbacks(banner_tick);
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        BlockAllManager.getInstance(this).pullFromCloud();
+        refreshBlockAllUI();
+        banner_handler.postDelayed(banner_tick, 30_000L);
         SubscriptionManager subMgr = SubscriptionManager.getInstance(this);
         if (subMgr.hasBeenChecked() && !subMgr.isActive()) {
             startActivity(new Intent(this, PaywallActivity.class));

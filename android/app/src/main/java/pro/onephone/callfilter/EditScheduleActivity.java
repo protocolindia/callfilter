@@ -22,6 +22,13 @@ public class EditScheduleActivity extends AppCompatActivity {
     private Switch enabledSwitch;
     private TextView title;
 
+    // Frequency-bypass section
+    private Switch freqSwitch;
+    private View freqDetailsRow;
+    private EditText freqCountInput;
+    private EditText freqWindowInput;
+    private TextView freqHint;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -59,6 +66,12 @@ public class EditScheduleActivity extends AppCompatActivity {
         dayButtons[5] = findViewById(R.id.day5);
         dayButtons[6] = findViewById(R.id.day6);
 
+        freqSwitch      = findViewById(R.id.freqSwitch);
+        freqDetailsRow  = findViewById(R.id.freqDetailsRow);
+        freqCountInput  = findViewById(R.id.freqCountInput);
+        freqWindowInput = findViewById(R.id.freqWindowInput);
+        freqHint        = findViewById(R.id.freqHint);
+
         nameInput.setText(editing.name);
         renderTime();
         for (int i = 0; i < 7; i++) {
@@ -66,6 +79,25 @@ public class EditScheduleActivity extends AppCompatActivity {
         }
         enabledSwitch.setChecked(editing.isEnabled);
         renderAllowSummary();
+
+        // Frequency section
+        freqSwitch.setChecked(editing.freqEnabled);
+        freqCountInput.setText(String.valueOf(editing.freqCount));
+        freqWindowInput.setText(String.valueOf(editing.freqWindowMin));
+        freqDetailsRow.setVisibility(editing.freqEnabled ? View.VISIBLE : View.GONE);
+        renderFreqHint();
+        freqSwitch.setOnCheckedChangeListener((b, checked) -> {
+            freqDetailsRow.setVisibility(checked ? View.VISIBLE : View.GONE);
+            renderFreqHint();
+        });
+
+        android.text.TextWatcher hintRefresher = new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            public void onTextChanged(CharSequence s, int a, int b, int c) {}
+            public void afterTextChanged(android.text.Editable s) { renderFreqHint(); }
+        };
+        freqCountInput.addTextChangedListener(hintRefresher);
+        freqWindowInput.addTextChangedListener(hintRefresher);
 
         startTimeView.setOnClickListener(v -> pickTime(true));
         endTimeView.setOnClickListener(v -> pickTime(false));
@@ -131,6 +163,27 @@ public class EditScheduleActivity extends AppCompatActivity {
         }
     }
 
+    private void renderFreqHint() {
+        if (!freqSwitch.isChecked()) {
+            freqHint.setText(
+                "When OFF, blocked callers stay blocked no matter how many times "
+                + "they call. Turn this on so urgent repeated calls can break through.");
+            return;
+        }
+        int c = parseIntSafe(freqCountInput.getText().toString(), 5);
+        int w = parseIntSafe(freqWindowInput.getText().toString(), 10);
+        freqHint.setText(
+            "If the same number is blocked " + c + " times within "
+            + w + " minutes, the next call from that number will ring through.");
+    }
+
+    private static int parseIntSafe(String s, int defVal) {
+        try {
+            int v = Integer.parseInt(s.trim());
+            return v <= 0 ? defVal : v;
+        } catch (Exception e) { return defVal; }
+    }
+
     private void pickTime(final boolean isStart) {
         int cur = isStart ? editing.startMinute : editing.endMinute;
         TimePickerDialog tpd = new TimePickerDialog(this,
@@ -163,6 +216,9 @@ public class EditScheduleActivity extends AppCompatActivity {
         }
         editing.name = name;
         editing.isEnabled = enabledSwitch.isChecked();
+        editing.freqEnabled = freqSwitch.isChecked();
+        editing.freqCount = parseIntSafe(freqCountInput.getText().toString(), 5);
+        editing.freqWindowMin = parseIntSafe(freqWindowInput.getText().toString(), 10);
         ScheduleManager.getInstance(this).save(editing);
         Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
         finish();
