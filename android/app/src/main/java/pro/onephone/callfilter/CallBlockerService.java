@@ -62,17 +62,14 @@ public class CallBlockerService extends CallScreeningService {
             }
         }
 
-        // 3. Contacts-only
-        if (!shouldReject) {
-            RulesManager rules = RulesManager.getInstance(this);
-            if (rules.isContactsOnlyMode()
-                && !ContactsHelper.isContactNumber(this, number)) {
-                shouldReject = true;
-                rType = "contacts_only";
-            }
+        // 4. Contacts-only mode
+        if (!shouldReject && rules.isContactsOnlyMode()
+            && !ContactsHelper.isContactNumber(this, number)) {
+            shouldReject = true;
+            rType = "contacts_only";
         }
 
-        // 4. Schedule allowlist
+        // 5. Schedule allowlist
         activeSchedule = ScheduleManager.getInstance(this)
             .getActiveSchedule(System.currentTimeMillis());
         if (!shouldReject && activeSchedule != null
@@ -81,7 +78,7 @@ public class CallBlockerService extends CallScreeningService {
             rType = "schedule"; rPattern = activeSchedule.name;
         }
 
-        // 5. Frequency-bypass — overrides ALL rejections (Q3 = bypass wins).
+        // 6. Frequency-bypass — overrides ALL rejections (Q3 = bypass wins).
         // Uses the active schedule's frequency config. If no schedule is active
         // but Block All is, frequency-bypass is OFF (Block All has no freq config).
         if (shouldReject && activeSchedule != null && activeSchedule.freqEnabled) {

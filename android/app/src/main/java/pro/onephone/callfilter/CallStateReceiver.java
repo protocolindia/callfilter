@@ -54,17 +54,14 @@ public class CallStateReceiver extends BroadcastReceiver {
             }
         }
 
-        // 3. Contacts-only
-        if (!shouldReject) {
-            RulesManager rules = RulesManager.getInstance(context);
-            if (rules.isContactsOnlyMode()
-                && !ContactsHelper.isContactNumber(context, number)) {
-                shouldReject = true;
-                rType = "contacts_only";
-            }
+        // 4. Contacts-only mode
+        if (!shouldReject && rules.isContactsOnlyMode()
+            && !ContactsHelper.isContactNumber(context, number)) {
+            shouldReject = true;
+            rType = "contacts_only";
         }
 
-        // 4. Schedule allowlist
+        // 5. Schedule allowlist
         activeSchedule = ScheduleManager.getInstance(context)
             .getActiveSchedule(System.currentTimeMillis());
         if (!shouldReject && activeSchedule != null
@@ -73,7 +70,7 @@ public class CallStateReceiver extends BroadcastReceiver {
             rType = "schedule"; rPattern = activeSchedule.name;
         }
 
-        // 5. Frequency-bypass
+        // 6. Frequency-bypass
         if (shouldReject && activeSchedule != null && activeSchedule.freqEnabled) {
             FrequencyTracker ft = FrequencyTracker.getInstance(context);
             if (ft.shouldBypass(number, System.currentTimeMillis(),
