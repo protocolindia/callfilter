@@ -271,7 +271,8 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
     const allowed = [
       'sms_provider', 'sms_api_key', 'sms_api_secret',
       'sms_sender_id', 'sms_endpoint', 'sms_template',
-      'otp_length', 'otp_expiry_minutes', 'otp_show_in_response'
+      'otp_length', 'otp_expiry_minutes', 'otp_show_in_response',
+      'subscription_required'
     ];
     const incoming = req.body || {};
     for (const k of allowed) {

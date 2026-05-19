@@ -146,6 +146,32 @@ export default function Settings() {
           )}
         </section>
 
+        <section className="card">
+          <h2>Subscription gating</h2>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: -8 }}>
+            Controls whether the Android app shows the paywall and blocks calls
+            for users without an active subscription.
+          </p>
+          <label className="checkbox" style={{ marginTop: 12 }}>
+            <input type="checkbox"
+              checked={settings.subscription_required === 'true'}
+              onChange={e => update('subscription_required', e.target.checked ? 'true' : 'false')}/>
+            Require active subscription
+          </label>
+          {settings.subscription_required !== 'true' && (
+            <div style={{
+                marginTop: 12, padding: '10px 14px', borderRadius: 8,
+                background: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                color: '#22C55E', fontSize: 13
+              }}>
+              <strong>Subscription gating OFF.</strong> All users have unrestricted
+              access — the Android app skips the paywall. Enable this once
+              Google Play Billing is configured and you want to enforce subscriptions.
+            </div>
+          )}
+        </section>
+
         <button type="submit" className="btn btn-primary" disabled={saving}>
           {saving ? 'Saving…' : 'Save settings'}
         </button>

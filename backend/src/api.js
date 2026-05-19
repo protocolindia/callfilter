@@ -453,6 +453,25 @@ router.get('/subscription/:user_id', async (req, res, next) => {
     const userId = parseInt(req.params.user_id, 10);
     if (!userId) return res.status(400).json({ error: 'user_id required' });
 
+    // Dev/internal mode: subscription gating disabled by admin
+    const subRequired = (await getSetting('subscription_required')) !== 'false';
+    if (!subRequired) {
+      return res.json({
+        ok: true,
+        has_subscription: true,
+        active: true,
+        seconds_remaining: 31536000,  // 1 year
+        subscription: {
+          id: 0,
+          status: 'unrestricted',
+          is_trial: false,
+          plan_name: 'Unrestricted (dev mode)',
+          seconds_remaining: 31536000,
+          active: true
+        }
+      });
+    }
+
     // Get the user's BEST subscription: prefer one whose expiry hasn't passed yet,
     // then fall back to the most recent. This way a still-valid 30-day trial isn't
     // hidden by a later expired row from a different grant.
@@ -563,6 +582,9 @@ router.post('/coupons/validate', async (req, res, next) => {
 router.post('/check-account', async (req, res, next) => {
   try {
     const { user_id, dial_code, mobile } = req.body || {};
+
+    // Dev/internal mode: subscription gating disabled by admin
+    const __subRequired = (await getSetting('subscription_required')) !== 'false';
     if (!user_id) return res.status(400).json({ error: 'user_id required' });
 
     const u = await one('SELECT id, dial_code, mobile, status, pin_set_at FROM users WHERE id = $1',
@@ -602,14 +624,20 @@ router.post('/check-account', async (req, res, next) => {
       number_matches: numberMatches,
       status: u.status,
       pin_set: !!u.pin_set_at,
-      subscription: sub ? {
+      subscription: !__subRequired ? {
+        active: true,
+        is_trial: false,
+        status: 'unrestricted',
+        seconds_remaining: 31536000,
+        plan_name: 'Unrestricted (dev mode)'
+      } : (sub ? {
         active: subActive,
         is_trial: sub.is_trial,
         status: subActive ? sub.status : 'expired',
         expires_at: sub.expires_at,
         seconds_remaining: secondsRemaining,
         plan_name: sub.plan_name
-      } : null
+      } : null)
     });
   } catch (e) { next(e); }
 });

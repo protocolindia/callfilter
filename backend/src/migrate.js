@@ -59,7 +59,8 @@ async function migrate() {
     sms_template:         'Your verification code is {{otp}}',
     otp_length:           '6',
     otp_expiry_minutes:   '5',
-    otp_show_in_response: 'true'
+    otp_show_in_response: 'true',
+    subscription_required: 'false'
   };
   for (const [k, v] of Object.entries(defaults)) {
     await query(
