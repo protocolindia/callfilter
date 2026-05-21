@@ -272,7 +272,11 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'sms_provider', 'sms_api_key', 'sms_api_secret',
       'sms_sender_id', 'sms_endpoint', 'sms_template',
       'otp_length', 'otp_expiry_minutes', 'otp_show_in_response',
-      'subscription_required'
+      'subscription_required',
+      'razorpay_enabled', 'razorpay_mode',
+      'razorpay_key_id_test', 'razorpay_secret_test',
+      'razorpay_key_id_live', 'razorpay_secret_live',
+      'razorpay_webhook_secret'
     ];
     const incoming = req.body || {};
     for (const k of allowed) {
@@ -536,6 +540,128 @@ router.get('/payments', requireAdmin, async (req, res, next) => {
       payments: rows, total, page, limit,
       total_pages: Math.max(1, Math.ceil(total / limit))
     });
+  } catch (e) { next(e); }
+});
+
+
+// ============================================================
+// SCHEDULES — admin view (read-only; user manages from app)
+// ============================================================
+router.get('/users/:id/schedules', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const schedules = await many(
+      `SELECT id, client_id, name, start_minute, end_minute, days_mask,
+              is_enabled, allow_numbers, allow_names, quick_until_ms,
+              freq_bypass_enabled, freq_count, freq_window_min,
+              EXTRACT(EPOCH FROM last_toggled_at) * 1000 AS last_toggled_ms
+         FROM schedules WHERE user_id = $1 ORDER BY id`,
+      [id]
+    );
+    res.json({ schedules });
+  } catch (e) { next(e); }
+});
+
+// ============================================================
+// BLOCK-ALL STATE — admin view (read-only)
+// ============================================================
+router.get('/users/:id/block-all', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const state = await one(
+      `SELECT mode, expires_at_ms, allow_numbers, allow_names, updated_at
+         FROM block_all_state WHERE user_id = $1`, [id]);
+    res.json({ state: state || null });
+  } catch (e) { next(e); }
+});
+
+// ============================================================
+// RULES — admin can create, update, delete
+// ============================================================
+router.post('/users/:id/rules', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { rule_type, pattern, action } = req.body || {};
+    if (!rule_type || !pattern || !action) {
+      return res.status(400).json({ error: 'rule_type, pattern, action required' });
+    }
+    if (!['prefix','suffix','range','between'].includes(rule_type)) {
+      return res.status(400).json({ error: 'invalid_rule_type' });
+    }
+    if (!['accept','reject'].includes(action)) {
+      return res.status(400).json({ error: 'invalid_action' });
+    }
+    const rule = await one(
+      `INSERT INTO user_rules(user_id, rule_type, pattern, action)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [id, rule_type, pattern, action]
+    );
+    await audit(req.admin.username, 'admin_rule_created',
+      `user=$1{id} ${rule_type} ${pattern} ${action}`.replace('$1{id}', String(id)));
+    res.json({ ok: true, rule });
+  } catch (e) { next(e); }
+});
+
+router.put('/users/:id/rules/:rid', requireAdmin, async (req, res, next) => {
+  try {
+    const id  = parseInt(req.params.id, 10);
+    const rid = parseInt(req.params.rid, 10);
+    const { rule_type, pattern, action } = req.body || {};
+    await query(
+      `UPDATE user_rules
+          SET rule_type = COALESCE($1, rule_type),
+              pattern   = COALESCE($2, pattern),
+              action    = COALESCE($3, action)
+        WHERE id = $4 AND user_id = $5`,
+      [rule_type || null, pattern || null, action || null, rid, id]
+    );
+    await audit(req.admin.username, 'admin_rule_updated', `user=${id} rid=${rid}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.delete('/users/:id/rules/:rid', requireAdmin, async (req, res, next) => {
+  try {
+    const id  = parseInt(req.params.id, 10);
+    const rid = parseInt(req.params.rid, 10);
+    await query('DELETE FROM user_rules WHERE id = $1 AND user_id = $2', [rid, id]);
+    await audit(req.admin.username, 'admin_rule_deleted', `user=${id} rid=${rid}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// ============================================================
+// RAZORPAY ORDERS — payment/transaction log
+// ============================================================
+router.get('/razorpay/orders', requireAdmin, async (req, res, next) => {
+  try {
+    const page   = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = (page - 1) * limit;
+    const status = (req.query.status || '').trim();
+    const userId = parseInt(req.query.user_id, 10) || null;
+
+    const where = [];
+    const params = [];
+    if (status) { params.push(status); where.push(`o.status = $${params.length}`); }
+    if (userId) { params.push(userId); where.push(`o.user_id = $${params.length}`); }
+    const whereSql = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+    const total = await one(
+      `SELECT COUNT(*)::int AS n FROM razorpay_orders o ${whereSql}`, params);
+    params.push(limit); params.push(offset);
+    const orders = await many(
+      `SELECT o.id, o.user_id, o.plan_id, o.order_id, o.amount_paise, o.currency,
+              o.status, o.razorpay_payment_id, o.created_at, o.paid_at,
+              u.dial_code, u.mobile, u.name AS user_name,
+              p.name AS plan_name
+         FROM razorpay_orders o
+         LEFT JOIN users u ON u.id = o.user_id
+         LEFT JOIN plans p ON p.id = o.plan_id
+         ${whereSql}
+         ORDER BY o.created_at DESC
+         LIMIT $${params.length-1} OFFSET $${params.length}`, params);
+    res.json({ orders, total: total.n, page, limit });
   } catch (e) { next(e); }
 });
 

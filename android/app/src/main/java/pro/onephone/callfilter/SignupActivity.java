@@ -9,7 +9,7 @@ import androidx.appcompat.app.AppCompatActivity;
 public class SignupActivity extends AppCompatActivity {
 
     private Spinner countrySpinner;
-    private EditText mobileInput;
+    private EditText mobileInput, nameInput;
     private Button btnContinue;
 
     @Override
@@ -27,6 +27,7 @@ public class SignupActivity extends AppCompatActivity {
 
         countrySpinner = findViewById(R.id.countrySpinner);
         mobileInput    = findViewById(R.id.mobileInput);
+        nameInput      = findViewById(R.id.nameInput);
         btnContinue    = findViewById(R.id.btnContinue);
 
         ArrayAdapter<CountryData> adapter = new ArrayAdapter<>(this,
@@ -51,13 +52,19 @@ public class SignupActivity extends AppCompatActivity {
     private void handleContinue() {
         final CountryData cd = (CountryData) countrySpinner.getSelectedItem();
         final String mobile = mobileInput.getText().toString().trim();
+        final String name = nameInput.getText().toString().trim();
+        if (name.length() < 2) {
+            Toast.makeText(this, "Please enter your name", Toast.LENGTH_SHORT).show();
+            nameInput.requestFocus();
+            return;
+        }
         if (mobile.length() < 6) {
             Toast.makeText(this, "Please enter a valid mobile number", Toast.LENGTH_SHORT).show();
             return;
         }
         btnContinue.setEnabled(false);
         btnContinue.setText("…");
-        AuthManager.getInstance(this).startSignup(cd.dialCode, mobile, cd.iso,
+        AuthManager.getInstance(this).startSignup(cd.dialCode, mobile, cd.iso, name,
             new AuthManager.SignupCallback() {
                 public void onSuccess(String devOtp) {
                     Intent i = new Intent(SignupActivity.this, OtpActivity.class);

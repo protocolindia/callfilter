@@ -19,6 +19,16 @@ public class CallBlockerService extends CallScreeningService {
 
         Log.d(TAG, "Incoming call from: " + number);
 
+        // Stash for post-call popup: CallStateReceiver picks this up when state
+        // returns to IDLE. On Android 10+, PHONE_STATE broadcasts no longer include
+        // EXTRA_INCOMING_NUMBER, so CallScreeningService is the only place we get it.
+        if (number != null && !number.isEmpty()) {
+            getSharedPreferences("post_call_state", MODE_PRIVATE).edit()
+                .putString("last_number", number)
+                .putLong("last_number_ts", System.currentTimeMillis())
+                .commit();
+        }
+
         SubscriptionManager sub = SubscriptionManager.getInstance(this);
         if (sub.hasBeenChecked() && !sub.isActive()) {
             Log.d(TAG, "Subscription inactive — letting call through");

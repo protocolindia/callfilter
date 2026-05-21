@@ -172,6 +172,80 @@ export default function Settings() {
           )}
         </section>
 
+        <section className="card">
+          <h2>Razorpay (sideload payments)</h2>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: -8 }}>
+            For sideloaded APKs only. Google Play builds use Play Billing.
+          </p>
+
+          <label className="checkbox" style={{ marginTop: 12 }}>
+            <input type="checkbox"
+              checked={settings.razorpay_enabled === 'true'}
+              onChange={e => update('razorpay_enabled', e.target.checked ? 'true' : 'false')}/>
+            Enable Razorpay payments
+          </label>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
+            <div className="field" style={{ gridColumn: '1 / -1' }}>
+              <label>Mode</label>
+              <select value={settings.razorpay_mode || 'test'}
+                      onChange={e => update('razorpay_mode', e.target.value)}>
+                <option value="test">Test mode (rzp_test_...)</option>
+                <option value="live">Live mode (rzp_live_...)</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Test Key ID</label>
+              <input value={settings.razorpay_key_id_test || ''}
+                onChange={e => update('razorpay_key_id_test', e.target.value)}
+                placeholder="rzp_test_..." />
+            </div>
+            <div className="field">
+              <label>Test Secret</label>
+              <input type="password" value={settings.razorpay_secret_test || ''}
+                onChange={e => update('razorpay_secret_test', e.target.value)}
+                placeholder="Test secret" />
+            </div>
+            <div className="field">
+              <label>Live Key ID</label>
+              <input value={settings.razorpay_key_id_live || ''}
+                onChange={e => update('razorpay_key_id_live', e.target.value)}
+                placeholder="rzp_live_..." />
+            </div>
+            <div className="field">
+              <label>Live Secret</label>
+              <input type="password" value={settings.razorpay_secret_live || ''}
+                onChange={e => update('razorpay_secret_live', e.target.value)}
+                placeholder="Live secret" />
+            </div>
+            <div className="field" style={{ gridColumn: '1 / -1' }}>
+              <label>Webhook Secret</label>
+              <input type="password" value={settings.razorpay_webhook_secret || ''}
+                onChange={e => update('razorpay_webhook_secret', e.target.value)}
+                placeholder="Used to verify webhook callbacks from Razorpay" />
+              <small style={{ color: 'var(--muted)' }}>
+                Configure your webhook URL in Razorpay dashboard as:<br/>
+                <code>https://api.app.onephone.pro/api/razorpay/webhook</code>
+              </small>
+            </div>
+          </div>
+
+          {settings.razorpay_enabled === 'true' && (
+            <div style={{
+                marginTop: 14, padding: '10px 14px', borderRadius: 8,
+                background: settings.razorpay_mode === 'live'
+                  ? 'rgba(79, 142, 247, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                border: settings.razorpay_mode === 'live'
+                  ? '1px solid rgba(79, 142, 247, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                color: settings.razorpay_mode === 'live' ? '#4F8EF7' : '#F59E0B', fontSize: 13
+              }}>
+              <strong>{settings.razorpay_mode === 'live' ? 'LIVE mode' : 'TEST mode'}.</strong>
+              {' '}Sideload app users will see Razorpay checkout
+              {settings.razorpay_mode === 'live' ? ' with real money.' : ' (no real money).'}
+            </div>
+          )}
+        </section>
+
         <button type="submit" className="btn btn-primary" disabled={saving}>
           {saving ? 'Saving…' : 'Save settings'}
         </button>

@@ -1,49 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:padding="24dp"
-    android:background="@color/bg" android:gravity="center">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="✨" android:textSize="60sp" android:layout_marginBottom="20dp"/>
-    <TextView android:id="@+id/paywallTitle"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="Subscribe to continue" android:textSize="24sp" android:textStyle="bold"
-        android:textColor="@color/text" android:gravity="center"/>
-    <TextView android:id="@+id/paywallSubtitle"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="Block unwanted calls with full features"
-        android:textSize="14sp" android:textColor="@color/subtext"
-        android:gravity="center" android:layout_marginTop="8dp"
-        android:layout_marginBottom="32dp"/>
-    <LinearLayout android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:orientation="vertical"
-        android:background="@drawable/card_bg" android:padding="20dp"
-        android:gravity="center" android:layout_marginBottom="24dp">
-        <TextView android:id="@+id/planName"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="Monthly" android:textSize="14sp"
-            android:textColor="@color/subtext"/>
-        <TextView android:id="@+id/planPrice"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="₹--/month" android:textSize="32sp" android:textStyle="bold"
-            android:textColor="@color/accent" android:layout_marginTop="4dp"/>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✨"
+            android:textSize="48sp"
+            android:layout_gravity="center"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView android:id="@+id/paywallTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Choose your plan"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/text"
+            android:gravity="center"/>
+
+        <TextView android:id="@+id/paywallSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="13sp"
+            android:textColor="@color/subtext"
+            android:gravity="center"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="20dp"/>
+
+        <LinearLayout android:id="@+id/planList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"/>
+
+        <TextView android:id="@+id/paywallMsg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="12sp"
+            android:textColor="@color/muted"
+            android:gravity="center"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="10dp"/>
+
+        <Button android:id="@+id/btnRestore"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="Restore purchase"
+            android:textSize="13sp"
+            android:textColor="@color/accent"
+            android:background="@android:color/transparent"
+            android:layout_marginTop="14dp"/>
+
+        <Button android:id="@+id/btnLogout"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="Sign out"
+            android:textSize="13sp"
+            android:textColor="@color/subtext"
+            android:background="@android:color/transparent"/>
     </LinearLayout>
-    <TextView android:id="@+id/paywallMsg"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="" android:textSize="12sp" android:textColor="@color/muted"
-        android:gravity="center" android:layout_marginBottom="12dp"/>
-    <Button android:id="@+id/btnPay"
-        android:layout_width="match_parent" android:layout_height="52dp"
-        android:text="Loading..." android:textStyle="bold" android:textSize="14sp"
-        android:textColor="@color/white" android:background="@drawable/btn_accent"/>
-    <Button android:id="@+id/btnRestore"
-        android:layout_width="match_parent" android:layout_height="44dp"
-        android:text="Restore purchase" android:textSize="13sp"
-        android:textColor="@color/accent"
-        android:background="@android:color/transparent" android:layout_marginTop="8dp"/>
-    <Button android:id="@+id/btnLogout"
-        android:layout_width="match_parent" android:layout_height="44dp"
-        android:text="Sign out" android:textSize="13sp"
-        android:textColor="@color/subtext"
-        android:background="@android:color/transparent"/>
-</LinearLayout>
+</ScrollView>

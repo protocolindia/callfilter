@@ -11,6 +11,16 @@
         android:textSize="14sp" android:textColor="@color/subtext"
         android:layout_marginBottom="40dp"/>
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="YOUR NAME" android:textSize="11sp" android:textStyle="bold"
+        android:textColor="@color/muted" android:letterSpacing="0.1"/>
+    <EditText android:id="@+id/nameInput"
+        android:layout_width="match_parent" android:layout_height="48dp"
+        android:hint="Full name" android:textColor="@color/text"
+        android:textColorHint="@color/muted" android:background="@drawable/input_bg"
+        android:paddingStart="12dp" android:paddingEnd="12dp"
+        android:inputType="textPersonName|textCapWords"
+        android:layout_marginTop="4dp" android:layout_marginBottom="16dp"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="COUNTRY" android:textSize="11sp" android:textStyle="bold"
         android:textColor="@color/muted" android:letterSpacing="0.1"/>
     <Spinner android:id="@+id/countrySpinner"

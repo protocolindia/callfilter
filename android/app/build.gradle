@@ -35,6 +35,19 @@ android {
         }
     }
 
+    flavorDimensions += "distribution"
+    productFlavors {
+        playstore {
+            dimension "distribution"
+            buildConfigField "String", "BILLING_PROVIDER", "\"play\""
+        }
+        sideload {
+            dimension "distribution"
+            buildConfigField "String", "BILLING_PROVIDER", "\"razorpay\""
+            // Razorpay's checkout SDK is added via dependencies below
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
@@ -60,5 +73,9 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.core:core:1.13.1'
     implementation 'androidx.lifecycle:lifecycle-runtime:2.8.4'
+    // Google Play Billing — included in BOTH flavors, but only used in 'playstore'
+    // (it's small and lets PlayBillingManager compile in all variants)
     implementation 'com.android.billingclient:billing:7.1.1'
+    // Razorpay Checkout SDK — only in sideload flavor
+    sideloadImplementation 'com.razorpay:checkout:1.6.41'
 }

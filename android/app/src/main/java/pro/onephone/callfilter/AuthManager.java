@@ -21,6 +21,7 @@ public class AuthManager {
     private static final String KEY_VERIFIED = "verified";
     private static final String KEY_LOGGED_IN = "logged_in";
     private static final String KEY_PENDING_OTP = "pending_otp";
+    private static final String KEY_NAME = "user_name";
 
     private final Context appContext;
     private final SharedPreferences prefs;
@@ -45,6 +46,8 @@ public class AuthManager {
     public String getMobile()   { return prefs.getString(KEY_MOBILE, ""); }
     public String getFullNumber() { return getDialCode() + getMobile(); }
     public boolean isVerified() { return prefs.getBoolean(KEY_VERIFIED, false); }
+    public String getName()     { return prefs.getString(KEY_NAME, ""); }
+    public void setName(String n) { prefs.edit().putString(KEY_NAME, n == null ? "" : n.trim()).commit(); }
     public boolean hasPin()     { return !prefs.getString(KEY_PIN_HASH, "").isEmpty(); }
     public boolean isLoggedIn() {
         return prefs.getBoolean(KEY_LOGGED_IN, false)
@@ -73,7 +76,8 @@ public class AuthManager {
     }
 
     public void startSignup(final String dialCode, final String mobile,
-                            final String countryIso, final SignupCallback cb) {
+                            final String countryIso, final String name,
+                            final SignupCallback cb) {
         // If the number changed, wipe local state first
         String existingMobile = getMobile();
         String existingDial   = getDialCode();
@@ -85,6 +89,7 @@ public class AuthManager {
         prefs.edit()
             .putString(KEY_DIAL_CODE, dialCode)
             .putString(KEY_MOBILE, mobile)
+            .putString(KEY_NAME, name == null ? "" : name.trim())
             .commit();
 
         if (!isBackendEnabled()) {
@@ -101,6 +106,7 @@ public class AuthManager {
             body.put("mobile", mobile);
             body.put("country_iso", countryIso == null ? "" : countryIso);
             body.put("device_info", android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL);
+            body.put("name", name == null ? "" : name);
             BackendClient.post(BACKEND_URL + "/api/signup", body, new BackendClient.Callback() {
                 public void onResult(boolean ok, JSONObject resp, String error) {
                     if (ok && resp != null) {

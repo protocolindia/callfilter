@@ -41,10 +41,14 @@ public class MainActivity extends AppCompatActivity {
     // Add rule form
     private Spinner countryDial;
     private EditText patternInput;
-    private TextView btnTypePrefix, btnTypeBetween, btnTypeSuffix;
+    private TextView btnTypePrefix, btnTypeSuffix, btnTypeRange;
     private TextView btnAccept, btnReject;
-    private LinearLayout rulesContainer;
-    private TextView rulesCountLabel;
+    private View rangeInputsRow;
+    private EditText rangeBeforeInput, rangeAfterInput;
+    private TextView rangeSummary;
+    // Cards (replacing inline rules list)
+    private View cardActiveRules, cardRecentCalls;
+    private TextView rulesSummary, rulesCount;
     private View blockedCallsCard, cardSchedules;
 
     private String currentType = Rule.TYPE_PREFIX;
@@ -91,12 +95,18 @@ public class MainActivity extends AppCompatActivity {
         countryDial      = findViewById(R.id.countryDialSpinner);
         patternInput     = findViewById(R.id.patternInput);
         btnTypePrefix    = findViewById(R.id.btnTypePrefix);
-        btnTypeBetween   = findViewById(R.id.btnTypeBetween);
         btnTypeSuffix    = findViewById(R.id.btnTypeSuffix);
+        btnTypeRange     = findViewById(R.id.btnTypeRange);
+        rangeInputsRow   = findViewById(R.id.rangeInputsRow);
+        rangeBeforeInput = findViewById(R.id.rangeBeforeInput);
+        rangeAfterInput  = findViewById(R.id.rangeAfterInput);
+        rangeSummary     = findViewById(R.id.rangeSummary);
+        cardActiveRules  = findViewById(R.id.cardActiveRules);
+        cardRecentCalls  = findViewById(R.id.cardRecentCalls);
+        rulesSummary     = findViewById(R.id.rulesSummary);
+        rulesCount       = findViewById(R.id.rulesCount);
         btnAccept        = findViewById(R.id.btnAccept);
         btnReject        = findViewById(R.id.btnReject);
-        rulesContainer   = findViewById(R.id.rulesContainer);
-        rulesCountLabel  = findViewById(R.id.rulesCountLabel);
         btnTopMenu       = findViewById(R.id.btnTopMenu);
         btnBlockAll          = findViewById(R.id.btnBlockAll);
         btnBlockAllCountdown = findViewById(R.id.btnBlockAllCountdown);
@@ -128,8 +138,23 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupListeners() {
         btnTypePrefix.setOnClickListener(v -> selectType(Rule.TYPE_PREFIX));
-        btnTypeBetween.setOnClickListener(v -> selectType(Rule.TYPE_BETWEEN));
         btnTypeSuffix.setOnClickListener(v -> selectType(Rule.TYPE_SUFFIX));
+        btnTypeRange.setOnClickListener(v -> selectType(Rule.TYPE_RANGE));
+
+        cardActiveRules.setOnClickListener(v ->
+            startActivity(new Intent(MainActivity.this, RulesActivity.class)));
+        cardRecentCalls.setOnClickListener(v ->
+            startActivity(new Intent(MainActivity.this, RecentCallsActivity.class)));
+
+        // Live range summary as user types
+        android.text.TextWatcher tw = new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int a, int b, int c2) {}
+            public void onTextChanged(CharSequence s, int a, int b, int c2) {}
+            public void afterTextChanged(android.text.Editable e) { updateRangeSummary(); }
+        };
+        rangeBeforeInput.addTextChangedListener(tw);
+        rangeAfterInput.addTextChangedListener(tw);
+        patternInput.addTextChangedListener(tw);
         // Action buttons COMMIT the rule directly — no separate Add button.
         btnAccept.setOnClickListener(v -> addRule(Rule.ACTION_ACCEPT));
         btnReject.setOnClickListener(v -> addRule(Rule.ACTION_REJECT));
@@ -167,24 +192,61 @@ public class MainActivity extends AppCompatActivity {
         int whiteColor = getResources().getColor(R.color.white, null);
         int dimColor   = getResources().getColor(R.color.subtext, null);
 
-        boolean isPrefix  = type.equals(Rule.TYPE_PREFIX);
-        boolean isBetween = type.equals(Rule.TYPE_BETWEEN);
-        boolean isSuffix  = type.equals(Rule.TYPE_SUFFIX);
+        boolean isPrefix = type.equals(Rule.TYPE_PREFIX);
+        boolean isSuffix = type.equals(Rule.TYPE_SUFFIX);
+        boolean isRange  = type.equals(Rule.TYPE_RANGE);
 
         btnTypePrefix.setBackgroundResource(isPrefix
             ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
         btnTypePrefix.setTextColor(isPrefix ? whiteColor : dimColor);
 
-        btnTypeBetween.setBackgroundResource(isBetween
-            ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
-        btnTypeBetween.setTextColor(isBetween ? whiteColor : dimColor);
-
         btnTypeSuffix.setBackgroundResource(isSuffix
             ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
         btnTypeSuffix.setTextColor(isSuffix ? whiteColor : dimColor);
 
-        patternInput.setHint(
-            isBetween ? "e.g. 9000000000-9999999999" : "e.g. 9494");
+        btnTypeRange.setBackgroundResource(isRange
+            ? R.drawable.btn_type_active : R.drawable.btn_type_inactive);
+        btnTypeRange.setTextColor(isRange ? whiteColor : dimColor);
+
+        // SUFFIX: hide country spinner (suffix matches by tail digits regardless of country)
+        countryDial.setVisibility(isSuffix ? View.GONE : View.VISIBLE);
+
+        // RANGE: show before/after inputs + summary
+        rangeInputsRow.setVisibility(isRange ? View.VISIBLE : View.GONE);
+        rangeSummary.setVisibility(isRange ? View.VISIBLE : View.GONE);
+
+        if (isSuffix) {
+            patternInput.setHint("e.g. 9494 (matches any country)");
+        } else if (isRange) {
+            patternInput.setHint("anchor number, e.g. 9876543210");
+        } else {
+            patternInput.setHint("e.g. 9494");
+        }
+        updateRangeSummary();
+    }
+
+    /** Updates the "Will block N numbers from X to Y" preview under the RANGE inputs. */
+    private void updateRangeSummary() {
+        if (!Rule.TYPE_RANGE.equals(currentType)) return;
+        String pat = patternInput.getText().toString().trim();
+        if (pat.isEmpty()) { rangeSummary.setText(""); return; }
+        int before = parseIntSafe(rangeBeforeInput.getText().toString(), 0);
+        int after  = parseIntSafe(rangeAfterInput.getText().toString(), 0);
+        if (before == 0 && after == 0) { rangeSummary.setText("Enter how many numbers to block"); return; }
+        try {
+            CountryData cd = (CountryData) countryDial.getSelectedItem();
+            String anchor = cd.dialCode + pat;
+            String preview = Rule.buildRangePattern(anchor, before, after);
+            int dash = preview.indexOf('-');
+            String s = preview.substring(0, dash);
+            String e = preview.substring(dash + 1);
+            rangeSummary.setText("Will block " + (before + after + 1) + " numbers: "
+                + s + " → " + e);
+        } catch (Exception ex) { rangeSummary.setText(""); }
+    }
+
+    private static int parseIntSafe(String s, int dflt) {
+        try { return Integer.parseInt(s.trim()); } catch (Exception ex) { return dflt; }
     }
 
 
@@ -195,19 +257,38 @@ public class MainActivity extends AppCompatActivity {
             patternInput.requestFocus();
             return;
         }
-        CountryData cd = (CountryData) countryDial.getSelectedItem();
-        String full;
-        if (Rule.TYPE_BETWEEN.equals(currentType) && pat.contains("-")) {
-            int dash = pat.indexOf('-');
-            full = cd.dialCode + pat.substring(0, dash) + "-" + cd.dialCode + pat.substring(dash + 1);
+
+        String storedPattern;
+        String storedType = currentType;
+
+        if (Rule.TYPE_SUFFIX.equals(currentType)) {
+            // SUFFIX: store just the digits the user typed (no country code).
+            // Rule.matches() will match any number whose tail digits equal this.
+            storedPattern = pat;
+        } else if (Rule.TYPE_RANGE.equals(currentType)) {
+            int before = parseIntSafe(rangeBeforeInput.getText().toString(), 0);
+            int after  = parseIntSafe(rangeAfterInput.getText().toString(), 0);
+            if (before == 0 && after == 0) {
+                Toast.makeText(this, "Enter how many numbers to block before and after",
+                    Toast.LENGTH_LONG).show();
+                rangeBeforeInput.requestFocus();
+                return;
+            }
+            CountryData cd = (CountryData) countryDial.getSelectedItem();
+            String anchor = cd.dialCode + pat;
+            storedPattern = Rule.buildRangePattern(anchor, before, after);
         } else {
-            full = cd.dialCode + pat;
+            // PREFIX (default)
+            CountryData cd = (CountryData) countryDial.getSelectedItem();
+            storedPattern = cd.dialCode + pat;
         }
-        rulesManager.addRule(full, currentType, action);
+
+        rulesManager.addRule(storedPattern, storedType, action);
         patternInput.setText("");
+        rangeSummary.setText("");
         Toast.makeText(this,
             (Rule.ACTION_ACCEPT.equals(action) ? "✓ ACCEPT rule added: " : "✗ REJECT rule added: ")
-                + full,
+                + storedPattern,
             Toast.LENGTH_SHORT).show();
         refreshUI();
         SyncManager.getInstance(this).syncRulesAsync();
@@ -254,30 +335,51 @@ public class MainActivity extends AppCompatActivity {
             schedulesBadge.setVisibility(View.GONE);
         }
 
-        rulesCountLabel.setText("ACTIVE RULES (" + rules.size() + ")");
-        rulesContainer.removeAllViews();
-        LayoutInflater inf = LayoutInflater.from(this);
-        for (final Rule r : rules) {
-            View item = inf.inflate(R.layout.rule_item, rulesContainer, false);
-            TextView typeBadge   = item.findViewById(R.id.ruleTypeBadge);
-            TextView patternView = item.findViewById(R.id.rulePattern);
-            TextView actionBadge = item.findViewById(R.id.ruleActionBadge);
-            TextView delBtn      = item.findViewById(R.id.btnDelete);
-
-            typeBadge.setText(r.getType().toUpperCase());
-            patternView.setText(r.getPattern());
-
-            boolean isAccept = Rule.ACTION_ACCEPT.equals(r.getAction());
-            actionBadge.setText(isAccept ? "✓ ACCEPT" : "✗ REJECT");
-            actionBadge.setBackgroundResource(isAccept ? R.drawable.badge_accept : R.drawable.badge_reject);
-
-            delBtn.setOnClickListener(v -> {
-                rulesManager.removeRule(r.getId());
-                refreshUI();
-                SyncManager.getInstance(MainActivity.this).syncRulesAsync();
-            });
-            rulesContainer.addView(item);
+        // Active rules card — just show the count + summary; full list lives in RulesActivity
+        rulesCount.setText(String.valueOf(rules.size()));
+        if (rules.isEmpty()) {
+            rulesSummary.setText("None yet — add one above");
+        } else {
+            int rejects = 0, accepts = 0;
+            for (Rule r : rules) {
+                if (Rule.ACTION_REJECT.equals(r.getAction())) rejects++;
+                else if (Rule.ACTION_ACCEPT.equals(r.getAction())) accepts++;
+            }
+            StringBuilder sb = new StringBuilder();
+            if (rejects > 0) sb.append(rejects).append(" block");
+            if (accepts > 0) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(accepts).append(" allow");
+            }
+            rulesSummary.setText(sb.toString() + " · tap to view");
         }
+    }
+
+    /**
+     * Prompts the user once to grant "Display over other apps" so the post-call
+     * Block popup can appear over the dialer. If they decline, the app falls
+     * back to a notification — but we don't keep asking on every launch.
+     */
+    private void maybePromptOverlayPermission() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return;
+        if (android.provider.Settings.canDrawOverlays(this)) return;
+        android.content.SharedPreferences sp = getSharedPreferences("ui_prefs", MODE_PRIVATE);
+        if (sp.getBoolean("overlay_prompt_shown", false)) return;
+        sp.edit().putBoolean("overlay_prompt_shown", true).apply();
+        new AlertDialog.Builder(this)
+            .setTitle("Allow post-call popup?")
+            .setMessage("To show a 'Block this number?' popup right after a call ends, "
+                + "Call Filter needs permission to draw over other apps.\n\n"
+                + "If you skip, you'll get a notification instead.")
+            .setPositiveButton("Open Settings", (d, w) -> {
+                try {
+                    Intent i = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:" + getPackageName()));
+                    startActivity(i);
+                } catch (Exception ignored) {}
+            })
+            .setNegativeButton("Skip", null)
+            .show();
     }
 
     private void stopBlockAllConfirm() {
@@ -355,6 +457,7 @@ public class MainActivity extends AppCompatActivity {
         BlockAllManager.getInstance(this).pullFromCloud();
         refreshBlockAllUI();
         banner_handler.postDelayed(banner_tick, 30_000L);
+        maybePromptOverlayPermission();
         // NOTE: do NOT pull rules on resume — that races with just-added local
         // rules and wipes them. Initial cloud pull happens only on login
         // (LoginActivity.handleLogin) and is gated by the initial-sync flag.

@@ -60,7 +60,14 @@ async function migrate() {
     otp_length:           '6',
     otp_expiry_minutes:   '5',
     otp_show_in_response: 'true',
-    subscription_required: 'false'
+    subscription_required: 'false',
+    razorpay_enabled:     'false',
+    razorpay_mode:        'test',     // 'test' or 'live'
+    razorpay_key_id_test: '',
+    razorpay_secret_test: '',
+    razorpay_key_id_live: '',
+    razorpay_secret_live: '',
+    razorpay_webhook_secret: ''
   };
   for (const [k, v] of Object.entries(defaults)) {
     await query(

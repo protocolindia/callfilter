@@ -11,9 +11,47 @@ public class CallStateReceiver extends BroadcastReceiver {
     private static final String TAG = "CallStateReceiver";
 
     @Override
+    // Track previous state across broadcasts so we can detect "call ended" transitions
+    private static String lastState = TelephonyManager.EXTRA_STATE_IDLE;
+    private static String lastNumber = null;
+
     public void onReceive(Context context, Intent intent) {
         String state = intent.getStringExtra(TelephonyManager.EXTRA_STATE);
         String number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
+
+        // Detect call-ended (RINGING|OFFHOOK -> IDLE) and offer the block popup
+        if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
+            boolean wasActive = TelephonyManager.EXTRA_STATE_RINGING.equals(lastState)
+                            || TelephonyManager.EXTRA_STATE_OFFHOOK.equals(lastState);
+            if (wasActive) {
+                // 1. Try the broadcast extra (works on pre-10)
+                String popupNumber = lastNumber;
+                // 2. Fall back to the number stashed by CallBlockerService (post-10)
+                if (popupNumber == null || popupNumber.isEmpty()) {
+                    android.content.SharedPreferences sp = context.getSharedPreferences(
+                        "post_call_state", android.content.Context.MODE_PRIVATE);
+                    long stashTs = sp.getLong("last_number_ts", 0L);
+                    // Only use if stash is recent (within 5 minutes)
+                    if (System.currentTimeMillis() - stashTs < 5L * 60 * 1000L) {
+                        popupNumber = sp.getString("last_number", null);
+                    }
+                    sp.edit().remove("last_number").remove("last_number_ts").apply();
+                }
+                if (popupNumber != null && !popupNumber.isEmpty()) {
+                    Log.d(TAG, "Call ended — offering post-call popup for " + popupNumber);
+                    try { PostCallBlockOverlay.offer(context, popupNumber); }
+                    catch (Exception e) { Log.w(TAG, "post-call overlay failed: " + e); }
+                } else {
+                    Log.d(TAG, "Call ended but no number available for popup");
+                }
+            }
+            lastState = state;
+            lastNumber = null;
+            return;
+        }
+        // Remember the number from RINGING for the IDLE transition above
+        if (number != null && !number.isEmpty()) lastNumber = number;
+        lastState = state;
 
         if (!TelephonyManager.EXTRA_STATE_RINGING.equals(state)) return;
         if (number == null || number.isEmpty()) return;

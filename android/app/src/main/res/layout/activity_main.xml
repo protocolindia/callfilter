@@ -379,23 +379,6 @@
                         android:foreground="?android:attr/selectableItemBackground"
                         android:layout_marginEnd="4dp"/>
                     <TextView
-                        android:id="@+id/btnTypeBetween"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="44dp"
-                        android:text="BETWEEN"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/subtext"
-                        android:background="@drawable/btn_type_inactive"
-                        android:gravity="center"
-                        android:maxLines="1"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:foreground="?android:attr/selectableItemBackground"
-                        android:layout_marginStart="2dp"
-                        android:layout_marginEnd="2dp"/>
-                    <TextView
                         android:id="@+id/btnTypeSuffix"
                         android:layout_width="0dp"
                         android:layout_weight="1"
@@ -410,8 +393,101 @@
                         android:clickable="true"
                         android:focusable="true"
                         android:foreground="?android:attr/selectableItemBackground"
+                        android:layout_marginStart="2dp"
+                        android:layout_marginEnd="2dp"/>
+                    <TextView
+                        android:id="@+id/btnTypeRange"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="44dp"
+                        android:text="RANGE"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/subtext"
+                        android:background="@drawable/btn_type_inactive"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?android:attr/selectableItemBackground"
                         android:layout_marginStart="4dp"/>
                 </LinearLayout>
+
+                <!-- Range inputs row — visible ONLY when RANGE selected -->
+                <LinearLayout
+                    android:id="@+id/rangeInputsRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="10dp"
+                    android:visibility="gone">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="BLOCK BEFORE"
+                            android:textSize="10sp"
+                            android:textColor="@color/muted"
+                            android:letterSpacing="0.08"/>
+                        <EditText
+                            android:id="@+id/rangeBeforeInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:hint="0"
+                            android:text="5"
+                            android:textColor="@color/text"
+                            android:textColorHint="@color/muted"
+                            android:background="@drawable/input_bg"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:inputType="number"
+                            android:maxLength="4"
+                            android:gravity="center"
+                            android:layout_marginTop="4dp"/>
+                    </LinearLayout>
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginStart="8dp">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="BLOCK AFTER"
+                            android:textSize="10sp"
+                            android:textColor="@color/muted"
+                            android:letterSpacing="0.08"/>
+                        <EditText
+                            android:id="@+id/rangeAfterInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:hint="0"
+                            android:text="5"
+                            android:textColor="@color/text"
+                            android:textColorHint="@color/muted"
+                            android:background="@drawable/input_bg"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:inputType="number"
+                            android:maxLength="4"
+                            android:gravity="center"
+                            android:layout_marginTop="4dp"/>
+                    </LinearLayout>
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/rangeSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="11sp"
+                    android:textColor="@color/subtext"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
 
                 <TextView
                     android:layout_width="match_parent"
@@ -503,24 +579,109 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Rules list -->
-            <TextView
-                android:id="@+id/rulesCountLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="ACTIVE RULES (0)"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="@color/muted"
-                android:letterSpacing="0.1"
-                android:layout_marginTop="20dp"
-                android:layout_marginBottom="8dp"/>
-
+            <!-- Active rules tile -->
             <LinearLayout
-                android:id="@+id/rulesContainer"
+                android:id="@+id/cardActiveRules"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"/>
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:layout_marginTop="20dp">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📋"
+                    android:textSize="28sp"
+                    android:layout_marginEnd="14dp"/>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Active Rules"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"/>
+                    <TextView
+                        android:id="@+id/rulesSummary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Tap to view all"
+                        android:textSize="12sp"
+                        android:textColor="@color/subtext"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/rulesCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/accent"
+                    android:layout_marginEnd="8dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="\u203A"
+                    android:textSize="22sp"
+                    android:textColor="@color/subtext"/>
+            </LinearLayout>
+
+            <!-- Recent Calls tile (block from log) -->
+            <LinearLayout
+                android:id="@+id/cardRecentCalls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:layout_marginTop="12dp">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📞"
+                    android:textSize="28sp"
+                    android:layout_marginEnd="14dp"/>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Recent Calls"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Tap a number to block it"
+                        android:textSize="12sp"
+                        android:textColor="@color/subtext"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="\u203A"
+                    android:textSize="22sp"
+                    android:textColor="@color/subtext"/>
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

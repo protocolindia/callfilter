@@ -29,21 +29,27 @@ async function expiryStamp() {
 // POST /api/signup
 router.post('/signup', async (req, res, next) => {
   try {
-    const { dial_code, mobile, country_iso, device_info } = req.body || {};
+    const { dial_code, mobile, country_iso, device_info, name } = req.body || {};
     if (!dial_code || !mobile) {
       return res.status(400).json({ error: 'dial_code and mobile required' });
     }
+    const cleanName = (name || '').trim().slice(0, 100);
 
     let user = await one(
       'SELECT * FROM users WHERE dial_code = $1 AND mobile = $2',
       [dial_code, mobile]
     );
 
+    if (user && cleanName && user.name !== cleanName) {
+      await query('UPDATE users SET name = $1 WHERE id = $2', [cleanName, user.id]);
+      user.name = cleanName;
+    }
+
     if (!user) {
       user = await one(
-        `INSERT INTO users(mobile, dial_code, country_iso, device_info)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [mobile, dial_code, country_iso || '', device_info || '']
+        `INSERT INTO users(mobile, dial_code, country_iso, device_info, name)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [mobile, dial_code, country_iso || '', device_info || '', cleanName || null]
       );
       await audit('android', 'user_created', `${dial_code}${mobile}`);
 
@@ -739,6 +745,227 @@ router.get('/block-all/get', async (req, res, next) => {
       `SELECT mode, expires_at_ms, allow_numbers, allow_names
          FROM block_all_state WHERE user_id = $1`, [userId]);
     res.json({ ok: true, state: row || null });
+  } catch (e) { next(e); }
+});
+
+
+// ============================================================
+// RAZORPAY BILLING — for sideload distribution
+// (Play Store distribution uses Google Play Billing instead.)
+// ============================================================
+const crypto = require('crypto');
+
+async function razorpayCreds() {
+  const mode = (await getSetting('razorpay_mode')) || 'test';
+  const isLive = mode === 'live';
+  const keyId  = (await getSetting(isLive ? 'razorpay_key_id_live'  : 'razorpay_key_id_test'))  || '';
+  const secret = (await getSetting(isLive ? 'razorpay_secret_live'  : 'razorpay_secret_test'))  || '';
+  return { mode, isLive, keyId, secret };
+}
+
+// POST /api/razorpay/create-order
+// Body: { user_id, plan_id }
+// Returns: { order_id, key_id, amount_paise, currency, plan }
+router.post('/razorpay/create-order', async (req, res, next) => {
+  try {
+    const { user_id, plan_id } = req.body || {};
+    if (!user_id || !plan_id) return res.status(400).json({ error: 'user_id and plan_id required' });
+
+    const enabled = (await getSetting('razorpay_enabled')) === 'true';
+    if (!enabled) return res.status(503).json({ error: 'razorpay_disabled' });
+
+    const { keyId, secret } = await razorpayCreds();
+    if (!keyId || !secret) return res.status(503).json({ error: 'razorpay_not_configured' });
+
+    const plan = await one(`SELECT * FROM plans WHERE id = $1 AND is_active = TRUE`, [plan_id]);
+    if (!plan) return res.status(404).json({ error: 'plan_not_found' });
+
+    const amountPaise = Math.round(parseFloat(plan.offer_price || plan.actual_price) * 100);
+    const currency = plan.currency || 'INR';
+    const receipt = `cf_u${user_id}_p${plan_id}_${Date.now()}`.slice(0, 40);
+
+    // Create order via Razorpay REST API
+    const auth = Buffer.from(`${keyId}:${secret}`).toString('base64');
+    const orderResp = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        amount: amountPaise,
+        currency,
+        receipt,
+        notes: { user_id: String(user_id), plan_id: String(plan_id), plan_name: plan.name }
+      })
+    });
+    if (!orderResp.ok) {
+      const errText = await orderResp.text();
+      await audit('razorpay', 'create_order_failed', `user=${user_id} ${errText}`);
+      return res.status(502).json({ error: 'razorpay_api_error', detail: errText });
+    }
+    const order = await orderResp.json();
+
+    await query(
+      `INSERT INTO razorpay_orders(user_id, plan_id, order_id, amount_paise, currency, status, notes)
+       VALUES ($1, $2, $3, $4, $5, 'created', $6::jsonb)`,
+      [user_id, plan_id, order.id, amountPaise, currency, JSON.stringify(order.notes || {})]
+    );
+    await audit('razorpay', 'order_created', `user=${user_id} order=${order.id} amount=${amountPaise}`);
+
+    res.json({
+      ok: true,
+      order_id: order.id,
+      key_id: keyId,
+      amount_paise: amountPaise,
+      currency,
+      plan: {
+        id: plan.id,
+        name: plan.name,
+        duration_days: plan.duration_days,
+        offer_price: plan.offer_price,
+        actual_price: plan.actual_price
+      }
+    });
+  } catch (e) { next(e); }
+});
+
+// POST /api/razorpay/verify-payment
+// Body: { user_id, order_id, payment_id, signature? }
+// If signature is supplied, verifies HMAC-SHA256. Otherwise queries Razorpay's
+// /payments/{id} REST API as a fallback verification path (used by the simpler
+// PaymentResultListener flow that doesn't expose the signature client-side).
+router.post('/razorpay/verify-payment', async (req, res, next) => {
+  try {
+    const { user_id, order_id, payment_id, signature } = req.body || {};
+    if (!user_id || !order_id || !payment_id) {
+      return res.status(400).json({ error: 'missing_fields' });
+    }
+
+    const { keyId, secret } = await razorpayCreds();
+    if (!keyId || !secret) return res.status(503).json({ error: 'razorpay_not_configured' });
+
+    // Path A — signature provided: HMAC verify
+    if (signature) {
+      const expectedSig = crypto.createHmac('sha256', secret)
+        .update(`${order_id}|${payment_id}`)
+        .digest('hex');
+      if (expectedSig !== signature) {
+        await audit('razorpay', 'signature_mismatch', `user=${user_id} order=${order_id}`);
+        await query(
+          `UPDATE razorpay_orders SET status='failed' WHERE order_id=$1 AND user_id=$2`,
+          [order_id, user_id]
+        );
+        return res.status(400).json({ error: 'signature_mismatch' });
+      }
+    } else {
+      // Path B — no signature: query Razorpay to verify the payment is captured
+      // AND belongs to our order_id. This is safe because we trust Razorpay's
+      // server response (Basic auth with our secret).
+      const auth = Buffer.from(`${keyId}:${secret}`).toString('base64');
+      const pr = await fetch(`https://api.razorpay.com/v1/payments/${payment_id}`, {
+        headers: { 'Authorization': `Basic ${auth}` }
+      });
+      if (!pr.ok) {
+        await audit('razorpay', 'verify_api_failed', `payment=${payment_id}`);
+        return res.status(502).json({ error: 'razorpay_api_error' });
+      }
+      const payment = await pr.json();
+      if (payment.order_id !== order_id) {
+        return res.status(400).json({ error: 'order_mismatch' });
+      }
+      if (payment.status !== 'captured' && payment.status !== 'authorized') {
+        return res.status(400).json({ error: 'payment_not_captured', status: payment.status });
+      }
+    }
+
+    const orderRow = await one(
+      `SELECT o.*, p.duration_days, p.name AS plan_name
+         FROM razorpay_orders o
+         LEFT JOIN plans p ON p.id = o.plan_id
+        WHERE o.order_id = $1 AND o.user_id = $2`,
+      [order_id, user_id]
+    );
+    if (!orderRow) return res.status(404).json({ error: 'order_not_found' });
+    if (orderRow.status === 'paid') {
+      return res.json({ ok: true, already_paid: true });
+    }
+
+    await query(
+      `UPDATE razorpay_orders
+          SET status='paid', razorpay_payment_id=$1, razorpay_signature=$2, paid_at=NOW()
+        WHERE order_id=$3`,
+      [payment_id, signature, order_id]
+    );
+
+    const days = parseInt(orderRow.duration_days, 10) || 30;
+    await query(
+      `INSERT INTO subscriptions(user_id, plan_id, status, is_trial, expires_at,
+                                amount_paid, provider, razorpay_order_id,
+                                razorpay_payment_id, razorpay_signature)
+       VALUES ($1, $2, 'active', FALSE, NOW() + ($3 || ' days')::interval,
+               $4, 'razorpay', $5, $6, $7)`,
+      [user_id, orderRow.plan_id, String(days),
+       orderRow.amount_paise / 100, order_id, payment_id, signature]
+    );
+
+    await audit('razorpay', 'payment_verified',
+      `user=${user_id} order=${order_id} payment=${payment_id} days=${days}`);
+    res.json({ ok: true, days, plan_name: orderRow.plan_name });
+  } catch (e) { next(e); }
+});
+
+// POST /api/razorpay/webhook — server-to-server verification (recommended)
+// Razorpay calls this URL when payment events happen. We verify the X-Razorpay-Signature
+// header and update order status. The /verify-payment endpoint above is the client-driven
+// path; this webhook is a backup that handles delayed/failed verifications.
+router.post('/razorpay/webhook', async (req, res, next) => {
+  try {
+    const whSecret = (await getSetting('razorpay_webhook_secret')) || '';
+    if (!whSecret) return res.status(503).json({ error: 'webhook_secret_not_set' });
+
+    const sig = req.headers['x-razorpay-signature'];
+    if (!sig) return res.status(400).json({ error: 'missing_signature' });
+
+    const body = JSON.stringify(req.body);
+    const expected = crypto.createHmac('sha256', whSecret).update(body).digest('hex');
+    if (expected !== sig) {
+      await audit('razorpay', 'webhook_sig_mismatch', `sig=${sig}`);
+      return res.status(400).json({ error: 'signature_mismatch' });
+    }
+
+    const event = req.body.event;
+    const payment = req.body.payload && req.body.payload.payment && req.body.payload.payment.entity;
+    if (payment) {
+      await query(
+        `UPDATE razorpay_orders
+            SET status = CASE
+              WHEN $1 = 'payment.captured' THEN 'paid'
+              WHEN $1 = 'payment.failed'   THEN 'failed'
+              ELSE status END,
+            razorpay_payment_id = COALESCE(razorpay_payment_id, $2),
+            paid_at = CASE WHEN $1 = 'payment.captured' THEN NOW() ELSE paid_at END
+          WHERE order_id = $3`,
+        [event, payment.id, payment.order_id]
+      );
+      await audit('razorpay', 'webhook_received', `event=${event} order=${payment.order_id}`);
+    }
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// GET /api/razorpay/status — public, tells the client whether Razorpay is available
+router.get('/razorpay/status', async (req, res, next) => {
+  try {
+    const enabled = (await getSetting('razorpay_enabled')) === 'true';
+    const { keyId, mode } = await razorpayCreds();
+    res.json({
+      ok: true,
+      enabled,
+      configured: !!keyId,
+      mode,
+      key_id: enabled && keyId ? keyId : ''
+    });
   } catch (e) { next(e); }
 });
 

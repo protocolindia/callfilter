@@ -5,7 +5,6 @@
     android:orientation="vertical"
     android:background="@color/bg">
 
-    <!-- Toolbar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="56dp"
@@ -25,11 +24,18 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:text="🗓️  Schedules"
+            android:text="📋  Active Rules"
             android:textSize="20sp"
             android:textStyle="bold"
             android:textColor="@color/text"
             android:layout_marginStart="8dp"/>
+        <TextView
+            android:id="@+id/rulesScreenCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0 rules"
+            android:textSize="13sp"
+            android:textColor="@color/subtext"/>
     </LinearLayout>
 
     <ScrollView
@@ -37,7 +43,6 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:fillViewport="true">
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -45,40 +50,21 @@
             android:padding="16dp">
 
             <TextView
-                android:id="@+id/emptyView"
+                android:id="@+id/rulesScreenEmpty"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="No schedules yet.\n\nAdd a schedule to silently block calls during specific times — like sleep hours or meetings — while letting through people you've added to the allowlist."
+                android:text="No rules yet.\n\nGo back to add a PREFIX, SUFFIX, or RANGE rule from the home screen."
                 android:textColor="@color/subtext"
                 android:textSize="14sp"
                 android:gravity="center"
-                android:padding="32dp"
+                android:padding="40dp"
                 android:visibility="gone"/>
 
             <LinearLayout
-                android:id="@+id/schedulesList"
+                android:id="@+id/rulesListContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"/>
-
         </LinearLayout>
     </ScrollView>
-
-    <!-- Bottom Add button -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/border"/>
-
-    <Button
-        android:id="@+id/btnAddSchedule"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:text="+ NEW SCHEDULE"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:textColor="@color/white"
-        android:background="@drawable/btn_accent"
-        android:layout_margin="16dp"/>
-
 </LinearLayout>

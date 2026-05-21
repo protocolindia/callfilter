@@ -37,7 +37,11 @@ public class ProfileActivity extends AppCompatActivity {
 
         // ----- Identity -----
         AuthManager auth = AuthManager.getInstance(this);
-        mobileLabel.setText(auth.getFullNumber());
+        if (!auth.getName().isEmpty()) {
+            mobileLabel.setText(auth.getName() + "\n" + auth.getFullNumber());
+        } else {
+            mobileLabel.setText(auth.getFullNumber());
+        }
 
         // ----- Subscription card -----
         refreshSubscription();

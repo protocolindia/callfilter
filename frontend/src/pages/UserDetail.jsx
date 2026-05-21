@@ -19,6 +19,10 @@ export default function UserDetail() {
 
   const [rules, setRules] = useState([]);
 
+  // Schedules + block-all state
+  const [schedules, setSchedules] = useState([]);
+  const [blockAll, setBlockAll] = useState(null);
+
   // Blocked calls state
   const [calls, setCalls] = useState([]);
   const [callsTotal, setCallsTotal] = useState(0);
@@ -41,6 +45,37 @@ export default function UserDetail() {
     }).catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Load schedules when tab opens
+  useEffect(() => {
+    if (tab !== 'schedules') return;
+    api.get(`/admin/users/${id}/schedules`).then(r => setSchedules(r.schedules || []));
+  }, [tab, id]);
+
+  // Load block-all when tab opens
+  useEffect(() => {
+    if (tab !== 'blockall') return;
+    api.get(`/admin/users/${id}/block-all`).then(r => setBlockAll(r.state));
+  }, [tab, id]);
+
+  // Delete a rule
+  async function deleteRule(rid) {
+    if (!confirm('Delete this rule?')) return;
+    await api.delete(`/admin/users/${id}/rules/${rid}`);
+    const r = await api.get(`/admin/users/${id}/rules`);
+    setRules(r.rules);
+  }
+
+  // Create a new rule
+  const [newRule, setNewRule] = useState({ rule_type: 'prefix', pattern: '', action: 'reject' });
+  async function addRule(e) {
+    e.preventDefault();
+    if (!newRule.pattern) return;
+    await api.post(`/admin/users/${id}/rules`, newRule);
+    setNewRule({ rule_type: 'prefix', pattern: '', action: 'reject' });
+    const r = await api.get(`/admin/users/${id}/rules`);
+    setRules(r.rules);
+  }
 
   // Load contacts whenever tab=contacts, page, or search changes
   useEffect(() => {
@@ -99,7 +134,8 @@ export default function UserDetail() {
     <>
       <header className="page-head">
         <p style={{ marginBottom: 6 }}><Link to="/users">← All users</Link></p>
-        <h1>{user.dial_code}{user.mobile}</h1>
+        <h1>{user.name || `${user.dial_code}${user.mobile}`}</h1>
+        {user.name && <small className="muted">{user.dial_code}{user.mobile}</small>}
         <p className="muted">User #{user.id} · {user.country_iso || 'Unknown country'}</p>
       </header>
 
@@ -115,6 +151,12 @@ export default function UserDetail() {
         </button>
         <button className={`tab-btn ${tab === 'blocked' ? 'tab-active' : ''}`} onClick={() => setTab('blocked')}>
           🚫 Blocked Calls ({user.blocked_calls_count || 0})
+        </button>
+        <button className={`tab-btn ${tab === 'schedules' ? 'tab-active' : ''}`} onClick={() => setTab('schedules')}>
+          🗓️ Schedules
+        </button>
+        <button className={`tab-btn ${tab === 'blockall' ? 'tab-active' : ''}`} onClick={() => setTab('blockall')}>
+          🛑 Block All
         </button>
       </div>
 
@@ -159,24 +201,114 @@ export default function UserDetail() {
 
       {tab === 'rules' && (
         <section className="card">
-          {rules.length === 0 ? <p className="muted">No rules synced yet.</p> : (
+          <form onSubmit={addRule} style={{
+              display: 'grid', gridTemplateColumns: '1fr 2fr 1fr auto',
+              gap: 10, marginBottom: 16, alignItems: 'end'
+            }}>
+            <div className="field">
+              <label>Type</label>
+              <select value={newRule.rule_type}
+                onChange={e => setNewRule({ ...newRule, rule_type: e.target.value })}>
+                <option value="prefix">prefix</option>
+                <option value="suffix">suffix</option>
+                <option value="range">range</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Pattern</label>
+              <input value={newRule.pattern}
+                onChange={e => setNewRule({ ...newRule, pattern: e.target.value })}
+                placeholder={newRule.rule_type === 'range' ? '+919876543205-+919876543220' : '+919876'} />
+            </div>
+            <div className="field">
+              <label>Action</label>
+              <select value={newRule.action}
+                onChange={e => setNewRule({ ...newRule, action: e.target.value })}>
+                <option value="reject">reject</option>
+                <option value="accept">accept</option>
+              </select>
+            </div>
+            <button type="submit" className="btn btn-primary">+ Add rule</button>
+          </form>
+
+          {rules.length === 0 ? <p className="muted">No rules yet.</p> : (
             <table>
-              <thead><tr><th>Type</th><th>Pattern</th><th>Action</th><th>Synced</th></tr></thead>
+              <thead><tr><th>Type</th><th>Pattern</th><th>Action</th><th>Synced</th><th></th></tr></thead>
               <tbody>
                 {rules.map(r => (
                   <tr key={r.id}>
                     <td><span className="pill">{r.rule_type}</span></td>
-                    <td><code>{r.rule_type === 'between' ? r.pattern.replace('~', ' → ') : r.pattern}</code></td>
+                    <td><code>{r.rule_type === 'between' || r.rule_type === 'range'
+                      ? r.pattern.replace('-', ' → ') : r.pattern}</code></td>
                     <td>
                       <span className={`pill pill-${r.action === 'accept' ? 'verified' : 'pending'}`}>
                         {r.action}
                       </span>
                     </td>
                     <td className="muted">{fmt(r.created_at)}</td>
+                    <td>
+                      <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: 12 }}
+                        onClick={() => deleteRule(r.id)}>Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+        </section>
+      )}
+
+      {tab === 'schedules' && (
+        <section className="card">
+          {schedules.length === 0 ? <p className="muted">No schedules synced yet.</p> : (
+            <table>
+              <thead><tr><th>Name</th><th>Time</th><th>Days</th><th>Enabled</th><th>Allow list</th><th>Frequency bypass</th></tr></thead>
+              <tbody>
+                {schedules.map(s => {
+                  const sh = Math.floor(s.start_minute / 60), sm = s.start_minute % 60;
+                  const eh = Math.floor(s.end_minute   / 60), em = s.end_minute   % 60;
+                  const time = `${String(sh).padStart(2,'0')}:${String(sm).padStart(2,'0')} → ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+                  const dayLetters = ['S','M','T','W','T','F','S'];
+                  const days = dayLetters.map((d, i) => (s.days_mask & (1 << i)) ? d : '·').join(' ');
+                  const allowCount = Array.isArray(s.allow_numbers) ? s.allow_numbers.length : 0;
+                  return (
+                    <tr key={s.id}>
+                      <td>{s.name || '(unnamed)'}</td>
+                      <td><code>{time}</code></td>
+                      <td><code style={{ letterSpacing: 2 }}>{days}</code></td>
+                      <td>{s.is_enabled ? '✓' : '—'}</td>
+                      <td className="muted">{allowCount} number(s)</td>
+                      <td>{s.freq_bypass_enabled
+                        ? `${s.freq_count} in ${s.freq_window_min}min`
+                        : <span className="muted">off</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
+
+      {tab === 'blockall' && (
+        <section className="card">
+          {!blockAll || !blockAll.mode ? (
+            <p className="muted">Block All Now is not active for this user.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10 }}>
+              <div className="muted">Mode</div>
+              <div><span className="pill">{blockAll.mode}</span></div>
+              <div className="muted">Expires</div>
+              <div>{blockAll.expires_at_ms
+                ? new Date(parseInt(blockAll.expires_at_ms, 10)).toLocaleString()
+                : <em>Until user turns it off</em>}</div>
+              <div className="muted">Allow list</div>
+              <div>{Array.isArray(blockAll.allow_numbers) && blockAll.allow_numbers.length
+                ? blockAll.allow_numbers.join(', ')
+                : <span className="muted">(none)</span>}</div>
+              <div className="muted">Updated</div>
+              <div>{fmt(blockAll.updated_at)}</div>
+            </div>
           )}
         </section>
       )}
@@ -271,6 +403,7 @@ function InfoTab({ user }) {
       <h2>Account</h2>
       <table>
         <tbody>
+          <Row label="Name"          value={user.name || <span className="muted">Not provided</span>} />
           <Row label="Mobile"        value={`${user.dial_code}${user.mobile}`} />
           <Row label="Country"       value={user.country_iso || '—'} />
           <Row label="Status"        value={<span className={`pill pill-${user.status}`}>{user.status}</span>} />
