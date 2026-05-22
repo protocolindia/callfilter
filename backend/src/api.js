@@ -295,31 +295,99 @@ router.post('/contacts/opt-out', async (req, res, next) => {
 // Rule sync — replaces the user's stored rule set with the device's.
 // Body: { user_id, rules: [{client_id, type, pattern, action}, ...] }
 // ============================================================
+// ============================================================
+// DIFFERENTIAL RULES SYNC (v25.8)
+//
+// Old design (replaced): /api/rules/sync mirrored the client's list to the
+// server by DELETE+INSERT. That destroyed admin-added rules whenever the
+// client synced, and lost user rules if the client raced with admin edits.
+//
+// New design: differential adds and deletes by client_id (UUID). Both app
+// and admin set client_id when creating rules. The mirror /rules/sync
+// endpoint is kept for backward-compat but now MERGES (upserts) instead
+// of replacing.
+// ============================================================
+
+// POST /api/rules/add  — add ONE rule (no destructive side effects)
+// Body: { user_id, client_id, type, pattern, action }
+router.post('/rules/add', async (req, res, next) => {
+  try {
+    const { user_id, client_id, type, pattern, action } = req.body || {};
+    if (!user_id || !client_id || !type || !pattern || !action) {
+      return res.status(400).json({ error: 'missing_fields' });
+    }
+    // Upsert by (user_id, client_id) so the call is idempotent
+    await query(
+      `INSERT INTO user_rules(user_id, rule_type, pattern, action, client_id)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (user_id, client_id) DO UPDATE SET
+         rule_type = EXCLUDED.rule_type,
+         pattern   = EXCLUDED.pattern,
+         action    = EXCLUDED.action`,
+      [user_id, type, pattern, action, client_id]
+    );
+    const total = await one(
+      'SELECT COUNT(*)::int AS n FROM user_rules WHERE user_id = $1', [user_id]);
+    await query(
+      `UPDATE users SET last_rules_sync = NOW(), rules_count = $2 WHERE id = $1`,
+      [user_id, total.n]
+    );
+    await audit('android', 'rule_added', `user_id=${user_id} client=${client_id} ${type} ${pattern} ${action}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// POST /api/rules/delete — delete ONE rule by client_id
+// Body: { user_id, client_id }
+router.post('/rules/delete', async (req, res, next) => {
+  try {
+    const { user_id, client_id } = req.body || {};
+    if (!user_id || !client_id) return res.status(400).json({ error: 'missing_fields' });
+    await query(
+      'DELETE FROM user_rules WHERE user_id = $1 AND client_id = $2',
+      [user_id, client_id]);
+    const total = await one(
+      'SELECT COUNT(*)::int AS n FROM user_rules WHERE user_id = $1', [user_id]);
+    await query(
+      `UPDATE users SET last_rules_sync = NOW(), rules_count = $2 WHERE id = $1`,
+      [user_id, total.n]
+    );
+    await audit('android', 'rule_deleted', `user_id=${user_id} client=${client_id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// POST /api/rules/sync — LEGACY mirror endpoint, now MERGES instead of replaces.
+// Body: { user_id, rules: [{client_id, type, pattern, action}, ...] }
+// Behavior: upsert each rule (don't delete anything). Old clients still work.
 router.post('/rules/sync', async (req, res, next) => {
   try {
     const { user_id, rules } = req.body || {};
     if (!user_id) return res.status(400).json({ error: 'user_id required' });
     if (!Array.isArray(rules)) return res.status(400).json({ error: 'rules must be an array' });
 
-    // Replace strategy: server is a mirror of the device, so wipe & re-insert
-    await query('DELETE FROM user_rules WHERE user_id = $1', [user_id]);
-
     for (const r of rules) {
       if (!r || !r.type || !r.pattern || !r.action) continue;
+      if (!r.client_id) continue;  // can't upsert without client_id
       await query(
         `INSERT INTO user_rules(user_id, rule_type, pattern, action, client_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [user_id, r.type, r.pattern, r.action, r.client_id || null]
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (user_id, client_id) DO UPDATE SET
+           rule_type = EXCLUDED.rule_type,
+           pattern   = EXCLUDED.pattern,
+           action    = EXCLUDED.action`,
+        [user_id, r.type, r.pattern, r.action, r.client_id]
       );
     }
 
+    const total = await one(
+      'SELECT COUNT(*)::int AS n FROM user_rules WHERE user_id = $1', [user_id]);
     await query(
       `UPDATE users SET last_rules_sync = NOW(), rules_count = $2 WHERE id = $1`,
-      [user_id, rules.length]
+      [user_id, total.n]
     );
-    await audit('android', 'rules_sync', `user_id=${user_id}, count=${rules.length}`);
-
-    res.json({ ok: true, count: rules.length });
+    await audit('android', 'rules_sync_merge', `user_id=${user_id} sent=${rules.length} total=${total.n}`);
+    res.json({ ok: true, count: total.n });
   } catch (e) { next(e); }
 });
 
@@ -528,11 +596,31 @@ router.get('/subscription/:user_id', async (req, res, next) => {
 // GET /api/plans — all active plans (the app shows these on the paywall)
 router.get('/plans', async (req, res, next) => {
   try {
+    const userId = parseInt(req.query.user_id, 10) || 0;
     const plans = await many(
-      `SELECT id, name, duration_days, actual_price, offer_price, currency
+      `SELECT id, name, duration_days, actual_price, offer_price, currency,
+              is_one_time_per_user
          FROM plans WHERE is_active = TRUE ORDER BY duration_days`
     );
-    res.json({ plans });
+    // For one-time plans, mark whether THIS user has used it (any prior sub OR
+    // razorpay order with status=paid for that plan_id counts as used).
+    let used = new Set();
+    if (userId) {
+      const sUsed = await many(
+        `SELECT DISTINCT plan_id FROM subscriptions
+           WHERE user_id = $1 AND plan_id IS NOT NULL`, [userId]);
+      sUsed.forEach(r => used.add(r.plan_id));
+      const rUsed = await many(
+        `SELECT DISTINCT plan_id FROM razorpay_orders
+           WHERE user_id = $1 AND status = 'paid' AND plan_id IS NOT NULL`, [userId]);
+      rUsed.forEach(r => used.add(r.plan_id));
+    }
+    const out = plans.map(p => ({
+      ...p,
+      is_free: parseFloat(p.actual_price) === 0 && parseFloat(p.offer_price) === 0,
+      already_used: p.is_one_time_per_user && used.has(p.id)
+    }));
+    res.json({ plans: out });
   } catch (e) { next(e); }
 });
 

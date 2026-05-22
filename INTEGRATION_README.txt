@@ -1,237 +1,309 @@
-CallFilter v25.7 — full cumulative drop
+CallFilter v25.8 — full cumulative drop
 =========================================
 
-Major release. Adds Razorpay billing for sideload distribution, captures
-user name on signup, and gives the admin panel full visibility + edit
-power over user data.
+Eight fixes, ordered by importance:
 
 ============================================================
-WHAT'S NEW IN v25.7
+1. RULES SYNC BUG — ROOT CAUSE FIXED
 ============================================================
 
-A) USER NAME ON SIGNUP
-----------------------
-- Signup screen now has a "YOUR NAME" field at the top.
-- Name flows backend (users.name column, migration 008).
-- Shown on:
-  - ProfileActivity (above mobile number)
-  - Admin user list (Name column where available)
-  - Admin UserDetail page header + Account info row
+The bug you've been hitting for 4 versions:
+  • Rules added on the app would disappear on next launch
+  • Admin-added rules never reached the app
+  • Reinstalling wiped your rules
 
-B) WEB ADMIN — FULL SYNCED DATA VISIBILITY
--------------------------------------------
-The user-detail page now has 6 tabs:
-   Info  |  📇 Contacts  |  🛡️ Rules  |  🚫 Blocked Calls
-       |  🗓️ Schedules  |  🛑 Block All
+ROOT CAUSE: /api/rules/sync was a MIRROR endpoint that did
+  DELETE FROM user_rules WHERE user_id = ?   then   INSERT [whole list]
 
-NEW: Schedules tab — time/days/allow-list/freq-bypass for each schedule
-NEW: Block All tab — current panic-mode state with expiry
-NEW: Rules tab — admin can CREATE/EDIT/DELETE rules (was read-only).
-                  New form at top of tab; Delete button on each row.
+This meant:
+  • Admin adds rule X via web → cloud has X
+  • App user (hasn't pulled yet) adds rule Y → app pushes its full
+    local list [Y] → backend deletes EVERYTHING including admin's X
+    → cloud is now [Y]. X is GONE.
+  • App's local rule is fine, but it's the ONLY rule that survives.
 
-If rules weren't showing up before, the cause was the admin endpoint
-returning them correctly but the React state never reloading. The new
-flow re-fetches after every mutation.
+FIX: differential sync. Three new endpoints (and old /sync is now
+safe — it MERGES instead of replacing):
 
-C) RAZORPAY BILLING (sideload flavor)
---------------------------------------
-The Android app now has TWO build flavors:
-   - playstore: Google Play Billing only (per Play Store policy)
-   - sideload:  Razorpay only (UPI / card / wallet checkout via Razorpay)
+  POST /api/rules/add     — upsert one rule by (user_id, client_id)
+  POST /api/rules/delete  — delete one rule by client_id
+  POST /api/rules/sync    — legacy mirror, now uses ON CONFLICT UPDATE
+                            (never deletes anything)
 
-Same codebase, same APK source. Pick the flavor when building:
-   In Android Studio:  Build → Select Build Variant → app → "sideloadRelease"
-                                                            or "playstoreRelease"
-   From command line:  ./gradlew assembleSideloadRelease
-                       ./gradlew assemblePlaystoreRelease
+App behavior:
+  • addRule → pushAddedRule (just sends THIS one rule)
+  • removeRule → pushDeletedRule (just sends THIS one client_id)
+  • MainActivity.onResume → mergeRulesFromCloud (pulls all cloud rules,
+    adds any that aren't already local — never overwrites)
 
-The flavor is driven by BuildConfig.BILLING_PROVIDER which the runtime
-BillingProvider.Factory reads to pick PlayBillingProviderAdapter or
-RazorpayBillingManager.
-
-D) RAZORPAY ADMIN CONTROLS
----------------------------
-NEW admin Settings section "Razorpay (sideload payments)":
-   ☐ Enable Razorpay payments         (master switch)
-   Mode: [Test mode] / [Live mode]    (drop-down)
-   Test Key ID + Test Secret
-   Live Key ID + Live Secret
-   Webhook Secret
-
-Webhook URL to configure in Razorpay dashboard:
-   https://api.app.onephone.pro/api/razorpay/webhook
-
-A status banner shows whether you're in TEST (orange) or LIVE (blue) mode.
-
-NEW admin page: 💰 Payments (in left nav)
-   Shows every Razorpay order with status, amount, plan, user, payment_id.
-   Filter by status: All / Created / Paid / Failed / Cancelled.
-
-E) PLAN MANAGEMENT (already existed, but worth reminding)
-----------------------------------------------------------
-Admin Billing page handles CRUD on Plans (name, price, duration). The
-Android paywall now PULLS from this list (was hardcoded to Google Play
-product details). One source of truth: the admin DB.
+Migration 009 adds a unique index (user_id, client_id) to enable the
+ON CONFLICT clause, and backfills any NULL client_ids with generated
+UUIDs.
 
 ============================================================
-BACKEND CHANGES (file-by-file)
+2. LOCK ≠ LOGOUT
 ============================================================
-NEW    backend/migrations/008_user_name_and_razorpay.sql
-       - users.name column
-       - subscriptions.provider, razorpay_order_id, razorpay_payment_id, razorpay_signature
-       - razorpay_orders table (transaction log)
 
-CHG    backend/src/api.js
-       POST /api/signup                accepts `name` field
-       POST /api/razorpay/create-order new
-       POST /api/razorpay/verify-payment new  (signature OR payment-id verify paths)
-       POST /api/razorpay/webhook       new  (HMAC-verified server-to-server)
-       GET  /api/razorpay/status        new  (client checks if enabled)
+Before: tapping "Sign out" only locked the session (next launch = PIN
+unlock). User wanted FULL sign-out + a separate LOCK button.
 
-CHG    backend/src/admin.js
-       GET  /admin/users/:id/schedules new
-       GET  /admin/users/:id/block-all new
-       POST /admin/users/:id/rules     new  (admin can create)
-       PUT  /admin/users/:id/rules/:rid new (admin can edit)
-       DEL  /admin/users/:id/rules/:rid new (admin can delete)
-       GET  /admin/razorpay/orders     new  (paginated, filterable)
-       PUT  /admin/settings allowlist  added 7 razorpay_* keys
+Now:
+  • Profile → "🔒 Lock app" card (above Sign out)
+    Action: AuthManager.lock() — clears the logged-in bit only.
+    Next launch shows PIN unlock screen.
+    Mobile, PIN, rules, settings all preserved.
 
-CHG    backend/src/migrate.js
-       DEFAULT_SETTINGS seeds: razorpay_enabled, razorpay_mode,
-                               razorpay_key_id_test, razorpay_secret_test,
-                               razorpay_key_id_live, razorpay_secret_live,
-                               razorpay_webhook_secret
+  • Profile → "🚪 Sign out completely"
+    Action: AuthManager.logout() — calls resetAccount() which wipes
+    EVERYTHING: mobile, PIN, name, rules, sync state.
+    Next launch shows SignupActivity (full mobile + OTP flow).
+    Cloud data is NOT touched — same mobile re-signing in restores it.
+
+  • Login screen now has "Use a different number" button below SIGN IN,
+    same effect as full logout.
 
 ============================================================
-FRONTEND (admin panel) CHANGES
+3. AUTO-LOCK TOGGLE
 ============================================================
-NEW    src/pages/Payments.jsx          (Razorpay transactions page)
-CHG    src/main.jsx                    (route /payments)
-CHG    src/components/Layout.jsx       (nav link 💰 Payments)
-CHG    src/pages/Settings.jsx          (Razorpay section)
-CHG    src/pages/UserDetail.jsx        (Schedules + Block All tabs,
-                                        edit/delete on rules, Name row)
+
+Profile → new "⏱️ Auto-lock" card with a Switch.
+
+When ON: if the app is in the background for >5 minutes and you
+return, it locks (shows PIN unlock). Setting is per-device, persists
+across reinstall via SharedPreferences "ui_prefs".
+
+Implementation:
+  • MainActivity.onPause records bg_at_ms timestamp
+  • MainActivity.onResume checks elapsed time, calls lock() + redirect
+    to LoginActivity if > 5 min and auto_lock=true
 
 ============================================================
-ANDROID CHANGES
+4. PROFILE SUBSCRIPTION CARD → "BUY A PLAN" BUTTON
 ============================================================
-NEW    java/.../BillingProvider.java                interface + Factory
-NEW    java/.../PlayBillingProviderAdapter.java     wraps existing PlayBillingManager
-NEW    sideload/java/.../RazorpayBillingManager.java real Razorpay impl
-NEW    playstore/java/.../RazorpayBillingManager.java stub (throws)
-NEW    res/layout/plan_card.xml                     one card per plan
-CHG    app/build.gradle                             flavorDimensions+productFlavors,
-                                                    Razorpay SDK dep (sideload only)
-CHG    java/.../PaywallActivity.java                rewritten — flavor-agnostic,
-                                                    fetches plans from /api/plans,
-                                                    Razorpay reflection callbacks
-CHG    res/layout/activity_paywall.xml              redesigned for plan list
-CHG    java/.../ProfileActivity.java                shows user name
-CHG    java/.../AuthManager.java                    name field added, persisted
-CHG    java/.../SignupActivity.java                 name input wired
-CHG    res/layout/activity_signup.xml               YOUR NAME field
+
+Profile subscription card now has a "🛒 Buy a plan" button. Tapping it
+opens the paywall, which now:
+  • Hides any plan where offer_price=0 AND actual_price=0 (free plans)
+  • Shows your current subscription status banner at the top
+    ("Currently subscribed: Monthly, 12 days left")
+  • Shows a back button (top-left) that returns to Profile
+  • For one-time-only plans you've already used: shows the card with
+    button text "ALREADY USED" and disabled (50% opacity)
+
+============================================================
+5. ONE-TIME PLAN — ADMIN CHECKBOX
+============================================================
+
+Admin Billing → New/Edit plan form has a new checkbox:
+  ☐ One-time only per user (free trial / one-shot upgrade)
+
+When checked, the plan can be subscribed to ONLY ONCE per user.
+Server-side enforcement:
+  • POST /api/razorpay/create-order returns 403 plan_already_used
+    if user has a prior subscription OR a paid razorpay_orders row
+    for this plan_id.
+  • GET /api/plans returns `already_used: true` per-plan when called
+    with ?user_id=N, so the app can grey out used plans before
+    checkout even opens.
+
+============================================================
+6. ADMIN USER LIST — NAME COLUMN + ACTIVATE/DEACTIVATE
+============================================================
+
+Users page:
+  • Added "Name" column (uses users.name from v25.7)
+  • New action buttons:
+      - Active users:   [Deactivate]
+      - Disabled users: [Activate]
+  • Confirmation dialog before applying
+
+Backend: POST /admin/users/:id/activate  body: {active: true|false}
+Sets users.status to 'active' or 'disabled'.
+
+============================================================
+7. DISABLED-ACCOUNT BANNER (Q5b option i)
+============================================================
+
+When users.status = 'disabled', the user can still:
+  • Sign in (mobile + PIN/OTP)
+  • Use the app
+
+But they see a red ⚠️ banner at the top of MainActivity:
+
+  ⚠️  Your account is disabled
+      Contact admin to reactivate
+
+How it works:
+  • POST /api/check-account returns `status: 'disabled'` for disabled users
+  • AuthManager.verifyAccountStillExists() stores this in prefs
+  • MainActivity.refreshUI() shows/hides the banner based on the flag
+
+To reactivate: admin Users page → [Activate] button. Banner disappears
+on the user's next app launch (next check-account call).
+
+============================================================
+8. SIGNUP COUNTRY DROPDOWN — WHITE-ON-WHITE FIX
+============================================================
+
+Cause: Used android.R.layout.simple_spinner_dropdown_item, which on
+some Material themes renders with a white popup background. Combined
+with white text → invisible.
+
+Fix: Two new custom layouts with explicit dark backgrounds:
+  res/layout/spinner_item.xml         — closed state (surface bg)
+  res/layout/spinner_dropdown_item.xml — open state (card bg, 48dp rows)
+
+Applied to:
+  • SignupActivity (country picker)
+  • MainActivity (country picker, same fix needed)
+
+============================================================
+FILES TOUCHED
+============================================================
+
+BACKEND
+  NEW  migrations/009_diff_sync_activation_onetime.sql
+  CHG  src/api.js              diff sync endpoints, /plans flags,
+                               razorpay 403 on one-time, signup status
+  CHG  src/admin.js            /users/:id/activate, plan is_one_time flag
+
+FRONTEND (admin)
+  CHG  pages/Users.jsx         Name column + activate/deactivate
+  CHG  pages/Billing.jsx       one-time-only checkbox in plan form
+
+ANDROID — main flavor
+  CHG  java/.../AuthManager.java          lock() vs logout() split,
+                                          isAccountDisabled()
+  CHG  java/.../RulesManager.java         addRuleWithId, push on add/remove
+  CHG  java/.../SyncManager.java          pushAddedRule, pushDeletedRule,
+                                          mergeRulesFromCloud
+  CHG  java/.../MainActivity.java         onResume merge, onPause bg_at_ms,
+                                          auto-lock check, disabled banner,
+                                          spinner_item refs
+  CHG  java/.../ProfileActivity.java      Lock card, auto-lock toggle,
+                                          full sign-out wording,
+                                          → SignupActivity on logout
+  CHG  java/.../LoginActivity.java        Switch account button
+  CHG  java/.../SignupActivity.java       spinner_item refs
+  NEW  res/layout/spinner_item.xml        custom spinner (closed state)
+  NEW  res/layout/spinner_dropdown_item.xml  custom spinner (open state)
+  CHG  res/layout/activity_login.xml      Switch account button
+  CHG  res/layout/activity_profile.xml    Lock + Auto-lock cards,
+                                          Buy a plan button label
+  CHG  res/layout/activity_main.xml       disabled banner
+  CHG  res/layout/activity_paywall.xml    back button (top-left)
 
 ============================================================
 DEPLOY
 ============================================================
-1. Backend + frontend (auto-deploy via Railway):
+
+1) Push backend + frontend (Railway auto-deploys)
 
    cd D:\\callfilter
    git pull origin main
 
-   # Extract zip to e.g. C:\\temp\\v257
-   robocopy C:\\temp\\v257\\callfilter-monorepo\\android  android  /E
-   robocopy C:\\temp\\v257\\callfilter-monorepo\\backend  backend  /E
-   robocopy C:\\temp\\v257\\callfilter-monorepo\\frontend frontend /E
-   copy C:\\temp\\v257\\callfilter-monorepo\\README.md .
-   copy C:\\temp\\v257\\callfilter-monorepo\\INTEGRATION_README.txt .
+   # Extract zip to C:\\temp\\v258
+   robocopy C:\\temp\\v258\\callfilter-monorepo\\android  android  /E
+   robocopy C:\\temp\\v258\\callfilter-monorepo\\backend  backend  /E
+   robocopy C:\\temp\\v258\\callfilter-monorepo\\frontend frontend /E
+   copy C:\\temp\\v258\\callfilter-monorepo\\README.md .
+   copy C:\\temp\\v258\\callfilter-monorepo\\INTEGRATION_README.txt .
 
    git add .
-   git commit -m "v25.7 — name field, Razorpay billing, full admin"
+   git commit -m "v25.8 — diff rules sync (root fix), lock vs logout, auto-lock, one-time plans, activate/deactivate, disabled banner, spinner fix"
    git push origin main
 
-   Railway redeploys both services. Look for:
-       Running migration 008_user_name_and_razorpay.sql
+   Watch Railway backend logs for:
+     Running migration 009_diff_sync_activation_onetime.sql
+     ...
+     CREATE UNIQUE INDEX idx_user_rules_user_client
 
-2. Configure Razorpay (one-time, admin panel):
+2) Android — same flavor as before (playstore or sideload)
 
-   Admin → Settings → "Razorpay (sideload payments)" section:
-     ☑ Enable Razorpay payments
-     Mode: Test
-     Test Key ID:     rzp_test_xxxxxxxxxxxxxxxx
-     Test Secret:     xxxxxxxxxxxxxxxxxxxxxxxxxxxx
-     Live Key ID:     rzp_live_xxxxxxxxxxxxxxxx
-     Live Secret:     xxxxxxxxxxxxxxxxxxxxxxxxxxxx
-     Webhook Secret:  whsec_xxxxxxxxxxxxxxxxxxxxxx
-   Save.
-
-   In Razorpay dashboard → Settings → Webhooks:
-     URL:    https://api.app.onephone.pro/api/razorpay/webhook
-     Events: payment.captured, payment.failed
-     Secret: same value as Webhook Secret above
-
-3. Build the Android app — pick a flavor:
-
-   In Android Studio:
-     Build → Select Build Variant → app → choose "sideloadRelease" or
-     "playstoreRelease" → then Build → Generate Signed App Bundle / APK
-
-   From command line:
-     cd D:\\callfilter\\android
-     .\\gradlew assembleSideloadRelease
-     # output: app/build/outputs/apk/sideload/release/app-sideload-release.apk
-
-     .\\gradlew assemblePlaystoreRelease
-     # output: app/build/outputs/apk/playstore/release/app-playstore-release.apk
+   Android Studio → Build → Select Build Variant → app → choose
+   "playstoreRelease" or "sideloadRelease" → Run ▶ or Build APK
 
 ============================================================
-POST-DEPLOY TEST PLAN
+TEST AFTER INSTALL
 ============================================================
 
-[ ] Backend smoke: curl https://api.app.onephone.pro/api/razorpay/status
-    → {"ok":true,"enabled":false,...}   (until you configure)
+RULES SYNC (the big one):
+[ ] Install app, sign up
+[ ] Add rule PREFIX 9494 REJECT
+[ ] Wait 5 seconds. Force-stop app from recents. Reopen.
+    → Rule should still be there ✓
+[ ] Admin panel → Users → your user → Rules tab. Should see the rule.
+[ ] Admin panel: click Delete on that rule.
+[ ] In app: pull down or background→foreground.
+    → Rule should DISAPPEAR (cloud → app sync).
+[ ] Admin panel: add a brand-new rule (PREFIX 9090 REJECT) from web.
+[ ] In app: background→foreground.
+    → New rule should APPEAR ✓ (admin → app sync works now)
+[ ] Uninstall app entirely. Reinstall. Sign in with same mobile.
+    → All your rules should come back from cloud ✓
 
-[ ] Admin panel — Settings page has Razorpay section. Enable + paste TEST
-    keys. Status banner shows orange "TEST mode".
+LOCK vs LOGOUT:
+[ ] Profile → 🔒 Lock app → tap Lock
+    → Login screen. Enter PIN. Back in app. Mobile + rules intact.
+[ ] Profile → 🚪 Sign out completely → tap Sign out
+    → Signup screen. Mobile field empty. PIN gone.
+[ ] Enter same mobile, OTP, set PIN. Rules come back from cloud (merge).
 
-[ ] Admin panel — Users → click any user → tabs include Schedules + Block All
+AUTO-LOCK:
+[ ] Profile → toggle Auto-lock ON → "Locks after 5 minutes in background"
+[ ] Background the app for 6+ minutes. Reopen.
+    → PIN unlock screen.
+[ ] Profile → toggle Auto-lock OFF
+[ ] Background 6+ min. Reopen.
+    → Goes straight to home.
 
-[ ] Admin panel — Rules tab: add a new rule from the form; delete one
+BUY A PLAN:
+[ ] Profile → 🛒 Buy a plan → opens paywall
+[ ] Free plans (price=0) are hidden
+[ ] Back button (top-left) returns to Profile
+[ ] Current subscription banner at top (if you have one)
+[ ] Tap any plan's SUBSCRIBE → Razorpay checkout / Play Billing opens
+[ ] (sideload+test card 4111 1111 1111 1111) → payment succeeds
+    → "✅ Subscription active" → returns home
 
-[ ] Admin panel — Payments page in left nav → empty until first checkout
+ONE-TIME PLAN:
+[ ] Admin → Billing → New plan → check "One-time only per user" → Save
+[ ] In app: paywall shows new plan as available
+[ ] Subscribe to it → succeeds
+[ ] Open paywall again → plan card shows "ALREADY USED" disabled
+[ ] Verify backend: try POST /api/razorpay/create-order with that plan_id
+    → returns 403 plan_already_used
 
-[ ] Android: install fresh, sign up with new mobile + NAME
-[ ] After login, ProfileActivity shows name + mobile
+ADMIN ACTIVATE/DEACTIVATE:
+[ ] Admin → Users → click [Deactivate] on your test user
+[ ] In app: open the app
+    → Red ⚠️ "Your account is disabled" banner at top of home screen
+[ ] Admin → Users → click [Activate]
+[ ] In app: background → foreground
+    → Banner disappears
 
-[ ] Sideload flavor only:
-    - Paywall opens, lists plans from /api/plans
-    - Tap a plan's SUBSCRIBE → Razorpay checkout opens
-    - Pay with a Razorpay test card (4111 1111 1111 1111, any CVV, any
-      future date)
-    - Toast: "✅ Subscription active"
-    - Admin Payments page shows the new order with status=paid
-
-[ ] Play Store flavor:
-    - Existing Google Play Billing flow still works for builds uploaded
-      to Internal Testing track
+COUNTRY DROPDOWN:
+[ ] Sign out, get to signup screen
+[ ] Tap country dropdown
+    → Visible dark popup with white text, NOT white-on-white
 
 ============================================================
-KNOWN LIMITATIONS / TODO
+KNOWN LIMITATIONS
 ============================================================
-- Razorpay's PaymentResultListener (the simpler interface) is used here
-  rather than PaymentResultWithDataListener so the Activity compiles
-  cleanly in both flavors. This means the SIGNATURE isn't available
-  client-side; backend falls back to querying Razorpay's /payments API
-  to verify (Path B in /razorpay/verify-payment). Webhook is still the
-  most reliable confirmation source.
 
-- The webhook is the authoritative payment confirmation. Even if the
-  client never calls /verify-payment (e.g. user closes app before
-  callback), the webhook will mark the order as paid and the next
-  subscription check picks it up.
+• Auto-lock is per-device and per-install. Resetting/reinstalling
+  defaults to OFF.
 
-- The "Restore purchase" button on the paywall currently only refreshes
-  subscription status — it doesn't query Razorpay for prior orders.
-  If a user's subscription was paid but didn't activate, they should
-  contact admin who can manually extend via the Subscriptions page.
+• "Buy a plan" page doesn't yet show "12 days left" duration breakdown
+  in the current-sub banner — only plan name. Will add if requested.
+
+• Admin "Activate" doesn't push a notification to the app — user sees
+  the banner disappear on the next check-account call (every onResume
+  or after a few seconds in foreground).
+
+• Merging rules from cloud is additive. If admin DELETES a rule via
+  web, the app's local copy of that rule is NOT auto-removed until
+  the next full /api/rules/list pull. This is correct for safety
+  (avoids accidentally wiping user data) but means deletions can
+  take a few seconds to propagate. To force: pull-to-refresh on
+  the rules screen (or background/foreground the app).

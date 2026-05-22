@@ -102,7 +102,8 @@ function PlanForm({ plan, onSaved, onCancel }) {
         actual_price: parseInt(f.actual_price, 10),
         offer_price: parseInt(f.offer_price, 10),
         currency: f.currency || 'INR',
-        is_active: f.is_active !== false
+        is_active: f.is_active !== false,
+        is_one_time_per_user: f.is_one_time_per_user === true
       };
       if (plan.id) await api.put(`/admin/plans/${plan.id}`, body);
       else         await api.post(`/admin/plans`, body);
@@ -137,6 +138,19 @@ function PlanForm({ plan, onSaved, onCancel }) {
           <label>Offer price (paise)</label>
           <input type="number" value={f.offer_price} onChange={e => setF({ ...f, offer_price: e.target.value })}/>
         </div>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <label className="checkbox">
+          <input type="checkbox"
+            checked={f.is_one_time_per_user === true}
+            onChange={e => setF({ ...f, is_one_time_per_user: e.target.checked })}/>
+          One-time only per user (free trial / one-shot upgrade)
+        </label>
+        <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+          When checked, a user can subscribe to this plan only once.
+          On their second attempt, the plan appears disabled with
+          "Already used" in the Android app.
+        </p>
       </div>
       <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
         <button className="btn btn-primary" onClick={save} disabled={saving}>
@@ -234,7 +248,8 @@ function CouponForm({ coupon, onSaved, onCancel }) {
         discount_value: parseInt(f.discount_value, 10),
         valid_until: new Date(f.valid_until).toISOString(),
         max_uses: f.max_uses ? parseInt(f.max_uses, 10) : null,
-        is_active: f.is_active !== false
+        is_active: f.is_active !== false,
+        is_one_time_per_user: f.is_one_time_per_user === true
       };
       if (coupon.id) await api.put(`/admin/coupons/${coupon.id}`, body);
       else           await api.post(`/admin/coupons`, body);
@@ -279,6 +294,19 @@ function CouponForm({ coupon, onSaved, onCancel }) {
       <label>Max uses (leave empty for unlimited)</label>
       <input type="number" value={f.max_uses || ''}
         onChange={e => setF({ ...f, max_uses: e.target.value })}/>
+      <div style={{ marginTop: 14 }}>
+        <label className="checkbox">
+          <input type="checkbox"
+            checked={f.is_one_time_per_user === true}
+            onChange={e => setF({ ...f, is_one_time_per_user: e.target.checked })}/>
+          One-time only per user (free trial / one-shot upgrade)
+        </label>
+        <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+          When checked, a user can subscribe to this plan only once.
+          On their second attempt, the plan appears disabled with
+          "Already used" in the Android app.
+        </p>
+      </div>
       <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
         <button className="btn btn-primary" onClick={save} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}

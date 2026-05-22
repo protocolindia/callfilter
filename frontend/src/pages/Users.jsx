@@ -37,7 +37,16 @@ export default function Users() {
   async function handleReset(id) {
     if (!confirm('Reset this user — clear PIN and verification?')) return;
     try {
-      await api.post(`/admin/users/${id}/reset`);
+      await api.post(`/admin/users/${id}
+
+  async function handleSetActive(id, active) {
+    const label = active ? 'activate' : 'deactivate';
+    if (!confirm(`Are you sure you want to ${label} this user?`)) return;
+    try {
+      await api.post(`/admin/users/${id}/activate`, { active });
+      load();
+    } catch (e) { alert(e.message); }
+  }/reset`);
       load();
     } catch (err) { alert(err.message); }
   }
@@ -72,7 +81,7 @@ export default function Users() {
           <table>
             <thead>
               <tr>
-                <th>ID</th><th>Mobile</th><th>Country</th><th>Status</th>
+                <th>ID</th><th>Name</th><th>Mobile</th><th>Country</th><th>Status</th>
                 <th>PIN Set</th><th>Created</th><th>Verified</th><th>Actions</th>
               </tr>
             </thead>
@@ -80,6 +89,7 @@ export default function Users() {
               {users.map(u => (
                 <tr key={u.id}>
                   <td><Link to={`/users/${u.id}`}>#{u.id}</Link></td>
+                  <td><Link to={`/users/${u.id}`}>{u.name || <span className="muted">—</span>}</Link></td>
                   <td><Link to={`/users/${u.id}`}><strong>{u.dial_code}{u.mobile}</strong></Link></td>
                   <td>{u.country_iso || '—'}</td>
                   <td><span className={`pill pill-${u.status}`}>{u.status}</span></td>
@@ -87,6 +97,11 @@ export default function Users() {
                   <td className="muted">{new Date(u.created_at).toLocaleString()}</td>
                   <td className="muted">{u.verified_at ? new Date(u.verified_at).toLocaleString() : '—'}</td>
                   <td className="actions">
+                    {u.status === 'disabled' ? (
+                      <button className="btn btn-mini" onClick={() => handleSetActive(u.id, true)}>Activate</button>
+                    ) : (
+                      <button className="btn btn-mini btn-ghost" onClick={() => handleSetActive(u.id, false)}>Deactivate</button>
+                    )}
                     <button className="btn btn-mini btn-ghost" onClick={() => handleReset(u.id)}>Reset</button>
                     <button className="btn btn-mini btn-danger" onClick={() => handleDelete(u.id)}>Delete</button>
                   </td>

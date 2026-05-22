@@ -333,14 +333,14 @@ router.get('/plans', requireAdmin, async (req, res, next) => {
 
 router.post('/plans', requireAdmin, async (req, res, next) => {
   try {
-    const { name, duration_days, actual_price, offer_price, currency } = req.body || {};
+    const { name, duration_days, actual_price, offer_price, currency, is_one_time_per_user } = req.body || {};
     if (!name || !duration_days || actual_price == null || offer_price == null) {
       return res.status(400).json({ error: 'name, duration_days, actual_price, offer_price required' });
     }
     const r = await one(
-      `INSERT INTO plans(name, duration_days, actual_price, offer_price, currency)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, duration_days, actual_price, offer_price, currency || 'INR']
+      `INSERT INTO plans(name, duration_days, actual_price, offer_price, currency, is_one_time_per_user)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [name, duration_days, actual_price, offer_price, currency || 'INR', is_one_time_per_user === true]
     );
     await audit(req.admin.username, 'plan_created', `id=${r.id}, name=${name}`);
     res.json({ plan: r });
@@ -350,7 +350,7 @@ router.post('/plans', requireAdmin, async (req, res, next) => {
 router.put('/plans/:id', requireAdmin, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const { name, duration_days, actual_price, offer_price, currency, is_active } = req.body || {};
+    const { name, duration_days, actual_price, offer_price, currency, is_active, is_one_time_per_user } = req.body || {};
     const r = await one(
       `UPDATE plans
           SET name = COALESCE($2, name),
@@ -359,9 +359,11 @@ router.put('/plans/:id', requireAdmin, async (req, res, next) => {
               offer_price = COALESCE($5, offer_price),
               currency = COALESCE($6, currency),
               is_active = COALESCE($7, is_active),
+              is_one_time_per_user = COALESCE($8, is_one_time_per_user),
               updated_at = NOW()
         WHERE id = $1 RETURNING *`,
-      [id, name, duration_days, actual_price, offer_price, currency, is_active]
+      [id, name, duration_days, actual_price, offer_price, currency, is_active,
+       typeof is_one_time_per_user === 'boolean' ? is_one_time_per_user : null]
     );
     if (!r) return res.status(404).json({ error: 'Plan not found' });
     await audit(req.admin.username, 'plan_updated', `id=${id}`);
@@ -662,6 +664,19 @@ router.get('/razorpay/orders', requireAdmin, async (req, res, next) => {
          ORDER BY o.created_at DESC
          LIMIT $${params.length-1} OFFSET $${params.length}`, params);
     res.json({ orders, total: total.n, page, limit });
+  } catch (e) { next(e); }
+});
+
+
+// POST /admin/users/:id/activate  — toggle user.status
+router.post('/users/:id/activate', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { active } = req.body || {};
+    const newStatus = active === false ? 'disabled' : 'active';
+    await query('UPDATE users SET status = $1 WHERE id = $2', [newStatus, id]);
+    await audit(req.admin.username, 'user_' + newStatus, 'id=' + id);
+    res.json({ ok: true, status: newStatus });
   } catch (e) { next(e); }
 });
 
