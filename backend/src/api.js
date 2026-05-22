@@ -987,14 +987,35 @@ router.post('/razorpay/verify-payment', async (req, res, next) => {
     );
 
     const days = parseInt(orderRow.duration_days, 10) || 30;
+
+    // EXTEND from the user's current expiry if they're still subscribed,
+    // otherwise start from now. (Buying a plan while subscribed adds days.)
+    const cur = await one(
+      `SELECT MAX(expires_at) AS expires_at FROM subscriptions
+         WHERE user_id = $1 AND status IN ('trial','active') AND expires_at > NOW()`,
+      [user_id]
+    );
+    const baseExpires = (cur && cur.expires_at) ? new Date(cur.expires_at) : new Date();
+    if (baseExpires < new Date()) baseExpires.setTime(Date.now());
+
     await query(
       `INSERT INTO subscriptions(user_id, plan_id, status, is_trial, expires_at,
                                 amount_paid, provider, razorpay_order_id,
                                 razorpay_payment_id, razorpay_signature)
-       VALUES ($1, $2, 'active', FALSE, NOW() + ($3 || ' days')::interval,
-               $4, 'razorpay', $5, $6, $7)`,
-      [user_id, orderRow.plan_id, String(days),
+       VALUES ($1, $2, 'active', FALSE, $3::timestamptz + ($4 || ' days')::interval,
+               $5, 'razorpay', $6, $7, $8)`,
+      [user_id, orderRow.plan_id, baseExpires.toISOString(), String(days),
        orderRow.amount_paise / 100, order_id, payment_id, signature]
+    );
+
+    // Expire any older active rows so /api/subscription returns the latest
+    await query(
+      `UPDATE subscriptions
+            SET status = 'cancelled'
+          WHERE user_id = $1
+            AND status IN ('trial','active')
+            AND razorpay_order_id IS DISTINCT FROM $2`,
+      [user_id, order_id]
     );
 
     await audit('razorpay', 'payment_verified',

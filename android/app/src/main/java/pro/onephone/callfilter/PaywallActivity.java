@@ -79,11 +79,13 @@ public class PaywallActivity extends AppCompatActivity {
         if (smgr.isActive()) {
             long remain = smgr.getExpiresMs() - System.currentTimeMillis();
             long days = Math.max(0, remain / (1000L * 60 * 60 * 24));
-            String label = (smgr.getPlanName() != null && !smgr.getPlanName().isEmpty())
-                ? smgr.getPlanName() : (smgr.isTrial() ? "Trial" : "Active");
+            String rawName = smgr.getPlanName();
+            // optString returns the string "null" when the JSON value was null
+            boolean hasName = rawName != null && !rawName.isEmpty() && !"null".equals(rawName);
+            String label = hasName ? rawName : (smgr.isTrial() ? "Trial" : "Active");
             curText.setText(label + " — " + days + " day" + (days == 1 ? "" : "s") + " left");
             banner.setVisibility(android.view.View.VISIBLE);
-            title.setText("Buy another plan");
+            title.setText("Extend plan");
         }
 
         btnRestore.setOnClickListener(v -> {
@@ -188,8 +190,13 @@ public class PaywallActivity extends AppCompatActivity {
     }
 
     private static String formatMoney(double amount, String currency) {
-        if ("INR".equalsIgnoreCase(currency)) return "₹" + String.format("%.0f", amount);
-        return currency + " " + String.format("%.2f", amount);
+        // Backend stores prices in the smallest unit (paise / cents); convert to whole units.
+        double whole = amount / 100.0;
+        String sym = "USD".equalsIgnoreCase(currency) ? "$" :
+                    ("INR".equalsIgnoreCase(currency) ? "₹" : (currency + " "));
+        // Round-half-up; show fractional only if non-zero
+        if (whole == Math.floor(whole)) return sym + String.format("%.0f", whole);
+        return sym + String.format("%.2f", whole);
     }
 
     private void startPurchase(int planId) {

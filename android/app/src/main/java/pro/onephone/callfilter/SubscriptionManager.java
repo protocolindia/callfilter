@@ -83,6 +83,7 @@ public class SubscriptionManager {
         long secsLeft    = sub.optLong("seconds_remaining", 0L);
         long expiresMs   = System.currentTimeMillis() + (secsLeft * 1000L);
         String planName  = sub.optString("plan_name", "");
+        if ("null".equals(planName)) planName = "";
         prefs.edit()
             .putBoolean(KEY_ACTIVE, active)
             .putBoolean(KEY_IS_TRIAL, isTrial)

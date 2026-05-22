@@ -1,87 +1,70 @@
-CallFilter v25.11 — ACTUAL root cause of the rules sync bug
-=============================================================
+CallFilter v25.12 — paywall display + extend semantics
+========================================================
 
-The rules sync bug has been mysterious across v25.4 → v25.10 because
-I kept finding symptoms (mirror-replace, pgcrypto, silent migrate
-errors) without finding the underlying schema mismatch.
+Three things from v25.11 testing:
 
-THE REAL CAUSE: user_rules.client_id was declared INTEGER in migration
-002, but the Android app generates UUIDs (UUID.randomUUID().toString())
-and sends them as STRINGS. Every /api/rules/add call was hitting
-Postgres with:
+1. Price showed ₹9900 (the paise value) instead of ₹99 in the app's
+   paywall. Admin form correctly took rupees and stored as paise, but
+   the Android paywall wasn't dividing back.
 
-    error: invalid input syntax for type integer: "a1b2c3d4-..."
+2. "Currently subscribed: null — 6 days left" — when a subscription
+   has no plan attached (e.g. the initial trial), `plan_name` comes
+   back as JSON null. Android's `optString` quirks return the literal
+   string "null" in that case.
 
-The error was returned to the app, which logged it and moved on. The
-backend never saved any rule. The "rules sync isn't working" symptom
-was just that.
-
-When v25.10's migration 009/010 tried to backfill client_id with
-"legacy-" || id::text, Postgres rejected the string assignment to an
-INTEGER column → "invalid input syntax for type integer: """
-
-(That cryptic empty-string error in the Railway logs was Postgres
-trying to cast '' to integer when the WHERE clause matched empty
-strings — but the underlying problem was that the column was the
-wrong type all along.)
+3. Buying a plan while already subscribed REPLACED the expiry instead
+   of EXTENDING it. So 6 days left + 365-day plan → 365 days, losing
+   the 6 days already paid for.
 
 ============================================================
-THE FIX
+FIXES
 ============================================================
 
-Both migrations 009 and 010 now do this and only this for sync:
+A) PaywallActivity.formatMoney — divides by 100 (paise → rupees)
+   Old: "₹9900"   New: "₹99"
+   Same for USD: "$1900" → "$19"
 
-    ALTER TABLE user_rules
-      ALTER COLUMN client_id TYPE TEXT
-      USING client_id::text;
+B) PaywallActivity + SubscriptionManager — null plan name handled.
+   Now shows "Trial — 6 days left" instead of "null — 6 days left"
+   when no plan is attached to the subscription.
 
-ALTER COLUMN ... TYPE TEXT USING client_id::text is idempotent:
-  • If the column is INTEGER → converts existing integers to text
-  • If the column is already TEXT → cast TEXT to TEXT is a no-op
-  • If the column has NULLs → NULLs stay NULL
+C) /api/razorpay/verify-payment — when paying while subscribed,
+   extends from the LATER of (now, current_expires_at):
 
-This works on Railway, on a fresh install, on a partially-migrated DB,
-or anywhere else. No pgcrypto, no UUIDs in SQL, no backfill needed.
+       SELECT MAX(expires_at) FROM subscriptions
+        WHERE user_id = ? AND status IN ('trial','active')
+              AND expires_at > NOW();
+       -- new expiry = (above) + plan duration
 
-The UNIQUE (user_id, client_id) constraint that ON CONFLICT relies on
-ALREADY EXISTS from migration 002 — I was adding a duplicate index
-unnecessarily. That's removed too.
+   Also marks older active subscriptions as 'cancelled' so the
+   /api/subscription endpoint always returns the latest row. This
+   means buying a 365-day plan while you have 6 days left → 371
+   days left (not 365).
 
-The plans.is_one_time_per_user column is added separately (ADD COLUMN
-IF NOT EXISTS).
-
-============================================================
-WHAT YOUR DEPLOY WILL DO
-============================================================
-
-When you push v25.11, Railway backend deploy logs should show:
-
-   🔧 Running migrations...
-     ✓ 001_init.sql (already applied)
-     ✓ 002_contacts_and_rules.sql (already applied)
-     ...
-     ✓ 008_user_name_and_razorpay.sql (already applied)
-     → applying 009_diff_sync_activation_onetime.sql
-     ✓ 009_diff_sync_activation_onetime.sql applied successfully
-     → applying 010_repair_008_009.sql
-     ✓ 010_repair_008_009.sql applied successfully
-   ✅ Migrations OK
-   ⚡ Listening on port 3000
-
-After this, user_rules.client_id is TEXT, plans.is_one_time_per_user
-exists, and the differential rules sync from v25.8 will finally work.
+D) Profile page polish:
+   • "Manage / Cancel subscription" button HIDDEN. Razorpay doesn't
+     do self-service cancel; admin handles that.
+   • "🛒 Buy a plan" button now says "⏳ Extend plan" when already
+     subscribed. Routes to the same paywall, which fetches plans
+     from /api/plans (free + already-used filtered server-side).
 
 ============================================================
-WHAT CHANGED FROM v25.10
+FILES TOUCHED
 ============================================================
 
-ONLY these two files differ from v25.10:
-  backend/migrations/009_diff_sync_activation_onetime.sql  (rewritten)
-  backend/migrations/010_repair_008_009.sql                (rewritten)
+BACKEND
+  CHG src/api.js
+      /api/razorpay/verify-payment now extends from current expiry,
+      cancels older overlapping rows
 
-Everything else from v25.10 (and the cumulative v25.x work) is intact:
-smart login flow, rupee input, multi-currency plans, admin 401 auto-
-logout, hard-fail server on migrate errors, etc.
+ANDROID
+  CHG java/.../PaywallActivity.java
+      formatMoney divides by 100, normalizes "null" plan name,
+      title says "Extend plan" when subscribed
+  CHG java/.../ProfileActivity.java
+      Manage button hidden permanently, Buy/Extend label toggle
+  CHG java/.../SubscriptionManager.java
+      normalize "null" string → ""
 
 ============================================================
 DEPLOY
@@ -90,43 +73,33 @@ DEPLOY
 cd D:\\callfilter
 git pull origin main
 
-robocopy F:\\app\\CallManager\\callfilter-v25.11-monorepo\\callfilter-monorepo\\android  android  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.11-monorepo\\callfilter-monorepo\\backend  backend  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.11-monorepo\\callfilter-monorepo\\frontend frontend /E
-copy F:\\app\\CallManager\\callfilter-v25.11-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
+robocopy F:\\app\\CallManager\\callfilter-v25.12-monorepo\\callfilter-monorepo\\android  android  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.12-monorepo\\callfilter-monorepo\\backend  backend  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.12-monorepo\\callfilter-monorepo\\frontend frontend /E
+copy F:\\app\\CallManager\\callfilter-v25.12-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
 
 git add .
-git commit -m "v25.11 — convert user_rules.client_id INTEGER → TEXT (the real rules sync bug)"
+git commit -m "v25.12 — paywall price fix, extend semantics, hide manage button"
 git push origin main
-
-# Watch Railway backend deploy logs for the green ticks above
 
 ============================================================
 POST-DEPLOY TESTS
 ============================================================
 
-[ ] Railway log: "✓ 009_diff_sync_activation_onetime.sql applied successfully"
-[ ] Railway log: "✓ 010_repair_008_009.sql applied successfully"
-[ ] Railway log: "✅ Migrations OK"
-[ ] Backend service is RUNNING (not failed)
+[ ] App paywall shows ₹99 / ₹29 (NOT ₹9900 / ₹2900)
+[ ] Current-sub banner shows "Trial — 6 days left" or
+    "1-Year — 365 days left" (no "null")
+[ ] Profile screen — no "Manage / Cancel subscription" button
+[ ] When NO active sub: button reads "🛒 Buy a plan"
+[ ] When subscribed: button reads "⏳ Extend plan"
 
-[ ] Admin → Billing → Edit a plan → check "One-time only per user" → Save
-    → Should succeed (no "column does not exist")
+Extend semantics:
+[ ] Start with active trial / sub showing N days left
+[ ] Buy a new plan (M days)
+[ ] After payment, new expiry = N + M days (not just M)
+[ ] /api/subscription returns the new row, old row marked cancelled
 
-[ ] Android app: add a rule (PREFIX 9494 REJECT)
-[ ] Force-stop the app. Reopen.
-    → Rule should still be there (was being silently dropped before)
-[ ] Web admin → user → Rules tab
-    → Should see the rule
-[ ] Web admin: add a NEW rule from web (PREFIX 9090 REJECT)
-[ ] App: background → foreground
-    → New rule appears (admin → app sync)
-[ ] Web admin: delete a rule
-[ ] App: background → foreground
-    → Rule disappears (cloud → app sync)
-[ ] Uninstall + reinstall + log in with same mobile
-    → All rules come back from cloud
-
-If any of these still fail, paste the failing step number and any
-backend logs around the time of the action, and I'll look at the
-specific endpoint.
+(Optional) Rules sync verification (the v25.11 fix):
+[ ] Add rule in app → see in admin
+[ ] Add rule in admin → see in app
+[ ] Reinstall + login → rules come back from cloud

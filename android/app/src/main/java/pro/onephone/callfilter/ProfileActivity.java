@@ -142,16 +142,21 @@ public class ProfileActivity extends AppCompatActivity {
             statusValue.setText(sub.getStatusLabel());
             statusValue.setTextColor(getResources().getColor(R.color.accept, null));
             String plan = sub.getPlanName();
+            // Normalize "null" string that comes from JSON null values
+            if (plan == null || "null".equals(plan)) plan = "";
             planPriceValue.setText(plan.isEmpty() ? "" : plan);
-            btnManageSub.setVisibility(View.VISIBLE);
+            // Manage/Cancel button is intentionally hidden — Razorpay doesn't
+            // expose self-service cancel; admin handles that side.
+            btnManageSub.setVisibility(View.GONE);
+            // When already subscribed, the CTA reads "Extend plan".
+            btnViewPlans.setText("⏳ Extend plan");
         } else {
             statusValue.setText("Inactive");
             statusValue.setTextColor(getResources().getColor(R.color.reject, null));
             planPriceValue.setText("Subscribe to continue blocking calls");
             btnManageSub.setVisibility(View.GONE);
+            btnViewPlans.setText("🛒 Buy a plan");
         }
-        // "Buy a plan" is ALWAYS visible — even with an active sub the user
-        // can upgrade to a longer plan or buy an add-on.
         btnViewPlans.setVisibility(View.VISIBLE);
     }
 
