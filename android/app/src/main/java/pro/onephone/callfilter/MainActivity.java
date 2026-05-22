@@ -120,8 +120,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupCountrySpinner() {
         ArrayAdapter<CountryData> adapter = new ArrayAdapter<>(this,
-            android.R.layout.simple_spinner_item, CountryData.LIST);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            R.layout.spinner_item, CountryData.LIST);
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
         countryDial.setAdapter(adapter);
         countryDial.setSelection(CountryData.findIndexByIso("IN"));
     }
@@ -296,6 +296,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void refreshUI() {
         AuthManager auth = AuthManager.getInstance(this);
+        android.view.View dBanner = findViewById(R.id.disabledBanner);
+        if (dBanner != null) {
+            dBanner.setVisibility(auth.isAccountDisabled() ? android.view.View.VISIBLE
+                                                            : android.view.View.GONE);
+        }
         SubscriptionManager sub = SubscriptionManager.getInstance(this);
         // Reload rules in case cloud pull happened in the background
         rulesManager.reload();
@@ -382,6 +387,22 @@ public class MainActivity extends AppCompatActivity {
             .show();
     }
 
+    /** Shown when the admin has disabled this user's account. */
+    private boolean disabledDialogShown = false;
+    private void showAccountDisabledDialog() {
+        if (disabledDialogShown) return;
+        disabledDialogShown = true;
+        new AlertDialog.Builder(this)
+            .setTitle("Account disabled")
+            .setMessage("Your account has been disabled by the administrator.\n\n"
+                + "Calls will still be screened with your existing rules, but you "
+                + "won't receive new updates or be able to manage your subscription.\n\n"
+                + "Contact support@onephone.pro to reactivate.")
+            .setCancelable(false)
+            .setPositiveButton("OK", null)
+            .show();
+    }
+
     private void stopBlockAllConfirm() {
         new AlertDialog.Builder(this)
             .setTitle("Stop Block All Now?")
@@ -449,12 +470,49 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         banner_handler.removeCallbacks(banner_tick);
+        // Record background-start for auto-lock
+        getSharedPreferences("ui_prefs", MODE_PRIVATE).edit()
+            .putLong("bg_at_ms", System.currentTimeMillis()).apply();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        // Auto-lock check — if enabled and we were in background > 5 min, lock now
+        android.content.SharedPreferences uiPrefs = getSharedPreferences("ui_prefs", MODE_PRIVATE);
+        if (uiPrefs.getBoolean("auto_lock", false)) {
+            long bg = uiPrefs.getLong("bg_at_ms", 0L);
+            if (bg > 0 && System.currentTimeMillis() - bg > 5L * 60_000L) {
+                AuthManager.getInstance(this).lock();
+                Intent i = new Intent(this, LoginActivity.class);
+                i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                finish();
+                return;
+            }
+        }
         BlockAllManager.getInstance(this).pullFromCloud();
+        // Verify account still exists + check if admin disabled it
+        AuthManager.getInstance(this).verifyAccountStillExists(new AuthManager.AccountCheckCallback() {
+            public void onResult(boolean stillExists) {
+                if (!stillExists) {
+                    runOnUiThread(() -> {
+                        Intent i = new Intent(MainActivity.this, SignupActivity.class);
+                        i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(i);
+                        finish();
+                    });
+                }
+            }
+            @Override
+            public void onAccountDisabled() {
+                runOnUiThread(() -> showAccountDisabledDialog());
+            }
+        });
+        // Merge cloud-only rules into local (handles admin-added rules)
+        SyncManager.getInstance(this).mergeRulesFromCloud();
+        // Refresh the UI after merge completes (HTTP async)
+        banner_handler.postDelayed(() -> refreshUI(), 1_500L);
         refreshBlockAllUI();
         banner_handler.postDelayed(banner_tick, 30_000L);
         maybePromptOverlayPermission();

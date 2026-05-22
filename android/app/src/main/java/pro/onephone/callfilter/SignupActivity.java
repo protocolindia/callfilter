@@ -31,8 +31,8 @@ public class SignupActivity extends AppCompatActivity {
         btnContinue    = findViewById(R.id.btnContinue);
 
         ArrayAdapter<CountryData> adapter = new ArrayAdapter<>(this,
-            android.R.layout.simple_spinner_item, CountryData.LIST);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            R.layout.spinner_item, CountryData.LIST);
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
         countrySpinner.setAdapter(adapter);
         countrySpinner.setSelection(CountryData.findIndexByIso("IN"));
 

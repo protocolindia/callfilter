@@ -42,10 +42,38 @@ public class LoginActivity extends AppCompatActivity {
                     finish();
                 }
             }
+            @Override
+            public void onAccountDisabled() {
+                // Show a clear banner; do NOT block sign-in (per Q5b option i)
+                runOnUiThread(() -> {
+                    if (numberLabel != null) {
+                        numberLabel.setText("⚠ Your account is disabled.\n"
+                            + "Contact support: support@onephone.pro");
+                        numberLabel.setTextColor(getResources().getColor(R.color.reject, null));
+                    }
+                });
+            }
         });
 
         btnLogin.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { handleLogin(); }
+        });
+
+        Button btnSwitch = findViewById(R.id.btnSwitchAccount);
+        if (btnSwitch != null) btnSwitch.setOnClickListener(v -> {
+            new android.app.AlertDialog.Builder(LoginActivity.this)
+                .setTitle("Use a different number?")
+                .setMessage("This signs you out completely. All local rules and " +
+                    "settings on this device will be cleared. Cloud data is safe.")
+                .setPositiveButton("Sign out", (d, w) -> {
+                    AuthManager.getInstance(LoginActivity.this).logout();
+                    Intent i = new Intent(LoginActivity.this, SignupActivity.class);
+                    i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                    finish();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
         });
     }
 

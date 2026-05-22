@@ -74,14 +74,46 @@ public class ProfileActivity extends AppCompatActivity {
         findViewById(R.id.rowChangePin).setOnClickListener(v ->
             startActivity(new Intent(ProfileActivity.this, ChangePinActivity.class)));
 
-        // ----- Logout -----
+        // ----- Lock app — locks session, keeps PIN -----
+        findViewById(R.id.rowLock).setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                .setTitle("Lock app?")
+                .setMessage("You'll need to enter your PIN to unlock. Your mobile, "
+                    + "rules and settings stay intact.")
+                .setPositiveButton("Lock", (d, w) -> {
+                    AuthManager.getInstance(ProfileActivity.this).lock();
+                    Intent i = new Intent(ProfileActivity.this, LoginActivity.class);
+                    i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                    finish();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+        });
+
+        // ----- Auto-lock toggle -----
+        android.widget.Switch autoSw = findViewById(R.id.autoLockSwitch);
+        android.widget.TextView autoSum = findViewById(R.id.autoLockSummary);
+        android.content.SharedPreferences uiPrefs =
+            getSharedPreferences("ui_prefs", MODE_PRIVATE);
+        boolean autoOn = uiPrefs.getBoolean("auto_lock", false);
+        autoSw.setChecked(autoOn);
+        autoSum.setText(autoOn ? "Locks after 5 minutes in background" : "Off");
+        autoSw.setOnCheckedChangeListener((b, checked) -> {
+            uiPrefs.edit().putBoolean("auto_lock", checked).commit();
+            autoSum.setText(checked ? "Locks after 5 minutes in background" : "Off");
+        });
+
+        // ----- Sign out (full logout) — wipes everything -----
         findViewById(R.id.rowLogout).setOnClickListener(v -> {
             new AlertDialog.Builder(this)
-                .setTitle("Logout")
-                .setMessage("You'll need to enter your PIN to sign back in. Continue?")
-                .setPositiveButton("Logout", (d, w) -> {
+                .setTitle("Sign out completely?")
+                .setMessage("This SIGNS YOU OUT and clears your local data on this "
+                    + "device. You'll need to enter your mobile and verify via OTP "
+                    + "to sign in again. Your cloud data is preserved.")
+                .setPositiveButton("Sign out", (d, w) -> {
                     AuthManager.getInstance(ProfileActivity.this).logout();
-                    Intent i = new Intent(ProfileActivity.this, LoginActivity.class);
+                    Intent i = new Intent(ProfileActivity.this, SignupActivity.class);
                     i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(i);
                     finish();
@@ -112,14 +144,15 @@ public class ProfileActivity extends AppCompatActivity {
             String plan = sub.getPlanName();
             planPriceValue.setText(plan.isEmpty() ? "" : plan);
             btnManageSub.setVisibility(View.VISIBLE);
-            btnViewPlans.setVisibility(View.GONE);
         } else {
             statusValue.setText("Inactive");
             statusValue.setTextColor(getResources().getColor(R.color.reject, null));
             planPriceValue.setText("Subscribe to continue blocking calls");
             btnManageSub.setVisibility(View.GONE);
-            btnViewPlans.setVisibility(View.VISIBLE);
         }
+        // "Buy a plan" is ALWAYS visible — even with an active sub the user
+        // can upgrade to a longer plan or buy an add-on.
+        btnViewPlans.setVisibility(View.VISIBLE);
     }
 
     private void openPlayStoreSubscriptions() {

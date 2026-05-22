@@ -65,15 +65,27 @@ public class RulesManager {
     }
 
     public synchronized void addRule(String pattern, String type, String action) {
-        rules.add(new Rule(type, pattern, action));
+        Rule r = new Rule(type, pattern, action);
+        rules.add(r);
         persist();
+        // Differential push to backend
+        SyncManager.getInstance(ctx).pushAddedRule(r);
+    }
+
+    /** Used when merging from cloud — preserves the existing client_id. */
+    public synchronized void addRuleWithId(String id, String pattern, String type, String action) {
+        rules.add(new Rule(id, type, pattern, action));
+        persist();
+        // No push — this rule came FROM the cloud
     }
 
     public synchronized void removeRule(String id) {
+        boolean found = false;
         for (int i = rules.size() - 1; i >= 0; i--) {
-            if (rules.get(i).getId().equals(id)) rules.remove(i);
+            if (rules.get(i).getId().equals(id)) { rules.remove(i); found = true; }
         }
         persist();
+        if (found) SyncManager.getInstance(ctx).pushDeletedRule(id);
     }
 
     public boolean isContactsOnlyMode() {

@@ -67,7 +67,54 @@ public class SyncManager {
     public void syncBlockedCallsAsync() { /* no-op */ }
     public void pullBlockedCallsFromCloudIfEmpty() { /* no-op */ }
 
-    // ===== Rules sync =====
+    // ===== Rules sync (v25.8 — differential) =====
+
+    /**
+     * Push ONE rule to the server. Called from RulesManager.addRule.
+     * Idempotent: backend upserts by (user_id, client_id).
+     */
+    public void pushAddedRule(final Rule rule) {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        try {
+            JSONObject body = new JSONObject();
+            body.put("user_id", Long.parseLong(auth.getUserId()));
+            body.put("client_id", rule.getId());
+            body.put("type", rule.getType());
+            body.put("pattern", rule.getPattern());
+            body.put("action", rule.getAction());
+            BackendClient.post(AuthManager.BACKEND_URL + "/api/rules/add", body,
+                new BackendClient.Callback() {
+                    public void onResult(boolean ok, JSONObject resp, String err) {
+                        Log.d(TAG, "Rule push ok=" + ok + (err != null ? (" err=" + err) : ""));
+                    }
+                });
+        } catch (Exception e) { Log.e(TAG, "pushAddedRule failed", e); }
+    }
+
+    /**
+     * Tell server to delete ONE rule by client_id.
+     */
+    public void pushDeletedRule(final String clientId) {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        try {
+            JSONObject body = new JSONObject();
+            body.put("user_id", Long.parseLong(auth.getUserId()));
+            body.put("client_id", clientId);
+            BackendClient.post(AuthManager.BACKEND_URL + "/api/rules/delete", body,
+                new BackendClient.Callback() {
+                    public void onResult(boolean ok, JSONObject resp, String err) {
+                        Log.d(TAG, "Rule delete ok=" + ok + (err != null ? (" err=" + err) : ""));
+                    }
+                });
+        } catch (Exception e) { Log.e(TAG, "pushDeletedRule failed", e); }
+    }
+
+    /**
+     * LEGACY mirror-style sync. Backend now MERGES instead of replacing, so
+     * this is safe to keep — but pushAddedRule/pushDeletedRule are preferred.
+     */
     public void syncRulesAsync() {
         AuthManager auth = AuthManager.getInstance(appCtx);
         if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
@@ -90,20 +137,58 @@ public class SyncManager {
             BackendClient.post(AuthManager.BACKEND_URL + "/api/rules/sync", body,
                 new BackendClient.Callback() {
                     public void onResult(boolean ok, JSONObject resp, String err) {
-                        Log.d(TAG, "Rules sync ok=" + ok);
+                        Log.d(TAG, "Rules sync(merge) ok=" + ok);
                     }
                 });
         } catch (Exception e) { Log.e(TAG, "Rules sync failed", e); }
     }
 
     /**
-     * UNCONDITIONALLY replace local rules with cloud rules. Used on login so
-     * the device always reflects what the user added on any other device.
+     * Pull cloud rules and MERGE into local. Cloud is the source of truth for
+     * rule existence — if a rule is in cloud, ensure it's in local. Local-only
+     * rules are kept (they may not have been pushed yet). After merging, we
+     * persist the union.
+     *
+     * Safe to call on every app launch — no race because we don't OVERWRITE
+     * local; we only ADD missing cloud rules.
      */
-    /**
-     * Has the initial rules-and-data sync happened for this device since
-     * the last login/reinstall?
-     */
+    public void mergeRulesFromCloud() {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        final RulesManager rm = RulesManager.getInstance(appCtx);
+        String url = AuthManager.BACKEND_URL + "/api/rules/list?user_id=" + auth.getUserId();
+        BackendClient.get(url, new BackendClient.Callback() {
+            public void onResult(boolean ok, JSONObject resp, String error) {
+                if (!ok || resp == null) {
+                    Log.w(TAG, "mergeRules failed: " + error);
+                    return;
+                }
+                JSONArray arr = resp.optJSONArray("rules");
+                if (arr == null) return;
+                rm.reload();
+                int added = 0;
+                java.util.Set<String> existing = new java.util.HashSet<>();
+                for (Rule r : rm.getRules()) existing.add(r.getId());
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject r = arr.optJSONObject(i);
+                    if (r == null) continue;
+                    String cid     = r.optString("client_id", "");
+                    String type    = r.optString("rule_type", "");
+                    String pattern = r.optString("pattern", "");
+                    String action  = r.optString("action", "reject");
+                    if (cid.isEmpty() || type.isEmpty() || pattern.isEmpty()) continue;
+                    if (!existing.contains(cid)) {
+                        rm.addRuleWithId(cid, pattern, type, action);
+                        existing.add(cid);
+                        added++;
+                    }
+                }
+                Log.d(TAG, "mergeRules: " + added + " new rules pulled into local");
+            }
+        });
+    }
+
+    /** Has the initial sync flag been set? Kept for backward compat. */
     public boolean isInitialSyncDone() {
         return prefs.getBoolean(KEY_INITIAL_SYNC_DONE, false);
     }
@@ -113,90 +198,12 @@ public class SyncManager {
     }
 
     /**
-     * Pull cloud rules into local. ONLY called once after login/reinstall.
-     * After the first successful pull, sets initial_sync_done = true so
-     * subsequent app launches don't race against local edits.
-     *
-     * SAFETY: if the response has fewer rules than what's already local,
-     * we DO NOT wipe local. This prevents the "I added a rule and 2 seconds
-     * later it disappeared" race (where a stale pull overwrites just-added
-     * local rules with an older cloud snapshot).
+     * Legacy entry point — still called by LoginActivity. Now invokes
+     * the merge logic instead of the destructive "force pull".
      */
     public void forcePullRulesFromCloud() {
-        if (isInitialSyncDone()) {
-            Log.d(TAG, "forcePullRules skipped — initial sync already done");
-            return;
-        }
-        AuthManager auth = AuthManager.getInstance(appCtx);
-        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
-        final RulesManager rm = RulesManager.getInstance(appCtx);
-        rm.reload();
-        final int localCount = rm.getRules().size();
-        String url = AuthManager.BACKEND_URL + "/api/rules/list?user_id=" + auth.getUserId();
-        BackendClient.get(url, new BackendClient.Callback() {
-            public void onResult(boolean ok, JSONObject resp, String error) {
-                if (!ok || resp == null) {
-                    Log.w(TAG, "forcePullRules failed: " + error);
-                    return;
-                }
-                JSONArray arr = resp.optJSONArray("rules");
-                if (arr == null) {
-                    Log.w(TAG, "forcePullRules: no 'rules' array in response");
-                    return;
-                }
-                if (arr.length() < localCount) {
-                    Log.w(TAG, "forcePullRules: cloud has " + arr.length()
-                        + " rules but local has " + localCount
-                        + " — refusing to overwrite. Marking initial sync done.");
-                    prefs.edit().putBoolean(KEY_INITIAL_SYNC_DONE, true).commit();
-                    return;
-                }
-                appCtx.getSharedPreferences("CallFilterRules", Context.MODE_PRIVATE)
-                    .edit().remove("rules").commit();
-                rm.reload();
-                int added = 0;
-                for (int i = 0; i < arr.length(); i++) {
-                    JSONObject r = arr.optJSONObject(i);
-                    if (r == null) continue;
-                    String type    = r.optString("rule_type", "");
-                    String pattern = r.optString("pattern", "");
-                    String action  = r.optString("action", "reject");
-                    if (!type.isEmpty() && !pattern.isEmpty()) {
-                        rm.addRule(pattern, type, action);
-                        added++;
-                    }
-                }
-                prefs.edit().putBoolean(KEY_INITIAL_SYNC_DONE, true).commit();
-                Log.d(TAG, "forcePullRules: " + added + " rules pulled, initial-sync flag set");
-            }
-        });
-    }
-
-    public void pullRulesFromCloudIfEmpty() {
-        AuthManager auth = AuthManager.getInstance(appCtx);
-        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
-        RulesManager rm = RulesManager.getInstance(appCtx);
-        rm.reload();
-        if (!rm.getRules().isEmpty()) return;
-
-        String url = AuthManager.BACKEND_URL + "/api/rules/list?user_id=" + auth.getUserId();
-        BackendClient.get(url, new BackendClient.Callback() {
-            public void onResult(boolean ok, JSONObject resp, String error) {
-                if (!ok || resp == null) return;
-                JSONArray arr = resp.optJSONArray("rules");
-                if (arr == null) return;
-                for (int i = 0; i < arr.length(); i++) {
-                    JSONObject r = arr.optJSONObject(i);
-                    if (r == null) continue;
-                    String type    = r.optString("rule_type", "");
-                    String pattern = r.optString("pattern", "");
-                    String action  = r.optString("action", "reject");
-                    if (!type.isEmpty() && !pattern.isEmpty()) {
-                        rm.addRule(pattern, type, action);
-                    }
-                }
-            }
-        });
+        mergeRulesFromCloud();
+        prefs.edit().putBoolean(KEY_INITIAL_SYNC_DONE, true).commit();
     }
 
     // ===== Contacts sync (only when user has opted in) =====

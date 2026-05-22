@@ -44,12 +44,18 @@ public class PaywallActivity extends AppCompatActivity {
         int durationDays;
         TextView priceLabel;
         View card;
+        boolean isFree;
+        boolean alreadyUsed;
+        boolean isOneTime;
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_paywall);
+
+        android.view.View backBtn = findViewById(R.id.btnBack);
+        if (backBtn != null) backBtn.setOnClickListener(v -> finish());
 
         title     = findViewById(R.id.paywallTitle);
         subtitle  = findViewById(R.id.paywallSubtitle);
@@ -66,6 +72,20 @@ public class PaywallActivity extends AppCompatActivity {
         billing = BillingProvider.Factory.get(this);
         subtitle.setText(billing.paywallSubtitle());
 
+        // Current-subscription banner
+        SubscriptionManager smgr = SubscriptionManager.getInstance(this);
+        android.view.View banner = findViewById(R.id.currentSubBanner);
+        android.widget.TextView curText = findViewById(R.id.currentSubText);
+        if (smgr.isActive()) {
+            long remain = smgr.getExpiresMs() - System.currentTimeMillis();
+            long days = Math.max(0, remain / (1000L * 60 * 60 * 24));
+            String label = (smgr.getPlanName() != null && !smgr.getPlanName().isEmpty())
+                ? smgr.getPlanName() : (smgr.isTrial() ? "Trial" : "Active");
+            curText.setText(label + " — " + days + " day" + (days == 1 ? "" : "s") + " left");
+            banner.setVisibility(android.view.View.VISIBLE);
+            title.setText("Buy another plan");
+        }
+
         btnRestore.setOnClickListener(v -> {
             SubscriptionManager.getInstance(this).refreshAsync();
             Toast.makeText(this, "Checking…", Toast.LENGTH_SHORT).show();
@@ -77,7 +97,9 @@ public class PaywallActivity extends AppCompatActivity {
 
     private void loadPlans() {
         msgView.setText("Loading plans…");
-        BackendClient.get(AuthManager.BACKEND_URL + "/api/plans", new BackendClient.Callback() {
+        String uid = AuthManager.getInstance(PaywallActivity.this).getUserId();
+        String url = AuthManager.BACKEND_URL + "/api/plans" + (uid.isEmpty() ? "" : ("?user_id=" + uid));
+        BackendClient.get(url, new BackendClient.Callback() {
             public void onResult(boolean ok, JSONObject resp, String err) {
                 if (!ok || resp == null) {
                     msgView.setText("Could not load plans: " + (err != null ? err : "no response"));
@@ -90,6 +112,7 @@ public class PaywallActivity extends AppCompatActivity {
                 }
                 plans.clear();
                 planList.removeAllViews();
+                int hidden = 0;
                 for (int i = 0; i < arr.length(); i++) {
                     JSONObject p = arr.optJSONObject(i);
                     if (p == null) continue;
@@ -101,8 +124,16 @@ public class PaywallActivity extends AppCompatActivity {
                     row.actualPrice = p.optDouble("actual_price", 0);
                     row.currency = p.optString("currency", "INR");
                     row.durationDays = p.optInt("duration_days", 30);
+                    row.isFree      = p.optBoolean("is_free", false);
+                    row.alreadyUsed = p.optBoolean("already_used", false);
+                    row.isOneTime   = p.optBoolean("is_one_time_per_user", false);
+                    // Hide free plans from the "Buy a plan" list entirely
+                    if (row.isFree) { hidden++; continue; }
                     plans.add(row);
                     addPlanCard(row);
+                }
+                if (plans.isEmpty()) {
+                    msgView.setText("No paid plans available right now.");
                 }
                 if (!plans.isEmpty()) selectPlan(plans.get(0).id);
                 msgView.setText("");
@@ -131,10 +162,20 @@ public class PaywallActivity extends AppCompatActivity {
             origView.setVisibility(View.GONE);
         }
 
-        subscribe.setOnClickListener(v -> {
-            selectPlan(row.id);
-            startPurchase(row.id);
-        });
+        if (row.alreadyUsed) {
+            subscribe.setText("ALREADY USED");
+            subscribe.setEnabled(false);
+            subscribe.setAlpha(0.5f);
+            // Also gray out the rest of the card so it's clearly inert
+            nameView.setAlpha(0.6f);
+            descView.setAlpha(0.6f);
+            priceView.setAlpha(0.6f);
+        } else {
+            subscribe.setOnClickListener(v -> {
+                selectPlan(row.id);
+                startPurchase(row.id);
+            });
+        }
 
         row.priceLabel = priceView;
         row.card = card;

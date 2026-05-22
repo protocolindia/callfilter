@@ -47,6 +47,8 @@ public class AuthManager {
     public String getFullNumber() { return getDialCode() + getMobile(); }
     public boolean isVerified() { return prefs.getBoolean(KEY_VERIFIED, false); }
     public String getName()     { return prefs.getString(KEY_NAME, ""); }
+    public boolean isAccountDisabled() { return prefs.getBoolean("account_disabled", false); }
+    public void setAccountDisabled(boolean d) { prefs.edit().putBoolean("account_disabled", d).commit(); }
     public void setName(String n) { prefs.edit().putString(KEY_NAME, n == null ? "" : n.trim()).commit(); }
     public boolean hasPin()     { return !prefs.getString(KEY_PIN_HASH, "").isEmpty(); }
     public boolean isLoggedIn() {
@@ -73,6 +75,7 @@ public class AuthManager {
 
     public interface AccountCheckCallback {
         void onResult(boolean stillExists);
+        default void onAccountDisabled() {}
     }
 
     public void startSignup(final String dialCode, final String mobile,
@@ -215,13 +218,22 @@ public class AuthManager {
         prefs.edit().putBoolean(KEY_LOGGED_IN, true).commit();
     }
 
-    public void logout() {
+    /**
+     * LOCK: clears only the "currently logged in" bit so the next launch
+     * shows the PIN unlock screen. Mobile + PIN + rules + everything else
+     * stays. (Reverse of the old logout() behavior.)
+     */
+    public void lock() {
         prefs.edit().putBoolean(KEY_LOGGED_IN, false).commit();
-        // Clear sync sentinels so the next login force-pulls cloud rules.
-        if (appContext != null) {
-            appContext.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
-                .edit().remove("initial_sync_done").commit();
-        }
+    }
+
+    /**
+     * LOGOUT: full sign-out. Wipes mobile, PIN, name, all account state.
+     * Next launch shows the SignupActivity. Local rules/contacts cleared
+     * via resetAccount() so the new user starts fresh.
+     */
+    public void logout() {
+        resetAccount();
     }
 
     public void resetAccount() {
@@ -259,6 +271,13 @@ public class AuthManager {
                     if (ok && resp != null) {
                         SubscriptionManager.getInstance(appContext)
                             .updateFromJson(resp.optJSONObject("subscription"));
+                        boolean disabled = "disabled".equals(resp.optString("status", ""));
+                        setAccountDisabled(disabled);
+                        if (disabled) {
+                            cb.onAccountDisabled();
+                            cb.onResult(true);
+                            return;
+                        }
                     }
                     cb.onResult(true);
                 }
