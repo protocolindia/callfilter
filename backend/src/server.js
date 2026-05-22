@@ -7,8 +7,17 @@ async function main() {
   // Run migrations on every boot — Postgres handles IF NOT EXISTS gracefully
   try {
     await migrate();
+    console.log('✅ Migrations OK');
   } catch (err) {
-    console.error('⚠️ Auto-migrate failed (continuing anyway):', err.message);
+    // If migrations fail, the schema is in an unknown state — running
+    // the server anyway can silently mask data-loss bugs (e.g. rules
+    // sync mirror-deleting cloud rows). Fail loud so Railway surfaces
+    // the error in deploy logs and the user knows to fix it.
+    console.error('═══════════════════════════════════════════════════════');
+    console.error('❌ MIGRATIONS FAILED — refusing to start server');
+    console.error(err.stack || err.message || err);
+    console.error('═══════════════════════════════════════════════════════');
+    process.exit(1);
   }
 
   const app = express();
