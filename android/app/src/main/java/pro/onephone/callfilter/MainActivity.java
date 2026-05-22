@@ -283,7 +283,13 @@ public class MainActivity extends AppCompatActivity {
             storedPattern = cd.dialCode + pat;
         }
 
-        rulesManager.addRule(storedPattern, storedType, action);
+        boolean added = rulesManager.addRule(storedPattern, storedType, action);
+        if (!added) {
+            Toast.makeText(this,
+                "⚠ A " + storedType.toUpperCase() + " rule for " + storedPattern + " already exists",
+                Toast.LENGTH_LONG).show();
+            return;
+        }
         patternInput.setText("");
         rangeSummary.setText("");
         Toast.makeText(this,

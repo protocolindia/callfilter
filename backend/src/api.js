@@ -316,6 +316,18 @@ router.post('/rules/add', async (req, res, next) => {
     if (!user_id || !client_id || !type || !pattern || !action) {
       return res.status(400).json({ error: 'missing_fields' });
     }
+    // Dedup guard: don't allow two rules with the same (user, type, pattern).
+    // We allow re-syncing the SAME client_id (idempotent upsert via ON CONFLICT),
+    // but a different client_id with the same type+pattern is a duplicate.
+    const dup = await one(
+      `SELECT id, client_id FROM user_rules
+         WHERE user_id = $1 AND rule_type = $2 AND pattern = $3
+         LIMIT 1`,
+      [user_id, type, pattern]);
+    if (dup && dup.client_id !== client_id) {
+      // Tell the app this is a no-op so it can dedup locally too
+      return res.json({ ok: true, deduplicated: true, existing_client_id: dup.client_id });
+    }
     // Upsert by (user_id, client_id) so the call is idempotent
     await query(
       `INSERT INTO user_rules(user_id, rule_type, pattern, action, client_id)
@@ -679,10 +691,21 @@ router.post('/check-account', async (req, res, next) => {
 
     // Dev/internal mode: subscription gating disabled by admin
     const __subRequired = (await getSetting('subscription_required')) !== 'false';
-    if (!user_id) return res.status(400).json({ error: 'user_id required' });
 
-    const u = await one('SELECT id, dial_code, mobile, status, pin_set_at FROM users WHERE id = $1',
-                        [user_id]);
+    // Lookup by user_id if given, else by (dial_code+mobile). The latter is
+    // used by LoginActivity in mobile-entry mode (before we have a local
+    // user_id) to ask "does this number have an account?"
+    let u;
+    if (user_id) {
+      u = await one('SELECT id, dial_code, mobile, status, pin_set_at FROM users WHERE id = $1',
+                    [user_id]);
+    } else if (dial_code && mobile) {
+      u = await one(
+        'SELECT id, dial_code, mobile, status, pin_set_at FROM users WHERE dial_code = $1 AND mobile = $2',
+        [dial_code, mobile]);
+    } else {
+      return res.status(400).json({ error: 'user_id or (dial_code+mobile) required' });
+    }
     if (!u) return res.json({ exists: false });
 
     const numberMatches = u.dial_code === dial_code && u.mobile === mobile;
@@ -868,7 +891,10 @@ router.post('/razorpay/create-order', async (req, res, next) => {
     const plan = await one(`SELECT * FROM plans WHERE id = $1 AND is_active = TRUE`, [plan_id]);
     if (!plan) return res.status(404).json({ error: 'plan_not_found' });
 
-    const amountPaise = Math.round(parseFloat(plan.offer_price || plan.actual_price) * 100);
+    // plan.offer_price and plan.actual_price are stored in paise (smallest unit)
+    // already, so we use them directly. Multiplying by 100 again gave us ₹2900
+    // for a ₹29 plan in earlier versions.
+    const amountPaise = parseInt(plan.offer_price || plan.actual_price, 10);
     const currency = plan.currency || 'INR';
     const receipt = `cf_u${user_id}_p${plan_id}_${Date.now()}`.slice(0, 40);
 
@@ -1005,7 +1031,7 @@ router.post('/razorpay/verify-payment', async (req, res, next) => {
        VALUES ($1, $2, 'active', FALSE, $3::timestamptz + ($4 || ' days')::interval,
                $5, 'razorpay', $6, $7, $8)`,
       [user_id, orderRow.plan_id, baseExpires.toISOString(), String(days),
-       orderRow.amount_paise / 100, order_id, payment_id, signature]
+       (orderRow.amount_paise / 100).toFixed(2), order_id, payment_id, signature]
     );
 
     // Expire any older active rows so /api/subscription returns the latest

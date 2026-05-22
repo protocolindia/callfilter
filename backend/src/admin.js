@@ -593,10 +593,21 @@ router.post('/users/:id/rules', requireAdmin, async (req, res, next) => {
     if (!['accept','reject'].includes(action)) {
       return res.status(400).json({ error: 'invalid_action' });
     }
+    // Duplicate guard: same (user, type, pattern) shouldn't exist twice
+    const dup = await one(
+      'SELECT id FROM user_rules WHERE user_id = $1 AND rule_type = $2 AND pattern = $3',
+      [id, rule_type, pattern]);
+    if (dup) {
+      return res.status(409).json({ error: 'duplicate_rule',
+        message: 'A rule with this type and pattern already exists' });
+    }
+    // Generate a client_id so cloud→app sync can dedup correctly
+    const clientId = 'admin-' + Date.now().toString(36) + '-' +
+                     Math.random().toString(36).slice(2, 8);
     const rule = await one(
-      `INSERT INTO user_rules(user_id, rule_type, pattern, action)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [id, rule_type, pattern, action]
+      `INSERT INTO user_rules(user_id, rule_type, pattern, action, client_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [id, rule_type, pattern, action, clientId]
     );
     await audit(req.admin.username, 'admin_rule_created',
       `user=$1{id} ${rule_type} ${pattern} ${action}`.replace('$1{id}', String(id)));

@@ -64,19 +64,36 @@ public class RulesManager {
         return new ArrayList<>(rules);
     }
 
-    public synchronized void addRule(String pattern, String type, String action) {
+    /**
+     * Add a new rule. Returns false (and adds nothing) if a rule with the
+     * same (type, pattern) already exists.
+     */
+    public synchronized boolean addRule(String pattern, String type, String action) {
+        if (findDuplicate(type, pattern) != null) return false;
         Rule r = new Rule(type, pattern, action);
         rules.add(r);
         persist();
-        // Differential push to backend
         SyncManager.getInstance(ctx).pushAddedRule(r);
+        return true;
     }
 
     /** Used when merging from cloud — preserves the existing client_id. */
     public synchronized void addRuleWithId(String id, String pattern, String type, String action) {
+        // Skip if a same-pattern rule already exists locally (deduped sync)
+        if (findDuplicate(type, pattern) != null) return;
         rules.add(new Rule(id, type, pattern, action));
         persist();
-        // No push — this rule came FROM the cloud
+    }
+
+    /** Returns an existing rule that has the same (type, pattern), or null. */
+    public synchronized Rule findDuplicate(String type, String pattern) {
+        if (type == null || pattern == null) return null;
+        for (Rule r : rules) {
+            if (type.equalsIgnoreCase(r.getType()) && pattern.equals(r.getPattern())) {
+                return r;
+            }
+        }
+        return null;
     }
 
     public synchronized void removeRule(String id) {
