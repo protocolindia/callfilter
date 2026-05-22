@@ -1,309 +1,249 @@
-CallFilter v25.8 — full cumulative drop
+CallFilter v25.9 — full cumulative drop
 =========================================
 
-Eight fixes, ordered by importance:
+THIS RELEASE FIXES THE CRITICAL MIGRATION BUG that prevented v25.8
+from applying its schema changes (column "is_one_time_per_user" missing,
+rules sync still broken because client_id unique index never created).
+
+Plus: smart Login flow, paise→rupees admin UI, multi-currency plans
+with Razorpay International.
 
 ============================================================
-1. RULES SYNC BUG — ROOT CAUSE FIXED
+1. MIGRATION BUG — ROOT CAUSE
 ============================================================
 
-The bug you've been hitting for 4 versions:
-  • Rules added on the app would disappear on next launch
-  • Admin-added rules never reached the app
-  • Reinstalling wiped your rules
+backend/src/migrate.js had this pattern:
 
-ROOT CAUSE: /api/rules/sync was a MIRROR endpoint that did
-  DELETE FROM user_rules WHERE user_id = ?   then   INSERT [whole list]
+    try { await query(sql); }
+    catch (e) {
+      if (e.message.includes('already exists') ||
+          e.message.includes('does not exist')) {
+        // Marks migration as complete and moves on
+      }
+    }
 
-This meant:
-  • Admin adds rule X via web → cloud has X
-  • App user (hasn't pulled yet) adds rule Y → app pushes its full
-    local list [Y] → backend deletes EVERYTHING including admin's X
-    → cloud is now [Y]. X is GONE.
-  • App's local rule is fine, but it's the ONLY rule that survives.
+Migration 009's first statement was:
+    UPDATE user_rules SET client_id = gen_random_uuid()::text WHERE ...
 
-FIX: differential sync. Three new endpoints (and old /sync is now
-safe — it MERGES instead of replacing):
+On first run, pgcrypto wasn't installed → error message:
+    function gen_random_uuid() does not exist
 
-  POST /api/rules/add     — upsert one rule by (user_id, client_id)
-  POST /api/rules/delete  — delete one rule by client_id
-  POST /api/rules/sync    — legacy mirror, now uses ON CONFLICT UPDATE
-                            (never deletes anything)
+That matched "does not exist" → migration 009 marked as applied → the
+remaining statements (CREATE EXTENSION pgcrypto, ALTER TABLE plans ADD
+COLUMN is_one_time_per_user, CREATE UNIQUE INDEX) were never run.
 
-App behavior:
-  • addRule → pushAddedRule (just sends THIS one rule)
-  • removeRule → pushDeletedRule (just sends THIS one client_id)
-  • MainActivity.onResume → mergeRulesFromCloud (pulls all cloud rules,
-    adds any that aren't already local — never overwrites)
+Result on Railway:
+  • plans.is_one_time_per_user column missing → admin can't toggle
+  • user_rules has no unique index → /api/rules/add can't ON CONFLICT
+  • Rules sync degenerates to old mirror-replace behavior → still buggy
 
-Migration 009 adds a unique index (user_id, client_id) to enable the
-ON CONFLICT clause, and backfills any NULL client_ids with generated
-UUIDs.
+FIX:
+  1. New migration 010_repair_008_009.sql — idempotently brings the
+     schema up to expected state regardless of what 008/009 actually
+     applied. Uses IF NOT EXISTS, IF EXISTS, DO $$ ... $$ guards.
+     pgcrypto extension is the FIRST statement so gen_random_uuid()
+     works.
 
-============================================================
-2. LOCK ≠ LOGOUT
-============================================================
-
-Before: tapping "Sign out" only locked the session (next launch = PIN
-unlock). User wanted FULL sign-out + a separate LOCK button.
-
-Now:
-  • Profile → "🔒 Lock app" card (above Sign out)
-    Action: AuthManager.lock() — clears the logged-in bit only.
-    Next launch shows PIN unlock screen.
-    Mobile, PIN, rules, settings all preserved.
-
-  • Profile → "🚪 Sign out completely"
-    Action: AuthManager.logout() — calls resetAccount() which wipes
-    EVERYTHING: mobile, PIN, name, rules, sync state.
-    Next launch shows SignupActivity (full mobile + OTP flow).
-    Cloud data is NOT touched — same mobile re-signing in restores it.
-
-  • Login screen now has "Use a different number" button below SIGN IN,
-    same effect as full logout.
+  2. migrate.js no longer silently swallows errors. On failure it
+     prints a loud "✗ FAILED" line WITH the full error message and
+     does NOT mark the migration as applied. Next deploy will retry
+     and you'll see the real error in Railway logs.
 
 ============================================================
-3. AUTO-LOCK TOGGLE
+2. WEB ADMIN — 401 AUTO-LOGOUT
 ============================================================
 
-Profile → new "⏱️ Auto-lock" card with a Switch.
+When admin's token expires, frontend was showing the raw error
+"Invalid or expired token". Now:
 
-When ON: if the app is in the background for >5 minutes and you
-return, it locks (shows PIN unlock). Setting is per-device, persists
-across reinstall via SharedPreferences "ui_prefs".
+  • api.js intercepts 401 / invalid_token / expired_token responses
+  • Clears local token
+  • Redirects to /login?expired=1
+  • Login page shows orange banner: "Your session expired. Please
+    sign in again."
 
-Implementation:
-  • MainActivity.onPause records bg_at_ms timestamp
-  • MainActivity.onResume checks elapsed time, calls lock() + redirect
-    to LoginActivity if > 5 min and auto_lock=true
-
-============================================================
-4. PROFILE SUBSCRIPTION CARD → "BUY A PLAN" BUTTON
-============================================================
-
-Profile subscription card now has a "🛒 Buy a plan" button. Tapping it
-opens the paywall, which now:
-  • Hides any plan where offer_price=0 AND actual_price=0 (free plans)
-  • Shows your current subscription status banner at the top
-    ("Currently subscribed: Monthly, 12 days left")
-  • Shows a back button (top-left) that returns to Profile
-  • For one-time-only plans you've already used: shows the card with
-    button text "ALREADY USED" and disabled (50% opacity)
+Avoids the redirect-loop when already on /login.
 
 ============================================================
-5. ONE-TIME PLAN — ADMIN CHECKBOX
+3. PAISE → RUPEES IN ADMIN BILLING FORM
 ============================================================
 
-Admin Billing → New/Edit plan form has a new checkbox:
-  ☐ One-time only per user (free trial / one-shot upgrade)
+Old form asked for prices in paise:
+  Actual price (paise): [4900]   ← confusing! that's ₹49
 
-When checked, the plan can be subscribed to ONLY ONCE per user.
-Server-side enforcement:
-  • POST /api/razorpay/create-order returns 403 plan_already_used
-    if user has a prior subscription OR a paid razorpay_orders row
-    for this plan_id.
-  • GET /api/plans returns `already_used: true` per-plan when called
-    with ?user_id=N, so the app can grey out used plans before
-    checkout even opens.
+New form takes whole units (rupees / dollars) and converts on save:
+  Currency: [INR ▼] [Actual price (₹): 49]  [Offer price (₹): 29]
+
+DB still stores paise/cents internally (Razorpay needs smallest unit).
+The conversion is purely a UX layer.
 
 ============================================================
-6. ADMIN USER LIST — NAME COLUMN + ACTIVATE/DEACTIVATE
+4. MULTI-CURRENCY PLANS — INR + USD
 ============================================================
 
-Users page:
-  • Added "Name" column (uses users.name from v25.7)
-  • New action buttons:
-      - Active users:   [Deactivate]
-      - Disabled users: [Activate]
-  • Confirmation dialog before applying
+Admin Billing → New plan → Currency dropdown:
+  • INR (₹)   — handled by Razorpay (existing test/live keys)
+  • USD ($)   — handled by Razorpay International
 
-Backend: POST /admin/users/:id/activate  body: {active: true|false}
-Sets users.status to 'active' or 'disabled'.
+For USD support:
+  • In your Razorpay dashboard, enable "International Payments"
+    (Settings → International Payments). No new keys needed.
+  • Same Razorpay credentials work for both. The currency is set
+    per-order at /api/razorpay/create-order time from the plan's
+    currency column.
 
-============================================================
-7. DISABLED-ACCOUNT BANNER (Q5b option i)
-============================================================
+Display:
+  • Symbol ₹ for INR, $ for USD throughout admin
+  • Android paywall same — picks symbol based on plan.currency
 
-When users.status = 'disabled', the user can still:
-  • Sign in (mobile + PIN/OTP)
-  • Use the app
-
-But they see a red ⚠️ banner at the top of MainActivity:
-
-  ⚠️  Your account is disabled
-      Contact admin to reactivate
-
-How it works:
-  • POST /api/check-account returns `status: 'disabled'` for disabled users
-  • AuthManager.verifyAccountStillExists() stores this in prefs
-  • MainActivity.refreshUI() shows/hides the banner based on the flag
-
-To reactivate: admin Users page → [Activate] button. Banner disappears
-on the user's next app launch (next check-account call).
+UserDetail.jsx and Payments.jsx also fixed to show the correct symbol
+and the right amount (was double-dividing amount_paid by 100).
 
 ============================================================
-8. SIGNUP COUNTRY DROPDOWN — WHITE-ON-WHITE FIX
+5. ANDROID LOGIN FLOW — SMART ROUTING
 ============================================================
 
-Cause: Used android.R.layout.simple_spinner_dropdown_item, which on
-some Material themes renders with a white popup background. Combined
-with white text → invisible.
+Old: full sign-out → SignupActivity (force re-enter name + OTP + PIN).
+     Fresh install → SignupActivity (same).
+     No way to log back in as an existing user.
 
-Fix: Two new custom layouts with explicit dark backgrounds:
-  res/layout/spinner_item.xml         — closed state (surface bg)
-  res/layout/spinner_dropdown_item.xml — open state (card bg, 48dp rows)
+New: full sign-out → LoginActivity in MOBILE MODE.
+     Fresh install → MainActivity → !isLoggedIn → LoginActivity in
+                   MOBILE MODE.
+     Locked session → LoginActivity in PIN MODE (existing UX).
 
-Applied to:
-  • SignupActivity (country picker)
-  • MainActivity (country picker, same fix needed)
+LoginActivity now has TWO modes:
+
+  PIN MODE — local mobile + PIN exist:
+     • Greeting: "Signing in as +91…"
+     • PIN input + SIGN IN button
+     • "Use a different number" link → full sign-out → mobile mode
+     • Always-visible "Don't have an account? Sign up" cross-link
+
+  MOBILE MODE — no local PIN (post-logout or fresh install):
+     • Country picker + mobile number input
+     • CONTINUE button → POST /api/check-account
+        - If account EXISTS  → SignupActivity in login_mode (skips
+          name field, prompts OTP + new PIN setup, mobile prefilled)
+        - If account DOESN'T → dialog: "No account found. Sign up?"
+                               → if Yes, SignupActivity with prefill
+     • Always-visible "Don't have an account? Sign up" cross-link
+
+SignupActivity also got the matching cross-link:
+   "Already have an account? Sign in" → LoginActivity
+
+============================================================
+6. RULES SYNC — VERIFY 010 RAN
+============================================================
+
+After deploying v25.9, the FIRST thing to verify in Railway backend
+logs is the migration 010 output. Look for:
+
+    Running migration 010_repair_008_009.sql
+    ✓ 010_repair_008_009.sql applied successfully
+
+If you see "✗ 010_repair_008_009.sql FAILED", paste the error message
+to me and I'll fix it.
+
+Once 010 runs, the differential rules sync from v25.8 will actually
+work:
+  • POST /api/rules/add upserts ONE rule (ON CONFLICT uses the new
+    unique index on user_id+client_id)
+  • POST /api/rules/delete deletes ONE rule
+  • Cloud → app pull via mergeRulesFromCloud on every MainActivity.onResume
+
+If sync STILL fails after 010 runs successfully, the bug is somewhere
+else and I'll need logcat. But 80% chance 010 was the root cause.
 
 ============================================================
 FILES TOUCHED
 ============================================================
 
 BACKEND
-  NEW  migrations/009_diff_sync_activation_onetime.sql
-  CHG  src/api.js              diff sync endpoints, /plans flags,
-                               razorpay 403 on one-time, signup status
-  CHG  src/admin.js            /users/:id/activate, plan is_one_time flag
+  NEW  migrations/010_repair_008_009.sql        defensive schema repair
+  CHG  src/migrate.js                           loud failure mode
+  CHG  src/api.js                               /check-account returns
+                                                200+exists:false
 
 FRONTEND (admin)
-  CHG  pages/Users.jsx         Name column + activate/deactivate
-  CHG  pages/Billing.jsx       one-time-only checkbox in plan form
+  CHG  src/api.js                               401 → auto-logout
+  CHG  src/pages/Login.jsx                      session-expired banner
+  CHG  src/pages/Billing.jsx                    rupee input + USD option
+  CHG  src/pages/UserDetail.jsx                 currency symbol on amounts
 
 ANDROID — main flavor
-  CHG  java/.../AuthManager.java          lock() vs logout() split,
-                                          isAccountDisabled()
-  CHG  java/.../RulesManager.java         addRuleWithId, push on add/remove
-  CHG  java/.../SyncManager.java          pushAddedRule, pushDeletedRule,
-                                          mergeRulesFromCloud
-  CHG  java/.../MainActivity.java         onResume merge, onPause bg_at_ms,
-                                          auto-lock check, disabled banner,
-                                          spinner_item refs
-  CHG  java/.../ProfileActivity.java      Lock card, auto-lock toggle,
-                                          full sign-out wording,
-                                          → SignupActivity on logout
-  CHG  java/.../LoginActivity.java        Switch account button
-  CHG  java/.../SignupActivity.java       spinner_item refs
-  NEW  res/layout/spinner_item.xml        custom spinner (closed state)
-  NEW  res/layout/spinner_dropdown_item.xml  custom spinner (open state)
-  CHG  res/layout/activity_login.xml      Switch account button
-  CHG  res/layout/activity_profile.xml    Lock + Auto-lock cards,
-                                          Buy a plan button label
-  CHG  res/layout/activity_main.xml       disabled banner
-  CHG  res/layout/activity_paywall.xml    back button (top-left)
+  CHG  AndroidManifest.xml                      LAUNCHER → MainActivity
+  CHG  res/layout/activity_login.xml            mobile section + PIN
+                                                section + Sign-up link
+  REWR java/.../LoginActivity.java              PIN mode / Mobile mode
+  CHG  res/layout/activity_signup.xml           Scroll wrap + Sign-in link
+  CHG  java/.../SignupActivity.java             prefill + login_mode
+                                                + Sign-in link wiring
+  CHG  java/.../ProfileActivity.java            Sign out → LoginActivity
 
 ============================================================
 DEPLOY
 ============================================================
 
-1) Push backend + frontend (Railway auto-deploys)
+cd D:\\callfilter
+git pull origin main
 
-   cd D:\\callfilter
-   git pull origin main
+# Extract this zip to e.g. F:\\app\\CallManager\\callfilter-v25.9-monorepo\\
+robocopy F:\\app\\CallManager\\callfilter-v25.9-monorepo\\callfilter-monorepo\\android  android  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.9-monorepo\\callfilter-monorepo\\backend  backend  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.9-monorepo\\callfilter-monorepo\\frontend frontend /E
+copy F:\\app\\CallManager\\callfilter-v25.9-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
 
-   # Extract zip to C:\\temp\\v258
-   robocopy C:\\temp\\v258\\callfilter-monorepo\\android  android  /E
-   robocopy C:\\temp\\v258\\callfilter-monorepo\\backend  backend  /E
-   robocopy C:\\temp\\v258\\callfilter-monorepo\\frontend frontend /E
-   copy C:\\temp\\v258\\callfilter-monorepo\\README.md .
-   copy C:\\temp\\v258\\callfilter-monorepo\\INTEGRATION_README.txt .
+git add .
+git commit -m "v25.9 — fix migration runner, repair schema, smart login, rupees+USD"
+git push origin main
 
-   git add .
-   git commit -m "v25.8 — diff rules sync (root fix), lock vs logout, auto-lock, one-time plans, activate/deactivate, disabled banner, spinner fix"
-   git push origin main
-
-   Watch Railway backend logs for:
-     Running migration 009_diff_sync_activation_onetime.sql
-     ...
-     CREATE UNIQUE INDEX idx_user_rules_user_client
-
-2) Android — same flavor as before (playstore or sideload)
-
-   Android Studio → Build → Select Build Variant → app → choose
-   "playstoreRelease" or "sideloadRelease" → Run ▶ or Build APK
+# IMPORTANT: watch Railway backend deploy logs for migration 010 result
 
 ============================================================
-TEST AFTER INSTALL
+POST-DEPLOY VERIFICATION
 ============================================================
 
-RULES SYNC (the big one):
-[ ] Install app, sign up
-[ ] Add rule PREFIX 9494 REJECT
-[ ] Wait 5 seconds. Force-stop app from recents. Reopen.
-    → Rule should still be there ✓
-[ ] Admin panel → Users → your user → Rules tab. Should see the rule.
-[ ] Admin panel: click Delete on that rule.
-[ ] In app: pull down or background→foreground.
-    → Rule should DISAPPEAR (cloud → app sync).
-[ ] Admin panel: add a brand-new rule (PREFIX 9090 REJECT) from web.
-[ ] In app: background→foreground.
-    → New rule should APPEAR ✓ (admin → app sync works now)
-[ ] Uninstall app entirely. Reinstall. Sign in with same mobile.
-    → All your rules should come back from cloud ✓
+Migration:
+[ ] Railway backend logs: "✓ 010_repair_008_009.sql applied successfully"
+[ ] If FAILED, paste the error and ping me
 
-LOCK vs LOGOUT:
-[ ] Profile → 🔒 Lock app → tap Lock
-    → Login screen. Enter PIN. Back in app. Mobile + rules intact.
-[ ] Profile → 🚪 Sign out completely → tap Sign out
-    → Signup screen. Mobile field empty. PIN gone.
-[ ] Enter same mobile, OTP, set PIN. Rules come back from cloud (merge).
+Admin 401:
+[ ] Wait for current session token to expire (or clear localStorage manually)
+[ ] Click any page → toast says "Session expired" → redirected to /login
+[ ] Sign in again → works normally
 
-AUTO-LOCK:
-[ ] Profile → toggle Auto-lock ON → "Locks after 5 minutes in background"
-[ ] Background the app for 6+ minutes. Reopen.
-    → PIN unlock screen.
-[ ] Profile → toggle Auto-lock OFF
-[ ] Background 6+ min. Reopen.
-    → Goes straight to home.
+Admin Billing:
+[ ] New plan form shows: Currency [INR/USD], Actual price (₹), Offer price (₹)
+[ ] Enter 99 for actual, 49 for offer → save
+[ ] Plan list shows ₹99 / ₹49 (NOT ₹0.99 / ₹0.49)
+[ ] One-time-only checkbox works (no "column does not exist" error)
 
-BUY A PLAN:
-[ ] Profile → 🛒 Buy a plan → opens paywall
-[ ] Free plans (price=0) are hidden
-[ ] Back button (top-left) returns to Profile
-[ ] Current subscription banner at top (if you have one)
-[ ] Tap any plan's SUBSCRIBE → Razorpay checkout / Play Billing opens
-[ ] (sideload+test card 4111 1111 1111 1111) → payment succeeds
-    → "✅ Subscription active" → returns home
+Admin User Detail:
+[ ] Open a user → Info tab → subscription row → shows correct ₹ amount
 
-ONE-TIME PLAN:
-[ ] Admin → Billing → New plan → check "One-time only per user" → Save
-[ ] In app: paywall shows new plan as available
-[ ] Subscribe to it → succeeds
-[ ] Open paywall again → plan card shows "ALREADY USED" disabled
-[ ] Verify backend: try POST /api/razorpay/create-order with that plan_id
-    → returns 403 plan_already_used
+Android — fresh install:
+[ ] Launcher → blank app → LoginActivity in mobile mode
+[ ] "Don't have an account? Sign up" link visible at bottom
+[ ] Type new mobile (one that's not in backend) → CONTINUE → "No account found"
+    dialog → Sign up → SignupActivity with mobile prefilled
 
-ADMIN ACTIVATE/DEACTIVATE:
-[ ] Admin → Users → click [Deactivate] on your test user
-[ ] In app: open the app
-    → Red ⚠️ "Your account is disabled" banner at top of home screen
-[ ] Admin → Users → click [Activate]
-[ ] In app: background → foreground
-    → Banner disappears
+Android — login as existing user (without reinstall):
+[ ] Profile → 🚪 Sign out completely → goes to LoginActivity (NOT signup)
+[ ] Type old mobile + Continue → SignupActivity (login mode) → OTP → new PIN
+[ ] Land on MainActivity, rules pulled from cloud
 
-COUNTRY DROPDOWN:
-[ ] Sign out, get to signup screen
-[ ] Tap country dropdown
-    → Visible dark popup with white text, NOT white-on-white
+Android — login as existing user (after reinstall):
+[ ] Uninstall app, install again
+[ ] Launcher → LoginActivity in mobile mode
+[ ] Type old mobile + Continue → SignupActivity (login mode) → OTP → PIN
+[ ] Rules visible in app (pulled from cloud)
 
-============================================================
-KNOWN LIMITATIONS
-============================================================
-
-• Auto-lock is per-device and per-install. Resetting/reinstalling
-  defaults to OFF.
-
-• "Buy a plan" page doesn't yet show "12 days left" duration breakdown
-  in the current-sub banner — only plan name. Will add if requested.
-
-• Admin "Activate" doesn't push a notification to the app — user sees
-  the banner disappear on the next check-account call (every onResume
-  or after a few seconds in foreground).
-
-• Merging rules from cloud is additive. If admin DELETES a rule via
-  web, the app's local copy of that rule is NOT auto-removed until
-  the next full /api/rules/list pull. This is correct for safety
-  (avoids accidentally wiping user data) but means deletions can
-  take a few seconds to propagate. To force: pull-to-refresh on
-  the rules screen (or background/foreground the app).
+Rules sync (the recurring bug):
+[ ] Add rule in app: PREFIX 9494 REJECT
+[ ] Web admin → user → Rules tab → see the rule
+[ ] Web admin: add rule PREFIX 9090 REJECT from web
+[ ] App: background → foreground → 9090 appears in app rules
+[ ] Web admin: Delete one of them
+[ ] App: background → foreground → rule disappears
+[ ] Uninstall + reinstall + log back in → all rules come back

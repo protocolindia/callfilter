@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:gravity="center" android:padding="24dp"
-    android:background="@color/bg">
+    android:background="@color/bg" android:fillViewport="true">
+<LinearLayout
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:gravity="center_horizontal" android:padding="24dp">
     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:text="📱 Call Filter" android:textSize="32sp" android:textStyle="bold"
         android:textColor="@color/text" android:layout_marginBottom="8dp"/>
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+    <TextView android:id="@+id/signupTitle"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:text="Block unwanted calls"
         android:textSize="14sp" android:textColor="@color/subtext"
         android:layout_marginBottom="40dp"/>
@@ -44,4 +47,22 @@
         android:text="By continuing you agree to our Privacy Policy at onephone.pro/privacy"
         android:textSize="11sp" android:textColor="@color/muted"
         android:layout_marginTop="14dp" android:gravity="center"/>
+
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center"
+        android:layout_marginTop="32dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Already have an account?"
+            android:textSize="13sp" android:textColor="@color/subtext"/>
+        <TextView android:id="@+id/linkSignin"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Sign in"
+            android:textSize="13sp" android:textStyle="bold"
+            android:textColor="@color/accent"
+            android:layout_marginStart="6dp"
+            android:clickable="true" android:focusable="true"
+            android:padding="4dp"/>
+    </LinearLayout>
 </LinearLayout>
+</ScrollView>

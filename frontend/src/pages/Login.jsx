@@ -7,6 +7,8 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const expired = typeof window !== 'undefined' &&
+    window.location.search.includes('expired=1');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -32,6 +34,16 @@ export default function Login() {
         <div className="login-logo">🛡️</div>
         <h1>CallFilter Admin</h1>
         <p className="muted">Sign in to manage users and SMS providers</p>
+        {expired && (
+          <div style={{
+              marginTop: 16, padding: '10px 14px', borderRadius: 8,
+              background: 'rgba(245,158,11,0.12)',
+              border: '1px solid rgba(245,158,11,0.4)',
+              color: '#F59E0B', fontSize: 13
+            }}>
+            Your session expired. Please sign in again.
+          </div>
+        )}
 
         {error && <div className="alert alert-error" style={{ marginTop: 16 }}>{error}</div>}
 

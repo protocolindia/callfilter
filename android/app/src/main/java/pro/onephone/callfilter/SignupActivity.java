@@ -36,6 +36,41 @@ public class SignupActivity extends AppCompatActivity {
         countrySpinner.setAdapter(adapter);
         countrySpinner.setSelection(CountryData.findIndexByIso("IN"));
 
+        // Prefill from LoginActivity if user came from there
+        android.content.Intent in = getIntent();
+        if (in != null) {
+            String pDial   = in.getStringExtra("prefill_dial_code");
+            String pMobile = in.getStringExtra("prefill_mobile");
+            String pIso    = in.getStringExtra("prefill_country_iso");
+            boolean loginMode = in.getBooleanExtra("login_mode", false);
+            if (pMobile != null && !pMobile.isEmpty()) {
+                mobileInput.setText(pMobile);
+            }
+            if (pIso != null && !pIso.isEmpty()) {
+                int idx = CountryData.findIndexByIso(pIso);
+                if (idx >= 0) countrySpinner.setSelection(idx);
+            }
+            if (loginMode) {
+                // Existing account — name not needed
+                TextView title = findViewById(R.id.signupTitle);
+                if (title != null) title.setText("Welcome back");
+                if (nameInput != null) {
+                    nameInput.setHint("Name (optional, leave blank to keep current)");
+                }
+            }
+        }
+
+        // "Already have an account? Sign in" link
+        android.view.View signinLink = findViewById(R.id.linkSignin);
+        if (signinLink != null) {
+            signinLink.setOnClickListener(v -> {
+                android.content.Intent i = new android.content.Intent(SignupActivity.this, LoginActivity.class);
+                i.setFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP | android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                finish();
+            });
+        }
+
         GeoIPHelper.detectAsync(new GeoIPHelper.Callback() {
             public void onCountry(String iso) {
                 if (iso != null && !iso.isEmpty()) {
@@ -53,7 +88,8 @@ public class SignupActivity extends AppCompatActivity {
         final CountryData cd = (CountryData) countrySpinner.getSelectedItem();
         final String mobile = mobileInput.getText().toString().trim();
         final String name = nameInput.getText().toString().trim();
-        if (name.length() < 2) {
+        boolean isLoginMode = getIntent() != null && getIntent().getBooleanExtra("login_mode", false);
+        if (!isLoginMode && name.length() < 2) {
             Toast.makeText(this, "Please enter your name", Toast.LENGTH_SHORT).show();
             nameInput.requestFocus();
             return;

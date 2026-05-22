@@ -1,31 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:gravity="center" android:padding="24dp"
-    android:background="@color/bg">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="🔓 Sign in" android:textSize="28sp" android:textStyle="bold"
-        android:textColor="@color/text"/>
-    <TextView android:id="@+id/loginNumberLabel"
-        android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="..." android:textSize="13sp" android:textColor="@color/subtext"
-        android:layout_marginTop="6dp" android:layout_marginBottom="32dp"/>
-    <EditText android:id="@+id/loginPinInput"
-        android:layout_width="match_parent" android:layout_height="56dp"
-        android:hint="Enter PIN" android:textColor="@color/text"
-        android:textColorHint="@color/muted" android:background="@drawable/input_bg"
-        android:paddingStart="12dp" android:paddingEnd="12dp"
-        android:inputType="numberPassword" android:maxLength="4"
-        android:textSize="22sp" android:gravity="center" android:letterSpacing="0.5"
-        android:layout_marginBottom="20dp"/>
-    <Button android:id="@+id/btnLogin"
-        android:layout_width="match_parent" android:layout_height="52dp"
-        android:text="SIGN IN" android:textStyle="bold" android:textSize="14sp"
-        android:textColor="@color/white" android:background="@drawable/btn_accent"/>
-    <Button android:id="@+id/btnSwitchAccount"
-        android:layout_width="match_parent" android:layout_height="44dp"
-        android:text="Use a different number"
-        android:textSize="13sp" android:textColor="@color/subtext"
-        android:background="@android:color/transparent"
-        android:layout_marginTop="12dp"/>
-</LinearLayout>
+    android:background="@color/bg" android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:gravity="center_horizontal"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="🔓 Sign in" android:textSize="28sp" android:textStyle="bold"
+            android:textColor="@color/text"
+            android:layout_marginTop="32dp"/>
+
+        <TextView android:id="@+id/loginNumberLabel"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="" android:textSize="13sp" android:textColor="@color/subtext"
+            android:layout_marginTop="6dp" android:layout_marginBottom="24dp"/>
+
+        <LinearLayout android:id="@+id/mobileSection"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="COUNTRY" android:textSize="11sp" android:textStyle="bold"
+                android:textColor="@color/muted" android:letterSpacing="0.1"/>
+            <Spinner android:id="@+id/loginCountrySpinner"
+                android:layout_width="match_parent" android:layout_height="48dp"
+                android:background="@drawable/input_bg"
+                android:paddingStart="8dp" android:paddingEnd="8dp"
+                android:layout_marginTop="4dp" android:layout_marginBottom="14dp"/>
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="MOBILE NUMBER" android:textSize="11sp" android:textStyle="bold"
+                android:textColor="@color/muted" android:letterSpacing="0.1"/>
+            <EditText android:id="@+id/loginMobileInput"
+                android:layout_width="match_parent" android:layout_height="48dp"
+                android:hint="Mobile number" android:textColor="@color/text"
+                android:textColorHint="@color/muted" android:background="@drawable/input_bg"
+                android:paddingStart="12dp" android:paddingEnd="12dp"
+                android:inputType="phone"
+                android:layout_marginTop="4dp" android:layout_marginBottom="20dp"/>
+
+            <Button android:id="@+id/btnContinue"
+                android:layout_width="match_parent" android:layout_height="52dp"
+                android:text="CONTINUE" android:textStyle="bold" android:textSize="14sp"
+                android:textColor="@color/white" android:background="@drawable/btn_accent"/>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/pinSection"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <EditText android:id="@+id/loginPinInput"
+                android:layout_width="match_parent" android:layout_height="56dp"
+                android:hint="Enter PIN" android:textColor="@color/text"
+                android:textColorHint="@color/muted" android:background="@drawable/input_bg"
+                android:paddingStart="12dp" android:paddingEnd="12dp"
+                android:inputType="numberPassword" android:maxLength="4"
+                android:textSize="22sp" android:gravity="center" android:letterSpacing="0.5"
+                android:layout_marginBottom="20dp"/>
+
+            <Button android:id="@+id/btnLogin"
+                android:layout_width="match_parent" android:layout_height="52dp"
+                android:text="SIGN IN" android:textStyle="bold" android:textSize="14sp"
+                android:textColor="@color/white" android:background="@drawable/btn_accent"/>
+
+            <Button android:id="@+id/btnSwitchAccount"
+                android:layout_width="match_parent" android:layout_height="44dp"
+                android:text="Use a different number"
+                android:textSize="13sp" android:textColor="@color/subtext"
+                android:background="@android:color/transparent"
+                android:layout_marginTop="12dp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center"
+            android:layout_marginTop="32dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Don't have an account?"
+                android:textSize="13sp" android:textColor="@color/subtext"/>
+            <TextView android:id="@+id/linkSignup"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Sign up"
+                android:textSize="13sp" android:textStyle="bold"
+                android:textColor="@color/accent"
+                android:layout_marginStart="6dp"
+                android:clickable="true" android:focusable="true"
+                android:padding="4dp"/>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

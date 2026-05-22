@@ -34,18 +34,16 @@ async function migrate() {
     try {
       await query(sql);
       await query('INSERT INTO schema_migrations(filename) VALUES ($1)', [f]);
+      console.log(`  ✓ ${f} applied successfully`);
     } catch (e) {
-      // If a migration fails on a fresh install, abort. If on a re-run with
-      // a partially-applied schema, we record it as applied so we don't keep
-      // hitting the same error every boot.
-      if (e.message && (
-          e.message.includes('already exists') ||
-          e.message.includes('does not exist'))) {
-        console.warn(`  ⚠ ${f} partially applied (${e.message.split('\n')[0]}); marking complete`);
-        await query('INSERT INTO schema_migrations(filename) VALUES ($1) ON CONFLICT DO NOTHING', [f]);
-      } else {
-        throw e;
-      }
+      // Loud failure — print full error and DO NOT mark migration as
+      // complete. Next deploy will retry. (Previously this code silently
+      // marked migrations as complete on "already exists" / "does not
+      // exist" errors, which masked real schema problems.)
+      console.error(`  ✗ ${f} FAILED: ${e.message}`);
+      console.error(`     The migration was NOT marked as applied. Fix the`);
+      console.error(`     error and redeploy. To inspect, run: psql $DATABASE_URL`);
+      throw e;
     }
   }
 

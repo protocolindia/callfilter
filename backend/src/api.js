@@ -683,7 +683,7 @@ router.post('/check-account', async (req, res, next) => {
 
     const u = await one('SELECT id, dial_code, mobile, status, pin_set_at FROM users WHERE id = $1',
                         [user_id]);
-    if (!u) return res.status(404).json({ error: 'User not found', exists: false });
+    if (!u) return res.json({ exists: false });
 
     const numberMatches = u.dial_code === dial_code && u.mobile === mobile;
 

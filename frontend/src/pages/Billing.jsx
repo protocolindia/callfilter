@@ -48,7 +48,7 @@ function PlansTab() {
     <section className="card">
       {error && <div className="alert alert-error">{error}</div>}
 
-      <button className="btn btn-primary" onClick={() => setEditing({ name: '', duration_days: 30, actual_price: 9900, offer_price: 4900, currency: 'INR' })}>
+      <button className="btn btn-primary" onClick={() => setEditing({ name: '', duration_days: 30, actual_price_unit: 99, offer_price_unit: 49, currency: 'INR' })}>
         + New plan
       </button>
 
@@ -89,9 +89,20 @@ function PlansTab() {
 }
 
 function PlanForm({ plan, onSaved, onCancel }) {
-  const [f, setF] = useState({ ...plan });
+  // Form holds prices in WHOLE UNITS (rupees / dollars). DB stores in
+  // smallest unit (paise / cents). Convert when loading and saving.
+  const [f, setF] = useState(() => ({
+    ...plan,
+    actual_price_unit: plan.actual_price_unit != null
+      ? plan.actual_price_unit
+      : (plan.actual_price != null ? plan.actual_price / 100 : 99),
+    offer_price_unit: plan.offer_price_unit != null
+      ? plan.offer_price_unit
+      : (plan.offer_price != null ? plan.offer_price / 100 : 49)
+  }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const sym = f.currency === 'USD' ? '$' : '₹';
 
   async function save() {
     setSaving(true); setError('');
@@ -99,8 +110,8 @@ function PlanForm({ plan, onSaved, onCancel }) {
       const body = {
         name: f.name,
         duration_days: parseInt(f.duration_days, 10),
-        actual_price: parseInt(f.actual_price, 10),
-        offer_price: parseInt(f.offer_price, 10),
+        actual_price: Math.round(parseFloat(f.actual_price_unit) * 100),
+        offer_price:  Math.round(parseFloat(f.offer_price_unit)  * 100),
         currency: f.currency || 'INR',
         is_active: f.is_active !== false,
         is_one_time_per_user: f.is_one_time_per_user === true
@@ -117,7 +128,7 @@ function PlanForm({ plan, onSaved, onCancel }) {
       <h2>{plan.id ? 'Edit plan' : 'New plan'}</h2>
       {error && <div className="alert alert-error">{error}</div>}
       <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-        Prices are in <strong>paise</strong> (₹1 = 100 paise). e.g. ₹49 = 4900.
+        Enter prices in whole {f.currency === 'USD' ? 'dollars' : 'rupees'}. Stored internally as {f.currency === 'USD' ? 'cents' : 'paise'}.
       </p>
       <div className="row">
         <div className="col">
@@ -131,12 +142,21 @@ function PlanForm({ plan, onSaved, onCancel }) {
       </div>
       <div className="row">
         <div className="col">
-          <label>Actual price (paise)</label>
-          <input type="number" value={f.actual_price} onChange={e => setF({ ...f, actual_price: e.target.value })}/>
+          <label>Currency</label>
+          <select value={f.currency || 'INR'} onChange={e => setF({ ...f, currency: e.target.value })}>
+            <option value="INR">INR (₹)</option>
+            <option value="USD">USD ($)</option>
+          </select>
         </div>
         <div className="col">
-          <label>Offer price (paise)</label>
-          <input type="number" value={f.offer_price} onChange={e => setF({ ...f, offer_price: e.target.value })}/>
+          <label>Actual price ({sym})</label>
+          <input type="number" step="0.01" min="0" value={f.actual_price_unit}
+            onChange={e => setF({ ...f, actual_price_unit: e.target.value })}/>
+        </div>
+        <div className="col">
+          <label>Offer price ({sym})</label>
+          <input type="number" step="0.01" min="0" value={f.offer_price_unit}
+            onChange={e => setF({ ...f, offer_price_unit: e.target.value })}/>
         </div>
       </div>
       <div style={{ marginTop: 14 }}>
@@ -528,7 +548,7 @@ function SimplePagination({ data, onPage }) {
 function formatPrice(paise, currency) {
   if (paise == null) return '—';
   const rupees = paise / 100;
-  const sym = currency === 'INR' ? '₹' : (currency || '');
+  const sym = currency === 'INR' ? '₹' : (currency === 'USD' ? '$' : (currency || ''));
   return `${sym}${rupees.toLocaleString(undefined, { minimumFractionDigits: rupees % 1 ? 2 : 0 })}`;
 }
 

@@ -113,7 +113,7 @@ public class ProfileActivity extends AppCompatActivity {
                     + "to sign in again. Your cloud data is preserved.")
                 .setPositiveButton("Sign out", (d, w) -> {
                     AuthManager.getInstance(ProfileActivity.this).logout();
-                    Intent i = new Intent(ProfileActivity.this, SignupActivity.class);
+                    Intent i = new Intent(ProfileActivity.this, LoginActivity.class);
                     i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(i);
                     finish();
