@@ -1,102 +1,87 @@
-CallFilter v25.10 — pgcrypto-free migration repair
-====================================================
+CallFilter v25.11 — ACTUAL root cause of the rules sync bug
+=============================================================
 
-ONE-LINE SUMMARY: migration 010 in v25.9 needed pgcrypto, which Railway
-managed Postgres doesn't allow. v25.10 removes that requirement.
+The rules sync bug has been mysterious across v25.4 → v25.10 because
+I kept finding symptoms (mirror-replace, pgcrypto, silent migrate
+errors) without finding the underlying schema mismatch.
 
-============================================================
-WHY v25.9 FAILED TO APPLY MIGRATION 010
-============================================================
+THE REAL CAUSE: user_rules.client_id was declared INTEGER in migration
+002, but the Android app generates UUIDs (UUID.randomUUID().toString())
+and sends them as STRINGS. Every /api/rules/add call was hitting
+Postgres with:
 
-Root cause #1 — pgcrypto extension not available on Railway
+    error: invalid input syntax for type integer: "a1b2c3d4-..."
 
-  Migration 010 had:  CREATE EXTENSION IF NOT EXISTS pgcrypto;
+The error was returned to the app, which logged it and moved on. The
+backend never saved any rule. The "rules sync isn't working" symptom
+was just that.
 
-  Railway's managed Postgres (and most managed Postgres services)
-  don't grant CREATE EXTENSION permission to the app user. So this
-  statement throws "permission denied to create extension" or
-  "could not open extension control file". Postgres aborts the
-  multi-statement query at the FIRST error, rolling back any later
-  statements — so the is_one_time_per_user column was never added.
+When v25.10's migration 009/010 tried to backfill client_id with
+"legacy-" || id::text, Postgres rejected the string assignment to an
+INTEGER column → "invalid input syntax for type integer: """
 
-Root cause #2 — server.js silently caught migration failures
-
-  Old code:
-      try {
-        await migrate();
-      } catch (err) {
-        console.error('⚠️ Auto-migrate failed (continuing anyway):', err.message);
-      }
-
-  This meant: even when migrate.js threw a loud error, server.js
-  swallowed it and started the API anyway. The user got a "running"
-  backend that was actually missing schema changes. No visible
-  signal anywhere that anything was wrong.
+(That cryptic empty-string error in the Railway logs was Postgres
+trying to cast '' to integer when the WHERE clause matched empty
+strings — but the underlying problem was that the column was the
+wrong type all along.)
 
 ============================================================
-FIX
+THE FIX
 ============================================================
 
-1. Migration 010 rewritten WITHOUT pgcrypto.
+Both migrations 009 and 010 now do this and only this for sync:
 
-   The only thing pgcrypto was used for was gen_random_uuid() to
-   backfill NULL client_ids in user_rules. v25.10 replaces this
-   with 'legacy-' || id::text — a deterministic placeholder that's
-   unique per row (since id is the primary key). The Android app
-   will replace these with proper UUIDs on its next sync.
+    ALTER TABLE user_rules
+      ALTER COLUMN client_id TYPE TEXT
+      USING client_id::text;
 
-2. Migration 009 also defanged (same gen_random_uuid → 'legacy-' fix)
-   in case it ever gets retried on a fresh DB.
+ALTER COLUMN ... TYPE TEXT USING client_id::text is idempotent:
+  • If the column is INTEGER → converts existing integers to text
+  • If the column is already TEXT → cast TEXT to TEXT is a no-op
+  • If the column has NULLs → NULLs stay NULL
 
-3. server.js now HARD-FAILS the deploy if migrations fail.
+This works on Railway, on a fresh install, on a partially-migrated DB,
+or anywhere else. No pgcrypto, no UUIDs in SQL, no backfill needed.
 
-   New code:
-      try {
-        await migrate();
-        console.log('✅ Migrations OK');
-      } catch (err) {
-        console.error('═══════════════════════════════');
-        console.error('❌ MIGRATIONS FAILED — refusing to start');
-        console.error(err.stack);
-        process.exit(1);
-      }
+The UNIQUE (user_id, client_id) constraint that ON CONFLICT relies on
+ALREADY EXISTS from migration 002 — I was adding a duplicate index
+unnecessarily. That's removed too.
 
-   This means if anything else goes wrong with future migrations,
-   Railway will mark the deploy as FAILED and surface the exact
-   error in the deploy logs. No more silent broken backends.
+The plans.is_one_time_per_user column is added separately (ADD COLUMN
+IF NOT EXISTS).
 
 ============================================================
-EXPECTED DEPLOY OUTPUT
+WHAT YOUR DEPLOY WILL DO
 ============================================================
 
-When you push v25.10, Railway backend logs should show:
+When you push v25.11, Railway backend deploy logs should show:
 
    🔧 Running migrations...
      ✓ 001_init.sql (already applied)
      ✓ 002_contacts_and_rules.sql (already applied)
      ...
      ✓ 008_user_name_and_razorpay.sql (already applied)
-     ✓ 009_diff_sync_activation_onetime.sql (already applied)
+     → applying 009_diff_sync_activation_onetime.sql
+     ✓ 009_diff_sync_activation_onetime.sql applied successfully
      → applying 010_repair_008_009.sql
      ✓ 010_repair_008_009.sql applied successfully
    ✅ Migrations OK
    ⚡ Listening on port 3000
 
-If you see "❌ MIGRATIONS FAILED — refusing to start" with a stack
-trace, paste the error to me and I'll fix it. Deploy will fail in
-this case — that's intentional, so you know to investigate.
+After this, user_rules.client_id is TEXT, plans.is_one_time_per_user
+exists, and the differential rules sync from v25.8 will finally work.
 
 ============================================================
-ALL OTHER v25.9 CHANGES ARE PRESERVED
+WHAT CHANGED FROM v25.10
 ============================================================
 
-This release is essentially v25.9 with two file changes:
-  • backend/migrations/010_repair_008_009.sql   (rewritten, no pgcrypto)
-  • backend/migrations/009_diff_sync_activation_onetime.sql (defanged)
-  • backend/src/server.js                       (hard-fail on migrate)
+ONLY these two files differ from v25.10:
+  backend/migrations/009_diff_sync_activation_onetime.sql  (rewritten)
+  backend/migrations/010_repair_008_009.sql                (rewritten)
 
-Everything else from v25.9 is intact — smart login flow, rupee input,
-multi-currency plans, admin 401 auto-logout, etc.
+Everything else from v25.10 (and the cumulative v25.x work) is intact:
+smart login flow, rupee input, multi-currency plans, admin 401 auto-
+logout, hard-fail server on migrate errors, etc.
 
 ============================================================
 DEPLOY
@@ -105,43 +90,43 @@ DEPLOY
 cd D:\\callfilter
 git pull origin main
 
-# Extract zip to e.g. F:\\app\\CallManager\\callfilter-v25.10-monorepo\\
-robocopy F:\\app\\CallManager\\callfilter-v25.10-monorepo\\callfilter-monorepo\\android  android  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.10-monorepo\\callfilter-monorepo\\backend  backend  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.10-monorepo\\callfilter-monorepo\\frontend frontend /E
-copy F:\\app\\CallManager\\callfilter-v25.10-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
+robocopy F:\\app\\CallManager\\callfilter-v25.11-monorepo\\callfilter-monorepo\\android  android  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.11-monorepo\\callfilter-monorepo\\backend  backend  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.11-monorepo\\callfilter-monorepo\\frontend frontend /E
+copy F:\\app\\CallManager\\callfilter-v25.11-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
 
 git add .
-git commit -m "v25.10 — pgcrypto-free migration, server hard-fail on migrate error"
+git commit -m "v25.11 — convert user_rules.client_id INTEGER → TEXT (the real rules sync bug)"
 git push origin main
 
-# WATCH RAILWAY BACKEND DEPLOY LOGS for:
-#   → applying 010_repair_008_009.sql
-#   ✓ 010_repair_008_009.sql applied successfully
-#   ✅ Migrations OK
+# Watch Railway backend deploy logs for the green ticks above
 
 ============================================================
-POST-DEPLOY VERIFICATION
+POST-DEPLOY TESTS
 ============================================================
 
-[ ] Railway backend log: "✓ 010_repair_008_009.sql applied successfully"
-[ ] Railway backend log: "✅ Migrations OK"
+[ ] Railway log: "✓ 009_diff_sync_activation_onetime.sql applied successfully"
+[ ] Railway log: "✓ 010_repair_008_009.sql applied successfully"
+[ ] Railway log: "✅ Migrations OK"
 [ ] Backend service is RUNNING (not failed)
 
-Then test the originally-broken admin feature:
+[ ] Admin → Billing → Edit a plan → check "One-time only per user" → Save
+    → Should succeed (no "column does not exist")
 
-[ ] Admin → Billing → Edit a plan (or New plan)
-[ ] Check "One-time only per user" → Save
-[ ] Should save successfully (NO "column does not exist" error)
+[ ] Android app: add a rule (PREFIX 9494 REJECT)
+[ ] Force-stop the app. Reopen.
+    → Rule should still be there (was being silently dropped before)
+[ ] Web admin → user → Rules tab
+    → Should see the rule
+[ ] Web admin: add a NEW rule from web (PREFIX 9090 REJECT)
+[ ] App: background → foreground
+    → New rule appears (admin → app sync)
+[ ] Web admin: delete a rule
+[ ] App: background → foreground
+    → Rule disappears (cloud → app sync)
+[ ] Uninstall + reinstall + log in with same mobile
+    → All rules come back from cloud
 
-Then test rules sync (which depends on the unique index that 010 creates):
-
-[ ] App: add rule PREFIX 9494 REJECT
-[ ] Admin → user → Rules tab → should see the rule
-[ ] Admin: delete that rule from web
-[ ] App: background→foreground → rule disappears
-[ ] Admin: add new rule PREFIX 9090 REJECT from web
-[ ] App: background→foreground → new rule appears
-
-If sync still fails AFTER 010 confirms applied, paste me logcat lines
-with "SyncManager" or "pushAddedRule" and I'll diagnose further.
+If any of these still fail, paste the failing step number and any
+backend logs around the time of the action, and I'll look at the
+specific endpoint.

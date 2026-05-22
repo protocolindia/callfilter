@@ -1,42 +1,22 @@
 -- ============================================================
--- Migration 009 — v25.8: differential rules sync, activation flag,
--- one-time-only plans
+-- Migration 009 — v25.8: differential rules sync, one-time-only plans
 --
--- v25.10 update: removed gen_random_uuid() / pgcrypto dependency.
--- Now uses 'legacy-{id}' placeholder for backfilled client_ids,
--- which is unique per row and doesn't need any extension.
+-- v25.10 update: the ROOT CAUSE of the rules sync bug was that
+-- user_rules.client_id was declared INTEGER in migration 002, but
+-- the Android app sends UUID strings like "a1b2c3d4-...". Every
+-- /api/rules/add request was hitting Postgres with a type error
+-- on the integer cast. This migration converts client_id to TEXT
+-- so UUIDs work.
+--
+-- migration 002 already declared UNIQUE (user_id, client_id) and
+-- created the underlying index, so we don't need to add either.
 -- ============================================================
 
--- Backfill any nulls so the unique index can be created
-UPDATE user_rules
-   SET client_id = 'legacy-' || id::text
- WHERE client_id IS NULL OR client_id = '';
-
--- Make client_id NOT NULL (idempotent — only if currently nullable)
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_name = 'user_rules'
-       AND column_name = 'client_id'
-       AND is_nullable = 'YES'
-  ) THEN
-    ALTER TABLE user_rules ALTER COLUMN client_id SET NOT NULL;
-  END IF;
-END $$;
-
--- Unique index for ON CONFLICT in /api/rules/add
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_indexes
-     WHERE schemaname = 'public'
-       AND indexname  = 'idx_user_rules_user_client'
-  ) THEN
-    CREATE UNIQUE INDEX idx_user_rules_user_client
-      ON user_rules(user_id, client_id);
-  END IF;
-END $$;
+-- Convert client_id INTEGER → TEXT. USING clause makes it idempotent
+-- against an already-text column (cast TEXT to TEXT is a no-op).
+ALTER TABLE user_rules
+  ALTER COLUMN client_id TYPE TEXT
+  USING client_id::text;
 
 -- Plan flag: subscribe-once-per-user
 ALTER TABLE plans
