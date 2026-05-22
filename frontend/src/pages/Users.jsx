@@ -37,7 +37,10 @@ export default function Users() {
   async function handleReset(id) {
     if (!confirm('Reset this user — clear PIN and verification?')) return;
     try {
-      await api.post(`/admin/users/${id}
+      await api.post(`/admin/users/${id}/reset`);
+      load();
+    } catch (err) { alert(err.message); }
+  }
 
   async function handleSetActive(id, active) {
     const label = active ? 'activate' : 'deactivate';
@@ -46,9 +49,6 @@ export default function Users() {
       await api.post(`/admin/users/${id}/activate`, { active });
       load();
     } catch (e) { alert(e.message); }
-  }/reset`);
-      load();
-    } catch (err) { alert(err.message); }
   }
 
   return (
