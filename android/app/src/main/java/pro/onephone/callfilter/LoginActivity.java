@@ -124,7 +124,8 @@ public class LoginActivity extends AppCompatActivity {
     private void handlePinLogin() {
         AuthManager auth = AuthManager.getInstance(this);
         String pin = pinInput.getText().toString();
-        if (auth.checkAndUnlockWithPin(pin)) {
+        if (auth.checkPin(pin)) {
+            auth.markLoggedIn();
             startActivity(new Intent(this, MainActivity.class));
             finish();
         } else {
