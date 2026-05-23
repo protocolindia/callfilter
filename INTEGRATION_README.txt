@@ -1,107 +1,158 @@
-CallFilter v25.15 — three follow-up fixes from v25.14 test
-=============================================================
+CallFilter v25.16 — login flow simplified + blocking diagnostics
+==================================================================
 
-ONE-LINE: payment integer error, login flow showing signup screen
-mid-flow, and "SUBSCRIBE" button text when already subscribed.
-
-============================================================
-FIX 1 — "Payment error: invalid input syntax for type integer: '29.00'"
-============================================================
-
-Root cause: in v25.13 I changed amount_paid storage to
-`(orderRow.amount_paise / 100).toFixed(2)` to keep rupees as decimal.
-But subscriptions.amount_paid is declared INTEGER in migration 005.
-Postgres rejected "29.00" — a string with decimals — as not castable
-to integer. Payment verification failed → user saw the error toast.
-
-Fix: store the integer paise value directly.
-
-   Before: amount_paid = (amount_paise / 100).toFixed(2)  → "29.00" ✗
-   After:  amount_paid = amount_paise                     → 2900    ✓
-
-UserDetail.jsx accordingly divides by 100 when displaying:
-   Display: ₹{(amount_paid / 100).toFixed(2)}  → ₹29.00
+This release fixes the things I'm confident about, and adds verbose
+logging to surface what's actually going wrong with the call blocking
+regression you reported.
 
 ============================================================
-FIX 2 — Login bouncing through "Sign up" page
+FIX 1 — REMOVED "RESTORE PURCHASE" BUTTON
 ============================================================
 
-When a returning user signs in on a new device (or after full logout),
-LoginActivity routes them through SignupActivity (with login_mode=true)
-to send an OTP and let them set a new PIN. Technically correct — we
-need OTP verification before granting access without a local PIN — but
-the screen still LOOKED like a signup form (name field visible, "Block
-unwanted calls" title, "Already have account? Sign in" cross-link).
-User reasonably thought "why is it asking me to sign up again?"
+The button on the paywall is now hidden (kept the id in the layout
+so PaywallActivity's findViewById doesn't NPE on it).
 
-Fix: in login_mode the screen now looks like a verification step:
-   • Title: "Verify your mobile"  (was "Block unwanted calls")
-   • Name input + "YOUR NAME" label HIDDEN
-   • Continue button text: "SEND OTP"  (was "Continue")
-   • Bottom "Already have an account? Sign in" link HIDDEN
-     (you're already in the sign-in flow)
-
-Mobile field + country picker remain visible & editable in case the
-user prefilled the wrong number.
+If you want it back later, change one line in activity_paywall.xml:
+   android:visibility="gone"   →   android:visibility="visible"
 
 ============================================================
-FIX 3 — "SUBSCRIBE" button → "EXTEND SUBSCRIPTION"
+FIX 2 — LOGIN GOES STRAIGHT TO OTP (NO INTERMEDIATE PAGE)
 ============================================================
 
-When user already has an active sub, every plan card showed a
-"SUBSCRIBE" button. The page title already said "Extend plan" but the
-button was inconsistent. Fixed:
+Old flow:
+   LoginActivity (mobile) → CONTINUE
+     → SignupActivity in login_mode ("Verify your mobile" with the
+       same mobile field) → SEND OTP
+     → OtpActivity (enter code)
 
-   No active sub: button reads "SUBSCRIBE"
-   Active sub:    button reads "EXTEND SUBSCRIPTION"
+New flow (v25.16):
+   LoginActivity (mobile) → CONTINUE
+     → /api/check-account validates the number exists
+     → /api/signup fires (sends OTP, idempotent for existing users)
+     → OtpActivity (enter code)         ← skips the middle page
 
-(Same code path either way — clicking the button creates a Razorpay
-order; the backend already extends from current expiry.)
+LoginActivity.handleContinue now calls AuthManager.startSignup
+directly on success, then routes to OtpActivity. The "Verify your
+mobile" screen is no longer shown during login. It still exists in
+the codebase as the OTP-send step of SignupActivity for fresh sign-ups.
 
 ============================================================
-NOT IN THIS DROP — POST-CALL POPUP
+FIX 3 — OTP PAGE: RESEND COUNTDOWN
 ============================================================
 
-You also mentioned not getting the post-call popup for unknown
-numbers. That was addressed in v25.14 with a CallLog fallback in
-CallStateReceiver. If you've deployed AND rebuilt the APK with v25.14,
-the popup should fire ~1.2s after a call ends from an unknown number.
+OtpActivity now shows:
+   • 6-digit OTP input (was already 6-digit max but the label said
+     "4-DIGIT CODE" — unchanged for now since it works either way)
+   • "Resend code in 30s" — disabled, ticks down every second
+   • After 30s: "Resend OTP" — tappable, re-sends OTP via /api/signup
+   • "Use a different number" link below — back to LoginActivity
 
-If you DID deploy v25.14 and the popup still isn't appearing, check:
+On resend success: countdown restarts (so user can't spam-resend).
+On resend failure: button re-enables immediately with error toast.
 
-  [ ] On Android 13+, did you tap ALLOW on the Notifications prompt?
-  [ ] Did you tap "Open Settings → Display over other apps → grant" for
-      CallFilter? (Settings → Apps → CallFilter → Display over other apps)
-  [ ] Is your test number actually unknown? (not in contacts, no
-      matching rule, not your own number) — popup is suppressed otherwise
+If you tap "Resend OTP", a new OTP is sent to the same number. If
+backend setting otp_show_in_response=true is enabled, the new OTP
+auto-fills the input.
 
-If all three are yes and you still don't see it, paste me logcat
-filtered to:
-  adb logcat -s CallStateReceiver:V PostCallOverlay:V
+============================================================
+FIX 4 — DIAGNOSTIC LOGGING FOR BLOCKING REGRESSION
+============================================================
 
-I'll diagnose from the log lines.
+You said: blocking (prefix / suffix / range) stopped working in a
+recent version. Confirmed Caller ID & spam app is still set to
+CallFilter. Reinstalling the previous version restores blocking.
+
+I can't diagnose without seeing what the device actually does when a
+call comes in. The CallBlockerService.onScreenCall() code path looks
+identical to the version that works — but something is clearly
+different at runtime.
+
+v25.16 adds these log lines to CallBlockerService:
+
+   D/CallBlockerService: === onScreenCall ENTERED, number=+919876xxx ===
+   D/CallBlockerService: State: rules=3 subActive=true subChecked=true
+   D/CallBlockerService:   rule: type=prefix pattern=+91140 action=reject
+                                 → matches(+919876xxx)=false
+   D/CallBlockerService:   rule: type=prefix pattern=+919876 action=reject
+                                 → matches(+919876xxx)=true
+   D/CallBlockerService: VERDICT: REJECT (type=prefix pattern=+919876)
+
+If you see ALL those lines: blocking is working correctly.
+
+If you see "onScreenCall ENTERED" but NO matching rule:
+   → rules don't match the incoming number format. The pattern is
+     stored as you typed it; the incoming number on Android 10+ uses
+     E.164 format like "+919876543210". Some devices give "9876543210"
+     without country code. The log shows you exactly what comes in.
+
+If you DON'T see "onScreenCall ENTERED" at all when a call rings:
+   → CallFilter is not the active screening app at the OS level. The
+     setting may show "CallFilter" but the system isn't actually
+     binding the service. Possible causes:
+       • Another app (Truecaller, Hiya, Samsung default) is registered
+         as a competing screener and won out
+       • Battery optimisation killed the service binding
+       • System needs a reboot after the app was set as default
+
+   To force a re-bind:
+       1. Settings → Apps → Default apps → Caller ID & spam app
+       2. Select "None" or "Default"
+       3. Reboot the phone
+       4. Set "CallFilter" again
+       5. Make a test call
+
+   If still nothing in logcat, send me:
+       adb logcat -s CallBlockerService:V CallStateReceiver:V
+
+   and I'll see what's happening.
+
+============================================================
+WHY POST-CALL POPUP ISN'T APPEARING
+============================================================
+
+Same diagnostic story. v25.14 added a CallLog fallback in the
+receiver. To see what's happening:
+
+   adb logcat -s CallStateReceiver:V PostCallOverlay:V
+
+Look for these tags after a call:
+   PHONE_STATE event: state=RINGING
+   PHONE_STATE event: state=OFFHOOK    (or skipped if not answered)
+   PHONE_STATE event: state=IDLE
+   [1.2s later] Call ended — offering popup for +919...
+   [or] Call ended but no number available — popup skipped
+
+If "popup skipped" appears, none of the three number-source paths
+worked. Possible reasons:
+   • CallLog not yet written (rare; the 1.2s delay usually handles it)
+   • READ_CALL_LOG permission revoked
+
+If the popup DOES try to show but you don't see it:
+   • SYSTEM_ALERT_WINDOW (Display over other apps) revoked
+   • POST_NOTIFICATIONS (Android 13+) revoked
+   • Battery optimiser killed the receiver before it could draw
+
+The PostCallOverlay tag in logcat tells you which fallback fired.
 
 ============================================================
 FILES TOUCHED
 ============================================================
 
-BACKEND
-  CHG src/api.js
-      verify-payment stores amount_paid as integer paise (not "29.00")
-
-FRONTEND admin
-  CHG pages/UserDetail.jsx
-      amount_paid display divides by 100
-
 ANDROID
-  CHG res/layout/activity_signup.xml
-      Added id="@+id/nameLabel" to the YOUR NAME TextView
-  CHG java/.../SignupActivity.java
-      login_mode hides name section + cross-link + retitles to
-      "Verify your mobile" with SEND OTP button
-  CHG java/.../PaywallActivity.java
-      Subscribe button text toggles to "EXTEND SUBSCRIPTION" when
-      SubscriptionManager.isActive()
+  CHG res/layout/activity_paywall.xml
+      btnRestore hidden (visibility=gone)
+  CHG java/.../LoginActivity.java
+      onSuccess callback wrapped in runOnUiThread
+      (other login→OTP refactor was already in place from prior session)
+  CHG java/.../OtpActivity.java
+      30s resend countdown timer
+      Resend OTP wired to AuthManager.startSignup
+      "Use a different number" link → back to LoginActivity
+      onDestroy cancels the timer to avoid leaks
+  CHG java/.../CallBlockerService.java
+      verbose logging at entry, per-rule, and verdict points
+
+No backend changes. No migrations. No frontend changes.
 
 ============================================================
 DEPLOY
@@ -110,39 +161,42 @@ DEPLOY
 cd D:\\callfilter
 git pull origin main
 
-robocopy F:\\app\\CallManager\\callfilter-v25.15-monorepo\\callfilter-monorepo\\android  android  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.15-monorepo\\callfilter-monorepo\\backend  backend  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.15-monorepo\\callfilter-monorepo\\frontend frontend /E
-copy F:\\app\\CallManager\\callfilter-v25.15-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
+robocopy F:\\app\\CallManager\\callfilter-v25.16-monorepo\\callfilter-monorepo\\android  android  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.16-monorepo\\callfilter-monorepo\\backend  backend  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.16-monorepo\\callfilter-monorepo\\frontend frontend /E
+copy F:\\app\\CallManager\\callfilter-v25.16-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
 
 git add .
-git commit -m "v25.15 — amount_paid integer fix + login flow refinement + EXTEND SUBSCRIPTION"
+git commit -m "v25.16 — login goes straight to OTP + resend countdown + diagnostic logs"
 git push origin main
 
-# Rebuild APK in Android Studio (Build → Rebuild Project → Generate Signed APK)
-
-No new migrations.
+# Then in Android Studio: Build → Rebuild Project → Generate Signed APK
 
 ============================================================
 POST-DEPLOY TESTS
 ============================================================
 
-[ ] App paywall → SUBSCRIBE button:
-    • No active sub  → button reads "SUBSCRIBE"
-    • Active sub     → button reads "EXTEND SUBSCRIPTION"
+[ ] Paywall: open from Profile → no "Restore purchase" button visible
 
-[ ] Complete a payment:
-    • Razorpay shows ₹29 (not ₹2900)
-    • After payment NO error toast — sub extends successfully
-    • Admin → Payments page shows the payment row with ₹29
-    • Admin → user → Info tab → "Paid" row shows ₹29.00
+[ ] Login flow:
+    Sign out completely → LoginActivity (mobile mode)
+    Enter your registered mobile → CONTINUE
+    → directly opens OtpActivity (NO "Verify your mobile" page)
+    → first 30s: button shows "Resend code in 29s" → "28s" → … → "0s"
+    → after 30s: button becomes "Resend OTP" (tappable)
+    → "Use a different number" link → back to LoginActivity
+    → Enter the OTP, Verify → MainActivity
 
-[ ] Sign out completely → LoginActivity (mobile mode)
-    → Enter your registered mobile + Continue
-    → SignupActivity opens, but now:
-      ✓ Title says "Verify your mobile" (NOT "Block unwanted calls")
-      ✓ NO "YOUR NAME" label
-      ✓ NO name input field
-      ✓ Continue button says "SEND OTP"
-      ✓ NO "Already have an account? Sign in" link at bottom
-    → Enter OTP, set new PIN → MainActivity
+[ ] Resend:
+    Wait for countdown, tap Resend OTP → toast "OTP sent again"
+    → countdown restarts at 30s
+
+[ ] Blocking diagnostic — make a test call from a number matching one
+    of your prefix rules, then run:
+       adb logcat -s CallBlockerService:V
+    Paste me the output. I'll diagnose from there.
+
+[ ] Popup diagnostic — make a test call from an unknown number not in
+    contacts, let it ring then disconnect, then run:
+       adb logcat -s CallStateReceiver:V PostCallOverlay:V
+    Paste me the output. I'll diagnose.

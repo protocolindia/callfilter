@@ -109,7 +109,8 @@
             android:textSize="13sp"
             android:textColor="@color/accent"
             android:background="@android:color/transparent"
-            android:layout_marginTop="14dp"/>
+            android:layout_marginTop="14dp"
+            android:visibility="gone"/>
 
         <Button android:id="@+id/btnLogout"
             android:layout_width="match_parent"

@@ -174,15 +174,39 @@ public class LoginActivity extends AppCompatActivity {
                             btnContinue.setText("CONTINUE");
                         });
                         if (ok && resp != null && resp.optBoolean("exists", false)) {
-                            // Account exists — go to signup activity which handles OTP + new PIN
-                            // Pass the mobile + country so the user doesn't re-type
-                            Intent i = new Intent(LoginActivity.this, SignupActivity.class);
-                            i.putExtra("prefill_dial_code", cd.dialCode);
-                            i.putExtra("prefill_mobile", mobile);
-                            i.putExtra("prefill_country_iso", cd.iso);
-                            i.putExtra("login_mode", true);
-                            startActivity(i);
-                            finish();
+                            // Account exists. Skip the intermediate "Verify your mobile"
+                            // screen entirely — directly fire /api/signup (which sends OTP
+                            // for existing accounts too) and jump to OtpActivity.
+                            runOnUiThread(() -> {
+                                btnContinue.setEnabled(false);
+                                btnContinue.setText("Sending OTP…");
+                            });
+                            AuthManager.getInstance(LoginActivity.this).startSignup(
+                                cd.dialCode, mobile, cd.iso, "",  // name empty for login
+                                new AuthManager.SignupCallback() {
+                                    public void onSuccess(String devOtp) {
+                                        runOnUiThread(() -> {
+                                            btnContinue.setEnabled(true);
+                                            btnContinue.setText("CONTINUE");
+                                            Intent i = new Intent(LoginActivity.this, OtpActivity.class);
+                                            if (devOtp != null && !devOtp.isEmpty()) {
+                                                i.putExtra("dev_otp", devOtp);
+                                            }
+                                            i.putExtra("login_mode", true);
+                                            startActivity(i);
+                                            finish();
+                                        });
+                                    }
+                                    public void onError(String message) {
+                                        runOnUiThread(() -> {
+                                            btnContinue.setEnabled(true);
+                                            btnContinue.setText("CONTINUE");
+                                            Toast.makeText(LoginActivity.this,
+                                                message != null ? message : "Could not send OTP",
+                                                Toast.LENGTH_LONG).show();
+                                        });
+                                    }
+                                });
                         } else if (ok && resp != null) {
                             // No such account
                             runOnUiThread(() -> {

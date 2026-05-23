@@ -1,29 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:gravity="center" android:padding="24dp"
+    android:orientation="vertical" android:gravity="center_horizontal" android:padding="24dp"
     android:background="@color/bg">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="🔐 Verify" android:textSize="28sp" android:textStyle="bold"
-        android:textColor="@color/text"/>
+
+    <TextView
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="🔐 Verify"
+        android:textSize="28sp" android:textStyle="bold" android:textColor="@color/text"
+        android:layout_marginTop="40dp"/>
+
     <TextView android:id="@+id/numberLabel"
         android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="Sent to +91..." android:textSize="13sp"
-        android:textColor="@color/subtext" android:layout_marginTop="6dp"
-        android:layout_marginBottom="32dp"/>
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="4-DIGIT CODE" android:textSize="11sp" android:textStyle="bold"
+        android:text="Sent to +91..."
+        android:textSize="13sp" android:textColor="@color/subtext"
+        android:gravity="center"
+        android:layout_marginTop="6dp" android:layout_marginBottom="32dp"/>
+
+    <TextView
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="4-DIGIT CODE"
+        android:textSize="11sp" android:textStyle="bold"
         android:textColor="@color/muted" android:letterSpacing="0.1"/>
+
     <EditText android:id="@+id/otpInput"
         android:layout_width="match_parent" android:layout_height="56dp"
-        android:hint="0000" android:textColor="@color/text"
-        android:textColorHint="@color/muted" android:background="@drawable/input_bg"
+        android:hint="0000"
+        android:textColor="@color/text" android:textColorHint="@color/muted"
+        android:background="@drawable/input_bg"
         android:paddingStart="12dp" android:paddingEnd="12dp"
         android:inputType="numberPassword" android:maxLength="6"
         android:textSize="22sp" android:gravity="center" android:letterSpacing="0.4"
-        android:layout_marginTop="4dp" android:layout_marginBottom="24dp"/>
+        android:layout_marginTop="4dp" android:layout_marginBottom="20dp"/>
+
     <Button android:id="@+id/btnVerifyOtp"
         android:layout_width="match_parent" android:layout_height="52dp"
-        android:text="Verify" android:textStyle="bold" android:textSize="14sp"
+        android:text="Verify"
+        android:textStyle="bold" android:textSize="14sp"
         android:textColor="@color/white" android:background="@drawable/btn_accent"/>
+
+    <!-- Resend OTP — disabled initially, countdown until 30 seconds pass -->
+    <Button android:id="@+id/btnResendOtp"
+        android:layout_width="match_parent" android:layout_height="44dp"
+        android:text="Resend code in 30s"
+        android:textSize="13sp" android:textColor="@color/subtext"
+        android:background="@android:color/transparent"
+        android:enabled="false"
+        android:layout_marginTop="14dp"/>
+
+    <!-- Change number — back to LoginActivity -->
+    <TextView android:id="@+id/linkChangeNumber"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="Use a different number"
+        android:textSize="13sp" android:textColor="@color/accent"
+        android:textStyle="bold"
+        android:clickable="true" android:focusable="true"
+        android:padding="8dp"
+        android:layout_marginTop="8dp"/>
 </LinearLayout>

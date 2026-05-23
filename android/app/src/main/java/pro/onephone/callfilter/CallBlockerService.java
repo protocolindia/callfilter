@@ -17,7 +17,18 @@ public class CallBlockerService extends CallScreeningService {
             }
         } catch (Exception ignored) {}
 
-        Log.d(TAG, "Incoming call from: " + number);
+        // === DIAGNOSTIC: this line proves CallScreeningService is being invoked.
+        // If you don't see it in logcat when a call rings, then CallFilter is
+        // NOT the default screening app — go to:
+        //   Settings → Apps → Default apps → Caller ID & spam app → CallFilter
+        Log.d(TAG, "=== onScreenCall ENTERED, number=" + number + " ===");
+
+        // Snapshot of state we'll use to decide
+        int rulesCount = RulesManager.getInstance(this).getRules().size();
+        boolean subActive = SubscriptionManager.getInstance(this).isActive();
+        boolean subChecked = SubscriptionManager.getInstance(this).hasBeenChecked();
+        Log.d(TAG, "State: rules=" + rulesCount + " subActive=" + subActive
+            + " subChecked=" + subChecked);
 
         // Stash for post-call popup: CallStateReceiver picks this up when state
         // returns to IDLE. On Android 10+, PHONE_STATE broadcasts no longer include
@@ -58,16 +69,17 @@ public class CallBlockerService extends CallScreeningService {
             rType = "block_all"; rPattern = blockAll.getMode();
         }
 
-        // 3. REJECT rules
+        // 3. REJECT rules — log each rule we evaluate so we can see why a
+        //    call wasn't matched (or which rule matched it).
         if (!shouldReject) {
-            String verdict = rules.evaluateReject(number);
-            if ("reject".equals(verdict)) {
-                shouldReject = true;
-                for (Rule r : rules.getRules()) {
-                    if (r.matches(number) && "reject".equals(r.getAction())) {
-                        rType = r.getType(); rPattern = r.getPattern();
-                        break;
-                    }
+            for (Rule r : rules.getRules()) {
+                boolean matches = r.matches(number);
+                Log.d(TAG, "  rule: type=" + r.getType() + " pattern=" + r.getPattern()
+                    + " action=" + r.getAction() + " → matches(" + number + ")=" + matches);
+                if (matches && "reject".equals(r.getAction())) {
+                    shouldReject = true;
+                    rType = r.getType(); rPattern = r.getPattern();
+                    break;
                 }
             }
         }
@@ -105,6 +117,7 @@ public class CallBlockerService extends CallScreeningService {
         }
 
         if (shouldReject) {
+            Log.d(TAG, "VERDICT: REJECT (type=" + rType + " pattern=" + rPattern + ")");
             FrequencyTracker.getInstance(this)
                 .recordRejection(number, System.currentTimeMillis());
             BlockedCallsManager.getInstance(this)
@@ -116,6 +129,7 @@ public class CallBlockerService extends CallScreeningService {
                 .setSkipNotification(true);
             respondToCall(callDetails, b.build());
         } else {
+            Log.d(TAG, "VERDICT: ALLOW (no matching rule)");
             respondToCall(callDetails, new CallResponse.Builder().build());
         }
     }
