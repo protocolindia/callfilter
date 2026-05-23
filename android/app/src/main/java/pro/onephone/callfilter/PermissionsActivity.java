@@ -1,6 +1,8 @@
 package pro.onephone.callfilter;
 
 import android.Manifest;
+import android.app.role.RoleManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -11,194 +13,187 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Consolidated permissions gate. Shows ALL required permissions on a single
- * screen with the reason for each. User taps GRANT ALL → system prompts run
- * in sequence (Android requires this; runtime permission UI is OS-controlled).
+ * Permissions management screen. Reached from Profile → Permissions row, or
+ * via a feature-gate redirect when an action needs a permission the user
+ * hasn't granted yet.
  *
- * If the user denies a CRITICAL permission, they cannot proceed past this
- * screen — there is no "Skip" option. A button to open App Settings appears
- * if Android reports "don't ask again" was set.
- *
- * After all permissions are granted, also checks SYSTEM_ALERT_WINDOW (special
- * permission, requires its own settings page) before routing to MainActivity.
+ * This is NOT a boot gate (was in v25.17, removed in v25.17.1). Each row has
+ * its OWN Grant button so we fire one system prompt at a time, never two
+ * stacked windows.
  */
 public class PermissionsActivity extends AppCompatActivity {
 
-    private static final int REQ_CODE_RUNTIME = 9001;
-
-    /** Permission spec: (manifest constant, label, reason, critical?) */
-    private static class Perm {
-        final String manifest;
-        final String label;
-        final String reason;
-        final boolean critical;
-        Perm(String m, String l, String r, boolean c) {
-            manifest = m; label = l; reason = r; critical = c;
-        }
-    }
-
-    /** Order matters — list these in the order they're prompted. */
-    private List<Perm> perms() {
-        List<Perm> list = new ArrayList<>();
-        list.add(new Perm(Manifest.permission.READ_PHONE_STATE,
-            "Phone state",
-            "Required. Lets the app detect when a call is ringing so it can decide whether to block it.",
-            true));
-        list.add(new Perm(Manifest.permission.READ_CONTACTS,
-            "Contacts",
-            "Required for Contacts-Only Mode and to recognise known callers.",
-            true));
-        list.add(new Perm(Manifest.permission.READ_CALL_LOG,
-            "Call log",
-            "Required to show your recent calls and detect the number after a call ends (for the block popup).",
-            true));
-        if (Build.VERSION.SDK_INT >= 33) {
-            list.add(new Perm(Manifest.permission.POST_NOTIFICATIONS,
-                "Notifications",
-                "Required to show the post-call \"Block this number?\" alert when the overlay can't draw.",
-                true));
-        }
-        return list;
-    }
+    private static final int REQ_PHONE   = 9101;
+    private static final int REQ_CONTACTS = 9102;
+    private static final int REQ_CALL_LOG = 9103;
+    private static final int REQ_NOTIFY   = 9104;
+    private static final int REQ_OVERLAY  = 9201;
+    private static final int REQ_ROLE_SCREENING = 9202;
 
     private LinearLayout listView;
-    private Button btnContinue, btnSettings;
-    private TextView denyHelp;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_permissions);
-        listView    = findViewById(R.id.permsList);
-        btnContinue = findViewById(R.id.btnPermsContinue);
-        btnSettings = findViewById(R.id.btnPermsSettings);
-        denyHelp    = findViewById(R.id.permsDenyHelp);
+        listView = findViewById(R.id.permsList);
+        // Continue button is now "Done" — returns to wherever the user came from
+        Button btnDone = findViewById(R.id.btnPermsContinue);
+        btnDone.setText("DONE");
+        btnDone.setOnClickListener(v -> finish());
+        // Old "open settings" + warning hidden — no longer needed in manage mode
+        findViewById(R.id.btnPermsSettings).setVisibility(View.GONE);
+        findViewById(R.id.permsDenyHelp).setVisibility(View.GONE);
 
         renderList();
-
-        btnContinue.setOnClickListener(v -> {
-            String[] missing = collectMissing();
-            if (missing.length == 0) {
-                proceedOrCheckOverlay();
-            } else {
-                ActivityCompat.requestPermissions(this, missing, REQ_CODE_RUNTIME);
-            }
-        });
-        btnSettings.setOnClickListener(v -> {
-            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.fromParts("package", getPackageName(), null));
-            startActivity(i);
-        });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Re-evaluate state after user returns from system settings or grant dialogs
         renderList();
-        if (allCriticalGranted()) {
-            proceedOrCheckOverlay();
-        }
     }
 
-    /** Build the visible list with ✓ / ✗ next to each permission. */
+    /** Rebuild the list of rows showing each permission with its grant state. */
     private void renderList() {
         listView.removeAllViews();
-        for (Perm p : perms()) {
-            View row = getLayoutInflater().inflate(R.layout.permission_row, listView, false);
-            TextView title  = row.findViewById(R.id.permRowTitle);
-            TextView desc   = row.findViewById(R.id.permRowDesc);
-            TextView status = row.findViewById(R.id.permRowStatus);
-            boolean granted = isGranted(p.manifest);
-            title.setText(p.label + (p.critical ? "" : "  (optional)"));
-            desc.setText(p.reason);
-            status.setText(granted ? "✓" : "✗");
-            status.setTextColor(getResources().getColor(
-                granted ? R.color.accept : R.color.reject, null));
-            listView.addView(row);
+
+        addRuntimeRow(Manifest.permission.READ_PHONE_STATE, REQ_PHONE,
+            "Phone state",
+            "Detect when a call rings so it can be evaluated against your rules.");
+        addRuntimeRow(Manifest.permission.READ_CONTACTS, REQ_CONTACTS,
+            "Contacts",
+            "Recognise known callers; required for Contacts-Only mode.");
+        addRuntimeRow(Manifest.permission.READ_CALL_LOG, REQ_CALL_LOG,
+            "Call log",
+            "Show your recent calls and identify the number after a call ends (for the post-call popup).");
+        if (Build.VERSION.SDK_INT >= 33) {
+            addRuntimeRow(Manifest.permission.POST_NOTIFICATIONS, REQ_NOTIFY,
+                "Notifications",
+                "Show the post-call \"Block this number?\" alert when the floating overlay can't draw.");
         }
+        addOverlayRow();
+        addCallScreeningRow();
     }
 
-    private boolean isGranted(String permission) {
-        return ContextCompat.checkSelfPermission(this, permission)
+    private void addRuntimeRow(final String permission, final int requestCode,
+                               String title, String reason) {
+        boolean granted = ContextCompat.checkSelfPermission(this, permission)
             == PackageManager.PERMISSION_GRANTED;
+        addRow(title, reason, granted, v -> {
+            if (!granted) {
+                ActivityCompat.requestPermissions(this, new String[]{permission}, requestCode);
+            }
+        });
     }
 
-    private String[] collectMissing() {
-        List<String> missing = new ArrayList<>();
-        for (Perm p : perms()) {
-            if (!isGranted(p.manifest)) missing.add(p.manifest);
-        }
-        return missing.toArray(new String[0]);
+    private void addOverlayRow() {
+        boolean granted = canDrawOverlay(this);
+        addRow("Display over other apps",
+            "Show the floating \"Block this number?\" popup right after a call ends. Without this, you'll get a notification instead (still works, less prominent).",
+            granted,
+            v -> {
+                if (!granted) openOverlaySettings();
+            });
     }
 
-    private boolean allCriticalGranted() {
-        for (Perm p : perms()) {
-            if (p.critical && !isGranted(p.manifest)) return false;
+    private void addCallScreeningRow() {
+        if (Build.VERSION.SDK_INT < 29) return;
+        boolean held = isCallScreeningRoleHeld();
+        addRow("Default call screening app",
+            "REQUIRED for blocking to actually work. Lets CallFilter intercept incoming calls before they ring.",
+            held,
+            v -> {
+                if (!held) requestCallScreeningRole();
+            });
+    }
+
+    /** Inflate one permission_row.xml entry. The status TextView doubles as a
+     *  "Grant" button when the permission isn't granted yet. */
+    private void addRow(String title, String reason, boolean granted, View.OnClickListener onGrant) {
+        View row = getLayoutInflater().inflate(R.layout.permission_row, listView, false);
+        ((TextView) row.findViewById(R.id.permRowTitle)).setText(title);
+        ((TextView) row.findViewById(R.id.permRowDesc)).setText(reason);
+        TextView status = row.findViewById(R.id.permRowStatus);
+        if (granted) {
+            status.setText("✓");
+            status.setTextColor(getResources().getColor(R.color.accept, null));
+            row.setOnClickListener(null);
+        } else {
+            status.setText("Grant");
+            status.setTextSize(13f);
+            status.setTextColor(getResources().getColor(R.color.accent, null));
+            row.setOnClickListener(onGrant);
+            status.setOnClickListener(onGrant);
         }
-        return true;
+        listView.addView(row);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
-        if (requestCode != REQ_CODE_RUNTIME) return;
+        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show();
+        }
         renderList();
+    }
 
-        if (allCriticalGranted()) {
-            denyHelp.setVisibility(View.GONE);
-            btnSettings.setVisibility(View.GONE);
-            proceedOrCheckOverlay();
+    // ---- Special permission helpers ----------------------------------------
+
+    public static boolean canDrawOverlay(Context ctx) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+        return Settings.canDrawOverlays(ctx);
+    }
+
+    private void openOverlaySettings() {
+        try {
+            Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName()));
+            startActivityForResult(i, REQ_OVERLAY);
+        } catch (Exception e) {
+            Toast.makeText(this, "Cannot open overlay settings", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public static boolean isCallScreeningRoleHeld(Context ctx) {
+        if (Build.VERSION.SDK_INT < 29) return false;
+        RoleManager rm = (RoleManager) ctx.getSystemService(Context.ROLE_SERVICE);
+        return rm != null
+            && rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)
+            && rm.isRoleHeld(RoleManager.ROLE_CALL_SCREENING);
+    }
+
+    private boolean isCallScreeningRoleHeld() { return isCallScreeningRoleHeld(this); }
+
+    private void requestCallScreeningRole() {
+        if (Build.VERSION.SDK_INT < 29) return;
+        RoleManager rm = (RoleManager) getSystemService(Context.ROLE_SERVICE);
+        if (rm == null) return;
+        if (!rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
+            Toast.makeText(this, "Call screening not supported on this device",
+                Toast.LENGTH_LONG).show();
             return;
         }
-
-        // Some permission still denied — figure out if we can re-prompt or must
-        // send the user to system settings
-        boolean canRePrompt = false;
-        for (int i = 0; i < permissions.length; i++) {
-            if (results[i] != PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.shouldShowRequestPermissionRationale(this, permissions[i])) {
-                canRePrompt = true;
-                break;
-            }
-        }
-        if (canRePrompt) {
-            denyHelp.setText("⚠ CallFilter cannot work without these permissions. Tap GRANT ALL to try again.");
-            denyHelp.setVisibility(View.VISIBLE);
-            btnSettings.setVisibility(View.GONE);
-        } else {
-            denyHelp.setText("⚠ You denied one or more permissions permanently. Open App Settings, enable them, then return here.");
-            denyHelp.setVisibility(View.VISIBLE);
-            btnSettings.setVisibility(View.VISIBLE);
+        try {
+            Intent intent = rm.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING);
+            startActivityForResult(intent, REQ_ROLE_SCREENING);
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not open role picker: " + e.getMessage(),
+                Toast.LENGTH_LONG).show();
         }
     }
 
-    /** After runtime permissions, also check SYSTEM_ALERT_WINDOW. */
-    private void proceedOrCheckOverlay() {
-        // Overlay isn't blocking — app still works with notification fallback
-        // for the post-call popup. So we don't gate on it; we just hand control
-        // to MainActivity which will re-prompt if needed.
-        Intent i = new Intent(this, MainActivity.class);
-        i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        startActivity(i);
-        finish();
-    }
-
-    /** Disable back-button — user MUST grant before exiting this screen. */
     @Override
-    public void onBackPressed() {
-        if (allCriticalGranted()) {
-            super.onBackPressed();
-        } else {
-            android.widget.Toast.makeText(this,
-                "Please grant the required permissions to continue", android.widget.Toast.LENGTH_SHORT).show();
-        }
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        // For both overlay and role flows, just re-render — onResume also handles
+        // this when the user returns, but doing it here is faster.
+        renderList();
     }
 }

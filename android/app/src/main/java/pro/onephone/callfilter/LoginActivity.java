@@ -79,6 +79,13 @@ public class LoginActivity extends AppCompatActivity {
         mobileSection.setVisibility(View.GONE);
         pinSection.setVisibility(View.VISIBLE);
         numberLabel.setText("Signing in as " + auth.getFullNumber());
+        // Hide the bottom "Don't have an account? Sign up" link in PIN mode —
+        // they're already a known user, the link is confusing here.
+        android.view.View signupLink = findViewById(R.id.linkSignup);
+        if (signupLink != null) {
+            android.view.View parent = (android.view.View) signupLink.getParent();
+            if (parent != null) parent.setVisibility(View.GONE);
+        }
 
         // Background account-still-exists check (also surfaces disabled state)
         auth.verifyAccountStillExists(new AuthManager.AccountCheckCallback() {
@@ -125,7 +132,7 @@ public class LoginActivity extends AppCompatActivity {
         String pin = pinInput.getText().toString();
         if (auth.checkPin(pin)) {
             auth.markLoggedIn();
-            startActivity(new Intent(this, PermissionsActivity.class));
+            startActivity(new Intent(this, MainActivity.class));
             finish();
         } else {
             Toast.makeText(this, "Incorrect PIN", Toast.LENGTH_SHORT).show();
@@ -140,6 +147,12 @@ public class LoginActivity extends AppCompatActivity {
         pinSection.setVisibility(View.GONE);
         mobileSection.setVisibility(View.VISIBLE);
         numberLabel.setText("Enter your registered mobile number");
+        // Show the signup cross-link in mobile mode
+        android.view.View signupLink = findViewById(R.id.linkSignup);
+        if (signupLink != null) {
+            android.view.View parent = (android.view.View) signupLink.getParent();
+            if (parent != null) parent.setVisibility(View.VISIBLE);
+        }
 
         ArrayAdapter<CountryData> adapter = new ArrayAdapter<>(this,
             R.layout.spinner_item, CountryData.LIST);
