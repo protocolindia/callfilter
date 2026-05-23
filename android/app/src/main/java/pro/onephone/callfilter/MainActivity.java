@@ -409,6 +409,20 @@ public class MainActivity extends AppCompatActivity {
             .show();
     }
 
+/** Android 13+ requires runtime POST_NOTIFICATIONS for the notification
+     *  fallback of the post-call popup to actually appear. */
+    private void maybePromptNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT < 33) return;  // TIRAMISU
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.POST_NOTIFICATIONS)
+            == android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        try {
+            androidx.core.app.ActivityCompat.requestPermissions(this,
+                new String[]{ android.Manifest.permission.POST_NOTIFICATIONS },
+                7401);
+        } catch (Exception ignored) {}
+    }
+
     private void stopBlockAllConfirm() {
         new AlertDialog.Builder(this)
             .setTitle("Stop Block All Now?")
@@ -522,6 +536,7 @@ public class MainActivity extends AppCompatActivity {
         refreshBlockAllUI();
         banner_handler.postDelayed(banner_tick, 30_000L);
         maybePromptOverlayPermission();
+        maybePromptNotificationPermission();
         // NOTE: do NOT pull rules on resume — that races with just-added local
         // rules and wipes them. Initial cloud pull happens only on login
         // (LoginActivity.handleLogin) and is gated by the initial-sync flag.

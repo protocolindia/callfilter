@@ -63,8 +63,55 @@ public class SyncManager {
         } catch (Exception ignored) {}
     }
 
-    // ===== No-op blocked-calls sync stubs (Play Store edition keeps log local) =====
-    public void syncBlockedCallsAsync() { /* no-op */ }
+    // ===== Blocked-calls sync (push only) =====
+    public void syncBlockedCallsAsync() {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        BlockedCallsManager bcm = BlockedCallsManager.getInstance(appCtx);
+
+        // Build a list of unsynced (or recently-modified) entries
+        java.util.List<BlockedCallsManager.Entry> all = bcm.getEntries();
+        org.json.JSONArray arr = new org.json.JSONArray();
+        java.util.List<String> sentIds = new java.util.ArrayList<>();
+        for (BlockedCallsManager.Entry e : all) {
+            // Re-sync any unsynced row; also re-sync any with a reason that
+            // hasn't been pushed yet (we mark synced=false when reason is set).
+            if (e.synced) continue;
+            try {
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("client_id", e.clientId);
+                o.put("number", e.number == null ? "" : e.number);
+                o.put("rule_type", e.ruleType == null ? "" : e.ruleType);
+                o.put("rule_pattern", e.rulePattern == null ? "" : e.rulePattern);
+                o.put("rule_action", e.ruleAction == null ? "reject" : e.ruleAction);
+                if (e.reason != null && !e.reason.isEmpty()) o.put("reason", e.reason);
+                o.put("blocked_at_ms", e.blockedAtMs);
+                arr.put(o);
+                sentIds.add(e.clientId);
+            } catch (Exception ignored) {}
+        }
+        if (arr.length() == 0) return;
+
+        try {
+            org.json.JSONObject body = new org.json.JSONObject();
+            body.put("user_id", Long.parseLong(auth.getUserId()));
+            body.put("calls", arr);
+            final java.util.List<String> idsToMark = sentIds;
+            BackendClient.post(AuthManager.BACKEND_URL + "/api/blocked-calls/sync", body,
+                new BackendClient.Callback() {
+                    public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                        if (ok) {
+                            BlockedCallsManager.getInstance(appCtx).markSynced(idsToMark);
+                            Log.d(TAG, "Pushed " + idsToMark.size() + " blocked-call entries");
+                        } else {
+                            Log.w(TAG, "Blocked-calls sync failed: " + err);
+                        }
+                    }
+                });
+        } catch (Exception e) {
+            Log.e(TAG, "syncBlockedCallsAsync failed", e);
+        }
+    }
     public void pullBlockedCallsFromCloudIfEmpty() { /* no-op */ }
 
     // ===== Rules sync (v25.8 — differential) =====

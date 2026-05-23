@@ -424,7 +424,7 @@ router.get('/blocked-calls/list', async (req, res, next) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 1000);
     if (!userId) return res.status(400).json({ error: 'user_id required' });
     const calls = await many(
-      `SELECT client_id, number, rule_type, rule_pattern, rule_action, blocked_at_ms
+      `SELECT client_id, number, rule_type, rule_pattern, rule_action, reason, blocked_at_ms
          FROM blocked_calls
         WHERE user_id = $1
         ORDER BY blocked_at DESC
@@ -450,15 +450,19 @@ router.post('/blocked-calls/sync', async (req, res, next) => {
     let inserted = 0;
     for (const c of calls) {
       if (!c || !c.client_id || !c.blocked_at_ms) continue;
+      // reason is optional — null if user dismissed picker
+      const reason = c.reason && typeof c.reason === 'string' && c.reason.trim().length > 0
+                     ? c.reason.trim().slice(0, 100) : null;
       const r = await query(
         `INSERT INTO blocked_calls
            (user_id, client_id, number, rule_type, rule_pattern, rule_action,
-            blocked_at_ms, blocked_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::bigint, to_timestamp($7::bigint / 1000.0))
-         ON CONFLICT (user_id, client_id) DO NOTHING`,
+            reason, blocked_at_ms, blocked_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::bigint, to_timestamp($8::bigint / 1000.0))
+         ON CONFLICT (user_id, client_id) DO UPDATE SET
+           reason = COALESCE(EXCLUDED.reason, blocked_calls.reason)`,
         [user_id, String(c.client_id), c.number || null,
          c.rule_type || null, c.rule_pattern || null, c.rule_action || null,
-         Number(c.blocked_at_ms)]
+         c.reason || null, Number(c.blocked_at_ms)]
       );
       if (r.rowCount > 0) inserted++;
     }
@@ -1031,7 +1035,7 @@ router.post('/razorpay/verify-payment', async (req, res, next) => {
        VALUES ($1, $2, 'active', FALSE, $3::timestamptz + ($4 || ' days')::interval,
                $5, 'razorpay', $6, $7, $8)`,
       [user_id, orderRow.plan_id, baseExpires.toISOString(), String(days),
-       (orderRow.amount_paise / 100).toFixed(2), order_id, payment_id, signature]
+       orderRow.amount_paise, order_id, payment_id, signature]
     );
 
     // Expire any older active rows so /api/subscription returns the latest
@@ -1101,6 +1105,32 @@ router.get('/razorpay/status', async (req, res, next) => {
       mode,
       key_id: enabled && keyId ? keyId : ''
     });
+  } catch (e) { next(e); }
+});
+
+
+// GET /api/block-reasons — list of categorization labels for post-call popup.
+// Admin defines these in Settings → Block reasons (newline-separated).
+router.get('/block-reasons', async (req, res, next) => {
+  try {
+    const raw = (await getSetting('block_reasons')) || '';
+    const reasons = raw.split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    res.json({ ok: true, reasons });
+  } catch (e) { next(e); }
+});
+
+
+// GET /api/settings/block-reasons — public, returns array of reasons
+// the app should show in the post-call block picker.
+router.get('/settings/block-reasons', async (req, res, next) => {
+  try {
+    const raw = (await getSetting('block_reasons')) || '';
+    const reasons = raw.split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    res.json({ ok: true, reasons });
   } catch (e) { next(e); }
 });
 

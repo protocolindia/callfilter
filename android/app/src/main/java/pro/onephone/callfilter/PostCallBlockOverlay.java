@@ -100,10 +100,14 @@ public class PostCallBlockOverlay {
         view.findViewById(R.id.popupDismiss).setOnClickListener(dismiss);
         view.findViewById(R.id.popupSkip).setOnClickListener(dismiss);
         view.findViewById(R.id.popupBlock).setOnClickListener(v -> {
-            RulesManager.getInstance(ctx).addRule(number, Rule.TYPE_PREFIX, Rule.ACTION_REJECT);
-            SyncManager.getInstance(ctx).syncRulesAsync();
-            Toast.makeText(ctx, "✗ Blocked " + number, Toast.LENGTH_SHORT).show();
+            // Dismiss the overlay; the picker activity will do the rule add + record
             dismiss.onClick(v);
+            Intent picker = new Intent(ctx, BlockReasonPickerActivity.class);
+            picker.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            picker.putExtra(BlockReasonPickerActivity.EXTRA_NUMBER, number);
+            picker.putExtra(BlockReasonPickerActivity.EXTRA_BLOCK_NOW, true);
+            try { ctx.startActivity(picker); }
+            catch (Exception e) { Log.e(TAG, "Could not launch reason picker", e); }
         });
 
         try {
@@ -118,11 +122,13 @@ public class PostCallBlockOverlay {
     private static void showNotification(Context ctx, String number) {
         ensureChannel(ctx);
 
-        Intent blockIntent = new Intent(ACTION_BLOCK)
-            .setPackage(ctx.getPackageName())
-            .putExtra(EXTRA_NUMBER, number);
+        Intent blockIntent = new Intent(ctx, BlockReasonPickerActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra(BlockReasonPickerActivity.EXTRA_NUMBER, number)
+            .putExtra(BlockReasonPickerActivity.EXTRA_BLOCK_NOW, true);
         int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-        PendingIntent blockPi = PendingIntent.getBroadcast(ctx, 0, blockIntent, pendingFlags);
+        PendingIntent blockPi = PendingIntent.getActivity(
+            ctx, (int) System.currentTimeMillis(), blockIntent, pendingFlags);
 
         Notification n = new NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)

@@ -215,7 +215,7 @@ router.get('/users/:id/blocked-calls', requireAdmin, async (req, res, next) => {
 
     params.push(limit, offset);
     const calls = await many(
-      `SELECT id, number, rule_type, rule_pattern, rule_action,
+      `SELECT id, number, rule_type, rule_pattern, rule_action, reason,
               blocked_at_ms, blocked_at
          FROM blocked_calls
          ${whereSql}
@@ -276,7 +276,8 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'razorpay_enabled', 'razorpay_mode',
       'razorpay_key_id_test', 'razorpay_secret_test',
       'razorpay_key_id_live', 'razorpay_secret_live',
-      'razorpay_webhook_secret'
+      'razorpay_webhook_secret',
+      'block_reasons'
     ];
     const incoming = req.body || {};
     for (const k of allowed) {

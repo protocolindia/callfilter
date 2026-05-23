@@ -173,6 +173,10 @@ public class PaywallActivity extends AppCompatActivity {
             descView.setAlpha(0.6f);
             priceView.setAlpha(0.6f);
         } else {
+            // "EXTEND SUBSCRIPTION" reads better than "SUBSCRIBE" when the user
+            // already has an active sub (they're adding days, not starting from zero)
+            SubscriptionManager smgr = SubscriptionManager.getInstance(this);
+            subscribe.setText(smgr.isActive() ? "EXTEND SUBSCRIPTION" : "SUBSCRIBE");
             subscribe.setOnClickListener(v -> {
                 selectPlan(row.id);
                 startPurchase(row.id);

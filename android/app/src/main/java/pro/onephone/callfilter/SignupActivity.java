@@ -51,11 +51,21 @@ public class SignupActivity extends AppCompatActivity {
                 if (idx >= 0) countrySpinner.setSelection(idx);
             }
             if (loginMode) {
-                // Existing account — name not needed
+                // Existing account — make this look like "verify your mobile",
+                // NOT a fresh signup. Hide name section + cross-link.
                 TextView title = findViewById(R.id.signupTitle);
-                if (title != null) title.setText("Welcome back");
-                if (nameInput != null) {
-                    nameInput.setHint("Name (optional, leave blank to keep current)");
+                if (title != null) title.setText("Verify your mobile");
+                android.view.View nameLabel = findViewById(R.id.nameLabel);
+                if (nameLabel != null) nameLabel.setVisibility(android.view.View.GONE);
+                if (nameInput != null) nameInput.setVisibility(android.view.View.GONE);
+                // Continue button text
+                if (btnContinue != null) btnContinue.setText("SEND OTP");
+                // Hide the bottom "Already have account? Sign in" link — we're
+                // already on the sign-in path, no need to confuse the user.
+                android.view.View signinLink2 = findViewById(R.id.linkSignin);
+                if (signinLink2 != null) {
+                    android.view.View parent = (android.view.View) signinLink2.getParent();
+                    if (parent != null) parent.setVisibility(android.view.View.GONE);
                 }
             }
         }

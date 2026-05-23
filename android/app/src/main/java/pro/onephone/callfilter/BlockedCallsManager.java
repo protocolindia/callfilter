@@ -27,6 +27,7 @@ public class BlockedCallsManager {
         public String ruleType;
         public String rulePattern;
         public String ruleAction;
+        public String reason;       // user-selected categorization (post-call popup)
         public long blockedAtMs;
         public boolean synced;
     }
@@ -50,6 +51,8 @@ public class BlockedCallsManager {
                 e.ruleType    = o.optString("rule_type", "");
                 e.rulePattern = o.optString("rule_pattern", "");
                 e.ruleAction  = o.optString("rule_action", "reject");
+                e.reason      = o.optString("reason", null);
+                if ("null".equals(e.reason)) e.reason = null;
                 e.blockedAtMs = o.optLong("blocked_at_ms", System.currentTimeMillis());
                 e.synced      = o.optBoolean("synced", false);
                 entries.add(e);
@@ -67,6 +70,7 @@ public class BlockedCallsManager {
                 o.put("rule_type", e.ruleType);
                 o.put("rule_pattern", e.rulePattern);
                 o.put("rule_action", e.ruleAction);
+                if (e.reason != null) o.put("reason", e.reason);
                 o.put("blocked_at_ms", e.blockedAtMs);
                 o.put("synced", e.synced);
                 arr.put(o);
@@ -87,6 +91,35 @@ public class BlockedCallsManager {
         entries.add(0, e);
         while (entries.size() > MAX_ENTRIES) entries.remove(entries.size() - 1);
         save();
+    }
+
+    /** Mark entries with the given client_ids as synced (called after upload success). */
+    public synchronized void markSynced(java.util.List<String> clientIds) {
+        if (clientIds == null || clientIds.isEmpty()) return;
+        java.util.Set<String> set = new java.util.HashSet<>(clientIds);
+        boolean changed = false;
+        for (Entry e : entries) {
+            if (set.contains(e.clientId) && !e.synced) {
+                e.synced = true;
+                changed = true;
+            }
+        }
+        if (changed) save();
+    }
+
+    /** Set the reason on the MOST-RECENT blocked-call entry for this number.
+     *  Used by the post-call popup follow-up dialog. Marks unsynced. */
+    public synchronized boolean setReasonForMostRecent(String number, String reason) {
+        if (number == null) return false;
+        for (Entry e : entries) {
+            if (number.equals(e.number)) {
+                e.reason = reason;
+                e.synced = false;
+                save();
+                return true;
+            }
+        }
+        return false;
     }
 
     public synchronized List<Entry> getEntries() {

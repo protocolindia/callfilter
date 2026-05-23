@@ -1,84 +1,85 @@
-CallFilter v25.13 — Razorpay 100x bug + login + rules sync + dedup
-====================================================================
+CallFilter v25.15 — three follow-up fixes from v25.14 test
+=============================================================
 
-Four bugs reported after v25.12.1:
-
-1. Razorpay showed ₹2900 for a ₹29 plan
-2. Login screen "Could not reach server: user_id required"
-3. Admin-added rules not syncing to app (web 3 rules, app 2 rules)
-4. Need duplicate-rule prevention in both web and app
+ONE-LINE: payment integer error, login flow showing signup screen
+mid-flow, and "SUBSCRIBE" button text when already subscribed.
 
 ============================================================
-FIX 1 — RAZORPAY AMOUNT 100x INFLATION
+FIX 1 — "Payment error: invalid input syntax for type integer: '29.00'"
 ============================================================
 
-Backend was multiplying the stored price by 100 when creating a
-Razorpay order:
+Root cause: in v25.13 I changed amount_paid storage to
+`(orderRow.amount_paise / 100).toFixed(2)` to keep rupees as decimal.
+But subscriptions.amount_paid is declared INTEGER in migration 005.
+Postgres rejected "29.00" — a string with decimals — as not castable
+to integer. Payment verification failed → user saw the error toast.
 
-    const amountPaise = Math.round(parseFloat(plan.offer_price) * 100);
+Fix: store the integer paise value directly.
 
-But since v25.11/v25.12, prices are stored IN PAISE in the DB:
-    Admin enters 29 → Billing.jsx sends 2900 → DB stores 2900
+   Before: amount_paid = (amount_paise / 100).toFixed(2)  → "29.00" ✗
+   After:  amount_paid = amount_paise                     → 2900    ✓
 
-So `plan.offer_price` was already 2900. Multiplying by 100 → 290000
-paise → Razorpay displays ₹2900.
-
-Fix: read the stored value directly.
-
-    const amountPaise = parseInt(plan.offer_price || plan.actual_price, 10);
-
-Now: DB has 2900 → Razorpay receives 2900 paise → displays ₹29. ✓
+UserDetail.jsx accordingly divides by 100 when displaying:
+   Display: ₹{(amount_paid / 100).toFixed(2)}  → ₹29.00
 
 ============================================================
-FIX 2 — LOGIN "Could not reach server: user_id required"
+FIX 2 — Login bouncing through "Sign up" page
 ============================================================
 
-The new LoginActivity (v25.9) calls /api/check-account in mobile-mode
-to ask "does this number have an account?", passing dial_code+mobile.
-But the endpoint always required user_id.
+When a returning user signs in on a new device (or after full logout),
+LoginActivity routes them through SignupActivity (with login_mode=true)
+to send an OTP and let them set a new PIN. Technically correct — we
+need OTP verification before granting access without a local PIN — but
+the screen still LOOKED like a signup form (name field visible, "Block
+unwanted calls" title, "Already have account? Sign in" cross-link).
+User reasonably thought "why is it asking me to sign up again?"
 
-Fix: /api/check-account now accepts EITHER user_id OR (dial_code+mobile).
-If user_id is missing, it looks up by phone number.
+Fix: in login_mode the screen now looks like a verification step:
+   • Title: "Verify your mobile"  (was "Block unwanted calls")
+   • Name input + "YOUR NAME" label HIDDEN
+   • Continue button text: "SEND OTP"  (was "Continue")
+   • Bottom "Already have an account? Sign in" link HIDDEN
+     (you're already in the sign-in flow)
 
-============================================================
-FIX 3 — ADMIN RULES NOT SYNCING TO APP
-============================================================
-
-Two-part bug.
-
-Part A: When admin added a rule via web (POST /admin/users/:id/rules),
-the INSERT didn't include client_id. The app's mergeRulesFromCloud
-uses client_id as the dedup key — rules without it weren't being
-imported.
-
-Fix: admin endpoint now generates a client_id automatically:
-    'admin-' + base36 timestamp + '-' + random suffix
-
-Part B: see Fix 4 below — the app could double-merge if dedup wasn't
-done on (type, pattern) too.
+Mobile field + country picker remain visible & editable in case the
+user prefilled the wrong number.
 
 ============================================================
-FIX 4 — DUPLICATE-RULE PREVENTION (web + app)
+FIX 3 — "SUBSCRIBE" button → "EXTEND SUBSCRIPTION"
 ============================================================
 
-Same (user_id, rule_type, pattern) shouldn't exist twice. Three layers:
+When user already has an active sub, every plan card showed a
+"SUBSCRIBE" button. The page title already said "Extend plan" but the
+button was inconsistent. Fixed:
 
-  Backend /api/rules/add:
-     SELECT ... WHERE user_id=$1 AND rule_type=$2 AND pattern=$3
-     If a row exists with a DIFFERENT client_id → return
-     { ok: true, deduplicated: true, existing_client_id: ... }
-     instead of inserting.
+   No active sub: button reads "SUBSCRIBE"
+   Active sub:    button reads "EXTEND SUBSCRIPTION"
 
-  Backend POST /admin/users/:id/rules:
-     Same SELECT — returns 409 Conflict if duplicate.
-     Admin UI will show "A rule with this type and pattern already exists".
+(Same code path either way — clicking the button creates a Razorpay
+order; the backend already extends from current expiry.)
 
-  Android RulesManager.addRule:
-     Returns boolean. False = duplicate found locally, didn't add.
-     MainActivity shows toast: "⚠ A PREFIX rule for +91XXX already exists".
+============================================================
+NOT IN THIS DROP — POST-CALL POPUP
+============================================================
 
-  Android RulesManager.addRuleWithId (cloud merge path):
-     Skips silently if a same-pattern rule is already local.
+You also mentioned not getting the post-call popup for unknown
+numbers. That was addressed in v25.14 with a CallLog fallback in
+CallStateReceiver. If you've deployed AND rebuilt the APK with v25.14,
+the popup should fire ~1.2s after a call ends from an unknown number.
+
+If you DID deploy v25.14 and the popup still isn't appearing, check:
+
+  [ ] On Android 13+, did you tap ALLOW on the Notifications prompt?
+  [ ] Did you tap "Open Settings → Display over other apps → grant" for
+      CallFilter? (Settings → Apps → CallFilter → Display over other apps)
+  [ ] Is your test number actually unknown? (not in contacts, no
+      matching rule, not your own number) — popup is suppressed otherwise
+
+If all three are yes and you still don't see it, paste me logcat
+filtered to:
+  adb logcat -s CallStateReceiver:V PostCallOverlay:V
+
+I'll diagnose from the log lines.
 
 ============================================================
 FILES TOUCHED
@@ -86,24 +87,21 @@ FILES TOUCHED
 
 BACKEND
   CHG src/api.js
-      • /api/razorpay/create-order — no longer x100 the stored price
-      • /api/check-account — accepts (dial_code+mobile) when no user_id
-      • /api/rules/add — duplicate guard on (user_id, type, pattern)
-      • amount_paid stored as decimal rupees properly
+      verify-payment stores amount_paid as integer paise (not "29.00")
 
-  CHG src/admin.js
-      • POST /admin/users/:id/rules generates client_id
-      • Returns 409 on duplicate (user_id, type, pattern)
+FRONTEND admin
+  CHG pages/UserDetail.jsx
+      amount_paid display divides by 100
 
 ANDROID
-  CHG java/.../RulesManager.java
-      • addRule() returns boolean (false = duplicate, didn't add)
-      • addRuleWithId() silently skips duplicates from cloud
-      • new findDuplicate() helper
-  CHG java/.../MainActivity.java
-      • Shows toast on duplicate-rule attempt
-
-NO migration changes. No frontend changes.
+  CHG res/layout/activity_signup.xml
+      Added id="@+id/nameLabel" to the YOUR NAME TextView
+  CHG java/.../SignupActivity.java
+      login_mode hides name section + cross-link + retitles to
+      "Verify your mobile" with SEND OTP button
+  CHG java/.../PaywallActivity.java
+      Subscribe button text toggles to "EXTEND SUBSCRIPTION" when
+      SubscriptionManager.isActive()
 
 ============================================================
 DEPLOY
@@ -112,38 +110,39 @@ DEPLOY
 cd D:\\callfilter
 git pull origin main
 
-robocopy F:\\app\\CallManager\\callfilter-v25.13-monorepo\\callfilter-monorepo\\android  android  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.13-monorepo\\callfilter-monorepo\\backend  backend  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.13-monorepo\\callfilter-monorepo\\frontend frontend /E
-copy F:\\app\\CallManager\\callfilter-v25.13-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
+robocopy F:\\app\\CallManager\\callfilter-v25.15-monorepo\\callfilter-monorepo\\android  android  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.15-monorepo\\callfilter-monorepo\\backend  backend  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.15-monorepo\\callfilter-monorepo\\frontend frontend /E
+copy F:\\app\\CallManager\\callfilter-v25.15-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
 
 git add .
-git commit -m "v25.13 — razorpay amount fix + login lookup by mobile + rule dedup + admin client_id"
+git commit -m "v25.15 — amount_paid integer fix + login flow refinement + EXTEND SUBSCRIPTION"
 git push origin main
 
-# Rebuild APK in Android Studio (Build → Rebuild Project → Generate APK)
+# Rebuild APK in Android Studio (Build → Rebuild Project → Generate Signed APK)
+
+No new migrations.
 
 ============================================================
 POST-DEPLOY TESTS
 ============================================================
 
-Razorpay amount:
-[ ] In app, tap SUBSCRIBE on the ₹29 plan
-[ ] Razorpay checkout should show ₹29 (not ₹2,900)
-[ ] Complete a test payment — admin Payments page shows ₹29
+[ ] App paywall → SUBSCRIBE button:
+    • No active sub  → button reads "SUBSCRIBE"
+    • Active sub     → button reads "EXTEND SUBSCRIPTION"
 
-Login:
-[ ] Sign out completely
-[ ] LoginActivity → mobile mode → enter your number → CONTINUE
-[ ] Should now route to SignupActivity in login_mode (NOT show
-    "Could not reach server: user_id required")
+[ ] Complete a payment:
+    • Razorpay shows ₹29 (not ₹2900)
+    • After payment NO error toast — sub extends successfully
+    • Admin → Payments page shows the payment row with ₹29
+    • Admin → user → Info tab → "Paid" row shows ₹29.00
 
-Rules sync:
-[ ] Admin → user → Rules tab → click + Add rule (e.g. PREFIX +91143)
-[ ] App: background → foreground → +91143 appears in app
-
-Duplicate prevention:
-[ ] App: try to add PREFIX +91140 when one already exists
-    → toast: "⚠ A PREFIX rule for +91140 already exists"
-[ ] Web: try to add PREFIX +91140 when one already exists
-    → red error banner: "A rule with this type and pattern already exists"
+[ ] Sign out completely → LoginActivity (mobile mode)
+    → Enter your registered mobile + Continue
+    → SignupActivity opens, but now:
+      ✓ Title says "Verify your mobile" (NOT "Block unwanted calls")
+      ✓ NO "YOUR NAME" label
+      ✓ NO name input field
+      ✓ Continue button says "SEND OTP"
+      ✓ NO "Already have an account? Sign in" link at bottom
+    → Enter OTP, set new PIN → MainActivity

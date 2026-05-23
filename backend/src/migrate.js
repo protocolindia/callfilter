@@ -65,7 +65,9 @@ async function migrate() {
     razorpay_secret_test: '',
     razorpay_key_id_live: '',
     razorpay_secret_live: '',
-    razorpay_webhook_secret: ''
+    razorpay_webhook_secret: '',
+    block_reasons: 'Spam call\nCybercrime / fraud\nPhishing\nTelemarketing / promotional\nRobocall / IVR\nPersonal harassment\nOther',
+    block_reasons: 'Spam call\nCybercrime / fraud\nPhishing\nTelemarketing / promotional\nRobocall / IVR\nPersonal harassment\nOther'
   };
   for (const [k, v] of Object.entries(defaults)) {
     await query(

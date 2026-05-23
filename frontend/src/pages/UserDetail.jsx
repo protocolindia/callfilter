@@ -330,7 +330,7 @@ export default function UserDetail() {
               <table>
                 <thead>
                   <tr>
-                    <th>When</th><th>Number</th><th>Matched rule</th><th>Type</th>
+                    <th>When</th><th>Number</th><th>Matched rule</th><th>Type</th><th>Reason</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -346,6 +346,9 @@ export default function UserDetail() {
                           : <span className="muted">—</span>}
                       </td>
                       <td><span className="pill">{c.rule_type || '—'}</span></td>
+                      <td>{c.reason
+                        ? <span className="pill pill-pending">{c.reason}</span>
+                        : <span className="muted">—</span>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -431,7 +434,7 @@ function InfoTab({ user }) {
                 <Row label="Started"  value={fmt(sub.starts_at)} />
                 <Row label="Expires"  value={fmt(sub.expires_at)} />
                 <Row label="Trial?"   value={sub.is_trial ? 'Yes' : 'No'} />
-                <Row label="Paid"     value={sub.amount_paid != null ? `${sub.currency === 'USD' ? '$' : '₹'}${parseFloat(sub.amount_paid).toFixed(2)}` : '—'} />
+                <Row label="Paid"     value={sub.amount_paid != null ? `${sub.currency === 'USD' ? '$' : '₹'}${(parseFloat(sub.amount_paid) / 100).toFixed(2)}` : '—'} />
                 {sub.coupon_code && <Row label="Coupon" value={<code>{sub.coupon_code}</code>} />}
               </tbody>
             </table>

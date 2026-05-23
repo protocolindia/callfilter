@@ -10,40 +10,56 @@ import java.lang.reflect.Method;
 public class CallStateReceiver extends BroadcastReceiver {
     private static final String TAG = "CallStateReceiver";
 
-    @Override
     // Track previous state across broadcasts so we can detect "call ended" transitions
     private static String lastState = TelephonyManager.EXTRA_STATE_IDLE;
     private static String lastNumber = null;
 
+    @Override
     public void onReceive(Context context, Intent intent) {
         String state = intent.getStringExtra(TelephonyManager.EXTRA_STATE);
         String number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
+        Log.d(TAG, "PHONE_STATE event: state=" + state + " number="
+            + (number != null && !number.isEmpty() ? "(present)" : "(missing)"));
 
         // Detect call-ended (RINGING|OFFHOOK -> IDLE) and offer the block popup
         if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
             boolean wasActive = TelephonyManager.EXTRA_STATE_RINGING.equals(lastState)
                             || TelephonyManager.EXTRA_STATE_OFFHOOK.equals(lastState);
             if (wasActive) {
-                // 1. Try the broadcast extra (works on pre-10)
-                String popupNumber = lastNumber;
-                // 2. Fall back to the number stashed by CallBlockerService (post-10)
-                if (popupNumber == null || popupNumber.isEmpty()) {
-                    android.content.SharedPreferences sp = context.getSharedPreferences(
-                        "post_call_state", android.content.Context.MODE_PRIVATE);
-                    long stashTs = sp.getLong("last_number_ts", 0L);
-                    // Only use if stash is recent (within 5 minutes)
-                    if (System.currentTimeMillis() - stashTs < 5L * 60 * 1000L) {
-                        popupNumber = sp.getString("last_number", null);
+                final String captured = lastNumber;  // closure for delayed lookup
+                final Context appCtx = context.getApplicationContext();
+                // Delay briefly to let the CallLog entry get written
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    String popupNumber = captured;
+                    // 1. Try the broadcast extra (works on pre-10)
+                    // 2. Fall back to the SharedPrefs stash from CallBlockerService (post-10,
+                    //    only when we're the call screener)
+                    if (popupNumber == null || popupNumber.isEmpty()) {
+                        android.content.SharedPreferences sp = appCtx.getSharedPreferences(
+                            "post_call_state", android.content.Context.MODE_PRIVATE);
+                        long stashTs = sp.getLong("last_number_ts", 0L);
+                        if (System.currentTimeMillis() - stashTs < 5L * 60 * 1000L) {
+                            popupNumber = sp.getString("last_number", null);
+                        }
+                        sp.edit().remove("last_number").remove("last_number_ts").apply();
                     }
-                    sp.edit().remove("last_number").remove("last_number_ts").apply();
-                }
-                if (popupNumber != null && !popupNumber.isEmpty()) {
-                    Log.d(TAG, "Call ended — offering post-call popup for " + popupNumber);
-                    try { PostCallBlockOverlay.offer(context, popupNumber); }
-                    catch (Exception e) { Log.w(TAG, "post-call overlay failed: " + e); }
-                } else {
-                    Log.d(TAG, "Call ended but no number available for popup");
-                }
+                    // 3. Final fallback: read the latest CallLog entry. Works even when
+                    //    we're NOT the active call screener and Android 10+ stripped the
+                    //    EXTRA_INCOMING_NUMBER from the broadcast.
+                    if (popupNumber == null || popupNumber.isEmpty()) {
+                        popupNumber = readLatestCallLogNumber(appCtx);
+                        if (popupNumber != null && !popupNumber.isEmpty()) {
+                            Log.d(TAG, "Got number from CallLog fallback: " + popupNumber);
+                        }
+                    }
+                    if (popupNumber != null && !popupNumber.isEmpty()) {
+                        Log.d(TAG, "Call ended — offering popup for " + popupNumber);
+                        try { PostCallBlockOverlay.offer(appCtx, popupNumber); }
+                        catch (Exception e) { Log.w(TAG, "post-call overlay failed: " + e); }
+                    } else {
+                        Log.d(TAG, "Call ended but no number available — popup skipped");
+                    }
+                }, 1200L);
             }
             lastState = state;
             lastNumber = null;
@@ -125,6 +141,39 @@ public class CallStateReceiver extends BroadcastReceiver {
                 .recordBlock(number, rType, rPattern, rAction);
             endCall(context);
         }
+    }
+
+    /** Reads the most recent CallLog entry's NUMBER as a last-ditch fallback.
+     *  Requires READ_CALL_LOG (we already have it for the Recent Calls screen). */
+    private static String readLatestCallLogNumber(Context ctx) {
+        try {
+            // Permission check — silently skip if not granted
+            if (androidx.core.content.ContextCompat.checkSelfPermission(ctx,
+                    android.Manifest.permission.READ_CALL_LOG)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                return null;
+            }
+            android.database.Cursor cur = ctx.getContentResolver().query(
+                android.provider.CallLog.Calls.CONTENT_URI,
+                new String[] { android.provider.CallLog.Calls.NUMBER,
+                               android.provider.CallLog.Calls.DATE },
+                null, null,
+                android.provider.CallLog.Calls.DATE + " DESC LIMIT 1");
+            if (cur == null) return null;
+            try {
+                if (cur.moveToFirst()) {
+                    int idx = cur.getColumnIndex(android.provider.CallLog.Calls.NUMBER);
+                    if (idx >= 0) {
+                        String n = cur.getString(idx);
+                        if (n != null) n = n.trim();
+                        return (n == null || n.isEmpty()) ? null : n;
+                    }
+                }
+            } finally { cur.close(); }
+        } catch (Exception e) {
+            Log.w(TAG, "readLatestCallLogNumber failed: " + e.getMessage());
+        }
+        return null;
     }
 
     private void endCall(Context context) {
