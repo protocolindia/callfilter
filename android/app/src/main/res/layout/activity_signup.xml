@@ -40,14 +40,49 @@
         android:textColorHint="@color/muted" android:background="@drawable/input_bg"
         android:paddingStart="12dp" android:paddingEnd="12dp" android:inputType="phone"
         android:layout_marginTop="4dp" android:layout_marginBottom="24dp"/>
+    <!-- Explicit T&C + Privacy consent — must be checked to enable Continue -->
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:layout_marginBottom="16dp" android:paddingStart="2dp">
+        <CheckBox android:id="@+id/cbAcceptTerms"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:checked="false"
+            android:layout_marginEnd="8dp"/>
+        <TextView android:id="@+id/lblAcceptTerms"
+            android:layout_width="0dp" android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="I accept the Terms &amp; Conditions and Privacy Policy"
+            android:textSize="13sp" android:textColor="@color/text"
+            android:clickable="true" android:focusable="true"/>
+    </LinearLayout>
+
     <Button android:id="@+id/btnContinue"
         android:layout_width="match_parent" android:layout_height="52dp"
         android:text="CONTINUE" android:textStyle="bold" android:textSize="14sp"
         android:textColor="@color/white" android:background="@drawable/btn_accent"/>
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="By continuing you agree to our Privacy Policy at onephone.pro/privacy"
-        android:textSize="11sp" android:textColor="@color/muted"
-        android:layout_marginTop="14dp" android:gravity="center"/>
+
+    <LinearLayout
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center"
+        android:layout_marginTop="14dp">
+        <TextView android:id="@+id/linkTerms"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Terms &amp; Conditions"
+            android:textSize="12sp" android:textColor="@color/accent"
+            android:clickable="true" android:focusable="true"
+            android:padding="4dp"/>
+        <TextView
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text=" · "
+            android:textSize="12sp" android:textColor="@color/muted"/>
+        <TextView android:id="@+id/linkPrivacy"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Privacy Policy"
+            android:textSize="12sp" android:textColor="@color/accent"
+            android:clickable="true" android:focusable="true"
+            android:padding="4dp"/>
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent" android:layout_height="wrap_content"

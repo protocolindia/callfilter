@@ -1,26 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:padding="24dp"
-    android:background="@color/bg" android:gravity="center">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="🛡️" android:textSize="60sp" android:layout_marginBottom="16dp"/>
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="Permissions needed" android:textSize="22sp" android:textStyle="bold"
-        android:textColor="@color/text" android:gravity="center"
-        android:layout_marginBottom="12dp"/>
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="Call Filter needs phone access to detect incoming calls and contact access to support contacts-only mode. We never share your data."
-        android:textSize="14sp" android:textColor="@color/subtext"
-        android:gravity="center" android:layout_marginBottom="40dp"/>
-    <Button android:id="@+id/btnPermsContinue"
-        android:layout_width="match_parent" android:layout_height="52dp"
-        android:text="CONTINUE" android:textStyle="bold" android:textSize="14sp"
-        android:textColor="@color/white" android:background="@drawable/btn_accent"/>
-    <Button android:id="@+id/btnPermsSkip"
-        android:layout_width="match_parent" android:layout_height="44dp"
-        android:text="Skip for now" android:textSize="13sp"
-        android:textColor="@color/subtext"
-        android:background="@android:color/transparent"
-        android:layout_marginTop="8dp"/>
-</LinearLayout>
+    android:background="@color/bg" android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="24dp">
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="🛡️ Permissions" android:textSize="24sp" android:textStyle="bold"
+            android:textColor="@color/text" android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="CallFilter needs these permissions to detect, evaluate, and block unwanted calls. All processing happens on your device."
+            android:textSize="13sp" android:textColor="@color/subtext"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Status list — each row populated by activity at runtime -->
+        <LinearLayout android:id="@+id/permsList"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="24dp"/>
+
+        <Button android:id="@+id/btnPermsContinue"
+            android:layout_width="match_parent" android:layout_height="52dp"
+            android:text="GRANT ALL" android:textStyle="bold" android:textSize="14sp"
+            android:textColor="@color/white" android:background="@drawable/btn_accent"/>
+
+        <!-- Help text shown after first deny -->
+        <TextView android:id="@+id/permsDenyHelp"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="12sp" android:textColor="@color/reject"
+            android:gravity="center"
+            android:layout_marginTop="16dp"
+            android:visibility="gone"/>
+
+        <!-- Settings shortcut for "permanently denied" scenario -->
+        <Button android:id="@+id/btnPermsSettings"
+            android:layout_width="match_parent" android:layout_height="44dp"
+            android:text="Open App Settings"
+            android:textSize="13sp" android:textColor="@color/accent"
+            android:background="@android:color/transparent"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"/>
+    </LinearLayout>
+</ScrollView>

@@ -12,6 +12,7 @@ import Payments from './pages/Payments.jsx';
 import BlockReasons from './pages/BlockReasons.jsx';
 import UserDetail from './pages/UserDetail.jsx';
 import Terms from './pages/Terms.jsx';
+import Privacy from './pages/Privacy.jsx';
 import { AuthProvider, useAuth } from './auth.jsx';
 import './style.css';
 
@@ -26,6 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route element={<Protected><App /></Protected>}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />

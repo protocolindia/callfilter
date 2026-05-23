@@ -83,9 +83,9 @@ public class ProfileActivity extends AppCompatActivity {
                 .setPositiveButton("Lock", (d, w) -> {
                     AuthManager.getInstance(ProfileActivity.this).lock();
                     Intent i = new Intent(ProfileActivity.this, LoginActivity.class);
-                    i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                     startActivity(i);
-                    finish();
+                    finishAffinity();
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
@@ -114,9 +114,11 @@ public class ProfileActivity extends AppCompatActivity {
                 .setPositiveButton("Sign out", (d, w) -> {
                     AuthManager.getInstance(ProfileActivity.this).logout();
                     Intent i = new Intent(ProfileActivity.this, LoginActivity.class);
-                    i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    // NEW_TASK + CLEAR_TASK wipes the entire back stack so the user
+                    // can't swipe-back from Login to Profile after signing out.
+                    i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                     startActivity(i);
-                    finish();
+                    finishAffinity();
                 })
                 .setNegativeButton("Cancel", null)
                 .show();

@@ -231,11 +231,15 @@ public class RecentCallsActivity extends AppCompatActivity {
             .setMessage("Add a REJECT rule for " + label + "?\n\n"
                 + "Future calls from this number will be silently rejected.")
             .setPositiveButton("Block", (d, w) -> {
+                // Route through BlockReasonPickerActivity — it'll add the rule
+                // (blockNow=true), record the block, then prompt for a reason.
                 String norm = g.number.startsWith("+") ? g.number : g.number;
-                RulesManager.getInstance(this).addRule(
-                    norm, Rule.TYPE_PREFIX, Rule.ACTION_REJECT);
+                android.content.Intent picker = new android.content.Intent(this,
+                    BlockReasonPickerActivity.class);
+                picker.putExtra(BlockReasonPickerActivity.EXTRA_NUMBER, norm);
+                picker.putExtra(BlockReasonPickerActivity.EXTRA_BLOCK_NOW, true);
+                startActivity(picker);
                 SyncManager.getInstance(this).syncRulesAsync();
-                Toast.makeText(this, "\u2717 Blocked " + g.number, Toast.LENGTH_SHORT).show();
                 renderList();  // refresh to show "BLOCKED" state
             })
             .setNegativeButton("Cancel", null)

@@ -110,11 +110,10 @@ public class LoginActivity extends AppCompatActivity {
                     + "settings on this device will be cleared. Cloud data is safe.")
                 .setPositiveButton("Sign out", (d, w) -> {
                     AuthManager.getInstance(this).logout();
-                    // Restart in mobile-entry mode
                     Intent i = new Intent(this, LoginActivity.class);
-                    i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                     startActivity(i);
-                    finish();
+                    finishAffinity();
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
@@ -126,7 +125,7 @@ public class LoginActivity extends AppCompatActivity {
         String pin = pinInput.getText().toString();
         if (auth.checkPin(pin)) {
             auth.markLoggedIn();
-            startActivity(new Intent(this, MainActivity.class));
+            startActivity(new Intent(this, PermissionsActivity.class));
             finish();
         } else {
             Toast.makeText(this, "Incorrect PIN", Toast.LENGTH_SHORT).show();
