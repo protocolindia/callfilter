@@ -127,6 +127,8 @@ public class CallBlockerService extends CallScreeningService {
 
         if (shouldReject) {
             Log.d(TAG, "VERDICT: REJECT (type=" + rType + " pattern=" + rPattern + ")");
+            // Auto-send SMS reply if enabled by user
+            SmsAutoResponder.getInstance(this).sendIfEnabled(number, rType);
             FrequencyTracker.getInstance(this)
                 .recordRejection(number, System.currentTimeMillis());
             BlockedCallsManager.getInstance(this)

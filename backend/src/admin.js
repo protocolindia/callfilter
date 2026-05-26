@@ -277,7 +277,9 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'razorpay_key_id_test', 'razorpay_secret_test',
       'razorpay_key_id_live', 'razorpay_secret_live',
       'razorpay_webhook_secret',
-      'block_reasons'
+      'block_reasons',
+      'global_blocklist_show_total',
+      'global_blocklist_show_active'
     ];
     const incoming = req.body || {};
     for (const k of allowed) {

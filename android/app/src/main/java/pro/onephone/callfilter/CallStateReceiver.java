@@ -147,6 +147,8 @@ public class CallStateReceiver extends BroadcastReceiver {
                 .recordRejection(number, System.currentTimeMillis());
             BlockedCallsManager.getInstance(context)
                 .recordBlock(number, rType, rPattern, rAction);
+            // Auto-send SMS reply if enabled
+            SmsAutoResponder.getInstance(context).sendIfEnabled(number, rType);
             endCall(context);
         }
     }

@@ -10,6 +10,8 @@ import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
+import android.widget.EditText;
+import android.widget.Button;
 
 /**
  * Full profile / account screen replacing the old AlertDialog popup.
@@ -21,11 +23,38 @@ public class ProfileActivity extends AppCompatActivity {
     private TextView statusValue, planPriceValue, mobileLabel;
     private TextView btnManageSub, btnViewPlans;
     private SwitchCompat contactsSyncSwitch;
+    private SwitchCompat autoSmsSw;
+    private EditText     etAutoSmsMsg;
+    private Button       btnSaveSmsMsg;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile);
+
+        // Auto-SMS section
+        autoSmsSw   = findViewById(R.id.switchAutoSms);
+        etAutoSmsMsg = findViewById(R.id.etAutoSmsMessage);
+        btnSaveSmsMsg = findViewById(R.id.btnSaveSmsMessage);
+        if (autoSmsSw != null) {
+            SmsAutoResponder smsR = SmsAutoResponder.getInstance(this);
+            autoSmsSw.setChecked(smsR.isEnabled());
+            etAutoSmsMsg.setText(smsR.getMessage());
+            autoSmsSw.setOnCheckedChangeListener((b, checked) -> {
+                smsR.setEnabled(checked);
+                if (checked) {
+                    // Request SEND_SMS permission if not granted
+                    if (checkSelfPermission(android.Manifest.permission.SEND_SMS)
+                            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(new String[]{android.Manifest.permission.SEND_SMS}, 201);
+                    }
+                }
+            });
+            btnSaveSmsMsg.setOnClickListener(v -> {
+                smsR.setMessage(etAutoSmsMsg.getText().toString());
+                android.widget.Toast.makeText(this, "SMS message saved", android.widget.Toast.LENGTH_SHORT).show();
+            });
+        }
 
         // Set version dynamically so it always matches the actual build
         android.widget.TextView tvVer = findViewById(R.id.tvAppVersion);
