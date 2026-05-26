@@ -56,13 +56,17 @@ public class SmsAutoResponder {
     // ── Send ─────────────────────────────────────────────────────────────
 
     /**
-     * Send an auto-reply SMS to the given number if auto-reply is enabled.
-     * Runs on a background thread — safe to call from any thread.
+     * Send an auto-reply SMS ONLY when a call is blocked by "Block All Now"
+     * (the temporary instant block). NOT sent for rules, global list, schedules,
+     * or contacts-only blocks — only for the user's deliberate temporary block.
+     *
      * @param number  The caller's number (e.g. "+919876543210")
-     * @param reason  Why the call was blocked (shown in log only, not the SMS)
+     * @param rType   The block reason type (only "block_all" triggers SMS)
      */
-    public void sendIfEnabled(final String number, final String reason) {
+    public void sendIfEnabled(final String number, final String rType) {
         if (!isEnabled()) return;
+        // Only send for temporary "Block All Now" blocks
+        if (!"block_all".equals(rType)) return;
         if (number == null || number.isEmpty()) return;
         // Don't SMS private/unknown numbers
         if (number.equalsIgnoreCase("Unknown") || number.equalsIgnoreCase("Private")) return;
