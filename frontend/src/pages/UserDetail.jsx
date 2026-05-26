@@ -21,6 +21,7 @@ export default function UserDetail() {
 
   // Schedules + block-all state
   const [schedules, setSchedules] = useState([]);
+  const [globalReasons, setGlobalReasons] = useState(null);
   const [blockAll, setBlockAll] = useState(null);
 
   // Blocked calls state
@@ -157,6 +158,9 @@ export default function UserDetail() {
         </button>
         <button className={`tab-btn ${tab === 'blockall' ? 'tab-active' : ''}`} onClick={() => setTab('blockall')}>
           🛑 Block All
+        </button>
+        <button className={`tab-btn ${tab === 'global' ? 'tab-active' : ''}`} onClick={() => setTab('global')}>
+          🌐 Global
         </button>
       </div>
 
@@ -311,6 +315,36 @@ export default function UserDetail() {
             </div>
           )}
         </section>
+      )}
+
+      {tab === 'global' && (
+        <div style={{ padding: 8 }}>
+          <h3 style={{ margin: '0 0 16px', color: 'var(--text)' }}>🌐 Global Blocklist Settings</h3>
+          {globalReasons === null ? (
+            <p className="muted">Loading…</p>
+          ) : globalReasons.length === 0 ? (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--subtext)', background: 'var(--surface)', borderRadius: 8 }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🌐</div>
+              <div>No reason categories enabled.</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>User has not enabled any global blocklist categories in the app.</div>
+            </div>
+          ) : (
+            <div>
+              <p style={{ color: 'var(--subtext)', fontSize: 14, marginBottom: 16 }}>
+                {globalReasons.length} reason categor{globalReasons.length === 1 ? 'y' : 'ies'} enabled — calls matching numbers in these categories are blocked.
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {globalReasons.map(r => (
+                  <span key={r} style={{
+                    background: 'rgba(239,68,68,0.15)', color: '#ef4444',
+                    borderRadius: 20, padding: '6px 14px', fontSize: 13, fontWeight: 600,
+                    border: '1px solid rgba(239,68,68,0.3)'
+                  }}>🌐 {r}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {tab === 'blocked' && (

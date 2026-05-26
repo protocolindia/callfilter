@@ -362,18 +362,23 @@ public class MainActivity extends AppCompatActivity {
             int totalG  = glm.getTotalEntries();
             int activeG = glm.getEnabledEntryCount();
             int reasonG = glm.getEnabledReasons().size();
-            if (totalG == 0) {
+            // Badge = ON if ANY reason is enabled (even before numbers are synced)
+            if (reasonG > 0) {
+                if (totalG == 0) {
+                    globalBlocklistSummary.setText(reasonG + " reason" + (reasonG==1?"":"s") + " enabled — sync to download numbers");
+                } else {
+                    globalBlocklistSummary.setText(activeG + " blocking · " + reasonG + " reason" + (reasonG==1?"":"s") + " enabled");
+                }
+                globalBlocklistBadge.setText("ON");
+                globalBlocklistBadge.setTextColor(getResources().getColor(R.color.reject, null));
+            } else if (totalG == 0) {
                 globalBlocklistSummary.setText("Not synced — tap to set up");
                 globalBlocklistBadge.setText("OFF");
                 globalBlocklistBadge.setTextColor(getResources().getColor(R.color.subtext, null));
-            } else if (activeG == 0) {
+            } else {
                 globalBlocklistSummary.setText(totalG + " numbers available — none enabled");
                 globalBlocklistBadge.setText("OFF");
                 globalBlocklistBadge.setTextColor(getResources().getColor(R.color.subtext, null));
-            } else {
-                globalBlocklistSummary.setText(activeG + " blocking · " + reasonG + " reason" + (reasonG==1?"":"s") + " enabled");
-                globalBlocklistBadge.setText("ON");
-                globalBlocklistBadge.setTextColor(getResources().getColor(R.color.reject, null));
             }
         }
 
@@ -566,6 +571,8 @@ public class MainActivity extends AppCompatActivity {
         ScheduleManager.getInstance(this).pullFromCloud();
         // Sync global blocklist in background
         SyncManager.getInstance(this).syncGlobalBlocklistAsync();
+        // Pull per-user enabled reasons (restores settings after logout/reinstall)
+        GlobalBlocklistManager.getInstance(this).pullEnabledReasonsAsync();
         // Refresh the UI after merge completes (HTTP async)
         banner_handler.postDelayed(() -> refreshUI(), 1_500L);
         refreshBlockAllUI();

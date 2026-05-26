@@ -853,4 +853,18 @@ router.post('/global-blocklist/import', requireAdmin, async (req, res, next) => 
   } catch (e) { next(e); }
 });
 
+
+// GET /admin/users/:id/global-config — user's global blocklist enabled reasons
+router.get('/users/:id/global-config', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const row = await one('SELECT global_enabled_reasons FROM users WHERE id = $1', [id]);
+    if (!row) return res.status(404).json({ error: 'not found' });
+    let reasons = [];
+    try { reasons = row.global_enabled_reasons ? JSON.parse(row.global_enabled_reasons) : []; }
+    catch { reasons = []; }
+    res.json({ ok: true, enabled_reasons: reasons });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

@@ -81,6 +81,52 @@ public class GlobalBlocklistManager {
     public synchronized void setReasonEnabled(String reason, boolean enabled) {
         if (enabled) enabledReasons.add(reason); else enabledReasons.remove(reason);
         saveEnabledReasons();
+        // Sync to server so settings survive logout/reinstall
+        pushEnabledReasonsAsync();
+    }
+
+    /** Push current enabled reasons to server for this user. */
+    public void pushEnabledReasonsAsync() {
+        AuthManager auth = AuthManager.getInstance(ctx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray();
+            synchronized (this) {
+                for (String r : enabledReasons) arr.put(r);
+            }
+            org.json.JSONObject body = new org.json.JSONObject();
+            body.put("user_id", Long.parseLong(auth.getUserId()));
+            body.put("enabled_reasons", arr);
+            BackendClient.post(AuthManager.BACKEND_URL + "/api/global-blocklist/user-config",
+                body, new BackendClient.Callback() {
+                    public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                        Log.d(TAG, "Push enabled reasons: ok=" + ok);
+                    }
+                });
+        } catch (Exception e) { Log.w(TAG, "pushEnabledReasonsAsync: " + e); }
+    }
+
+    /** Pull enabled reasons from server — called after login to restore settings. */
+    public void pullEnabledReasonsAsync() {
+        AuthManager auth = AuthManager.getInstance(ctx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        String url = AuthManager.BACKEND_URL + "/api/global-blocklist/user-config?user_id=" + auth.getUserId();
+        BackendClient.get(url, new BackendClient.Callback() {
+            public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                if (!ok || resp == null) return;
+                org.json.JSONArray arr = resp.optJSONArray("enabled_reasons");
+                if (arr == null) return;
+                synchronized (GlobalBlocklistManager.this) {
+                    enabledReasons.clear();
+                    for (int i = 0; i < arr.length(); i++) {
+                        String r = arr.optString(i, "").trim();
+                        if (!r.isEmpty()) enabledReasons.add(r);
+                    }
+                    saveEnabledReasons();
+                }
+                Log.d(TAG, "Pulled " + arr.length() + " enabled reasons from server");
+            }
+        });
     }
 
     public synchronized boolean isReasonEnabled(String reason) { return enabledReasons.contains(reason); }
@@ -163,8 +209,12 @@ public class GlobalBlocklistManager {
             });
     }
 
+    /** Called on account reset — clears downloaded data but KEEPS enabled reasons
+     *  (they'll be re-pulled from server after the user logs back in). */
     public void clear() {
-        synchronized (this) { entries.clear(); enabledReasons.clear(); }
-        prefs.edit().remove(KEY_ENTRIES).remove(KEY_ENABLED_REASONS).remove(KEY_LAST_SYNC).commit();
+        synchronized (this) { entries.clear(); }
+        prefs.edit().remove(KEY_ENTRIES).remove(KEY_LAST_SYNC).commit();
+        // Note: KEY_ENABLED_REASONS is intentionally kept so user preferences
+        // survive a logout. pullEnabledReasonsAsync() will refresh from server on login.
     }
 }

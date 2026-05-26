@@ -1158,3 +1158,32 @@ router.get('/global-blocklist/config', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── PER-USER GLOBAL BLOCKLIST CONFIG ─────────────────────────────────
+// POST /api/global-blocklist/user-config  — save user's enabled reasons
+router.post('/global-blocklist/user-config', async (req, res, next) => {
+  try {
+    const { user_id, enabled_reasons } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    const reasons = Array.isArray(enabled_reasons) ? enabled_reasons : [];
+    await query(
+      'UPDATE users SET global_enabled_reasons = $1 WHERE id = $2',
+      [JSON.stringify(reasons), parseInt(user_id, 10)]
+    );
+    res.json({ ok: true, saved: reasons.length });
+  } catch (e) { next(e); }
+});
+
+// GET /api/global-blocklist/user-config?user_id=N — fetch user's enabled reasons
+router.get('/global-blocklist/user-config', async (req, res, next) => {
+  try {
+    const user_id = parseInt(req.query.user_id, 10);
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    const row = await one('SELECT global_enabled_reasons FROM users WHERE id = $1', [user_id]);
+    if (!row) return res.status(404).json({ error: 'user not found' });
+    let reasons = [];
+    try { reasons = row.global_enabled_reasons ? JSON.parse(row.global_enabled_reasons) : []; }
+    catch { reasons = []; }
+    res.json({ ok: true, enabled_reasons: reasons });
+  } catch (e) { next(e); }
+});
+

@@ -263,11 +263,11 @@ export default function Settings() {
               </div>
               <label style={{ display:'flex', alignItems:'center', cursor:'pointer', gap:8 }}>
                 <input type="checkbox"
-                  checked={settings.global_blocklist_show_total !== 'false'}
+                  checked={(settings.global_blocklist_show_total ?? 'true') === 'true'}
                   onChange={e => update('global_blocklist_show_total', e.target.checked ? 'true' : 'false')}
                   style={{ width:18, height:18 }}/>
                 <span style={{ fontSize:13, color:'var(--text)' }}>
-                  {settings.global_blocklist_show_total !== 'false' ? 'Visible' : 'Hidden'}
+                  {(settings.global_blocklist_show_total ?? 'true') === 'true' ? 'Visible' : 'Hidden'}
                 </span>
               </label>
             </div>
@@ -281,11 +281,11 @@ export default function Settings() {
               </div>
               <label style={{ display:'flex', alignItems:'center', cursor:'pointer', gap:8 }}>
                 <input type="checkbox"
-                  checked={settings.global_blocklist_show_active !== 'false'}
+                  checked={(settings.global_blocklist_show_active ?? 'true') === 'true'}
                   onChange={e => update('global_blocklist_show_active', e.target.checked ? 'true' : 'false')}
                   style={{ width:18, height:18 }}/>
                 <span style={{ fontSize:13, color:'var(--text)' }}>
-                  {settings.global_blocklist_show_active !== 'false' ? 'Visible' : 'Hidden'}
+                  {(settings.global_blocklist_show_active ?? 'true') === 'true' ? 'Visible' : 'Hidden'}
                 </span>
               </label>
             </div>
