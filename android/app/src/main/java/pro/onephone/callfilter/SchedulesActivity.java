@@ -7,6 +7,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import java.util.List;
 
 public class SchedulesActivity extends AppCompatActivity {
@@ -61,7 +62,7 @@ public class SchedulesActivity extends AppCompatActivity {
             TextView statusView = tile.findViewById(R.id.scheduleStatus);
             TextView freqView   = tile.findViewById(R.id.scheduleFreq);
             View     freqRow    = tile.findViewById(R.id.scheduleFreqRow);
-            Switch enableSwitch = tile.findViewById(R.id.scheduleSwitch);
+            SwitchCompat enableSwitch = tile.findViewById(R.id.scheduleSwitch);
 
             nameView.setText(s.name.isEmpty() ? "Untitled" : s.name);
             windowView.setText(s.formatWindow());

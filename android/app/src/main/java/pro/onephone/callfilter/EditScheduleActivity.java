@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import java.util.ArrayList;
 
 public class EditScheduleActivity extends AppCompatActivity {
@@ -19,11 +20,11 @@ public class EditScheduleActivity extends AppCompatActivity {
     private EditText nameInput;
     private TextView startTimeView, endTimeView, daysSummary, allowSummary;
     private ToggleButton[] dayButtons = new ToggleButton[7];
-    private Switch enabledSwitch;
+    private SwitchCompat enabledSwitch;
     private TextView title;
 
     // Frequency-bypass section
-    private Switch freqSwitch;
+    private SwitchCompat freqSwitch;
     private View freqDetailsRow;
     private EditText freqCountInput;
     private EditText freqWindowInput;

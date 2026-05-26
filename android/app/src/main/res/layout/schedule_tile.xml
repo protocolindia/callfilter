@@ -20,7 +20,7 @@
                 android:paddingTop="2dp" android:paddingBottom="2dp"
                 android:layout_marginTop="4dp" android:visibility="gone"/>
         </LinearLayout>
-        <Switch android:id="@+id/scheduleSwitch"
+        <androidx.appcompat.widget.SwitchCompat android:id="@+id/scheduleSwitch"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:thumbTint="@color/text" android:trackTint="@color/accent"/>
     </LinearLayout>

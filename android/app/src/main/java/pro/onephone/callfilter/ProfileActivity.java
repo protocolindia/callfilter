@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 
 /**
  * Full profile / account screen replacing the old AlertDialog popup.
@@ -19,7 +20,7 @@ public class ProfileActivity extends AppCompatActivity {
 
     private TextView statusValue, planPriceValue, mobileLabel;
     private TextView btnManageSub, btnViewPlans;
-    private Switch contactsSyncSwitch;
+    private SwitchCompat contactsSyncSwitch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,7 +93,7 @@ public class ProfileActivity extends AppCompatActivity {
         });
 
         // ----- Auto-lock toggle -----
-        android.widget.Switch autoSw = findViewById(R.id.autoLockSwitch);
+        SwitchCompat autoSw = findViewById(R.id.autoLockSwitch);
         android.widget.TextView autoSum = findViewById(R.id.autoLockSummary);
         android.content.SharedPreferences uiPrefs =
             getSharedPreferences("ui_prefs", MODE_PRIVATE);
