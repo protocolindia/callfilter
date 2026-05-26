@@ -692,7 +692,6 @@ router.post('/users/:id/activate', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-
 // ============================================================
 // GLOBAL BLOCKLIST — admin CRUD
 // ============================================================

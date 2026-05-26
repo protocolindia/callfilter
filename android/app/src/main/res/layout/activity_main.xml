@@ -353,62 +353,34 @@
             <!-- Global Blocklist tile -->
             <LinearLayout
                 android:id="@+id/cardGlobalBlocklist"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="@drawable/card_bg"
-                android:padding="16dp"
-                android:layout_marginTop="12dp"
-                android:clickable="true"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:background="@drawable/card_bg" android:padding="16dp"
+                android:layout_marginTop="12dp" android:clickable="true"
                 android:focusable="true"
                 android:foreground="?android:attr/selectableItemBackground">
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
+                <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                    android:layout_height="wrap_content" android:orientation="vertical">
+                    <LinearLayout android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:orientation="horizontal"
                         android:gravity="center_vertical">
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="&#x1F310;"
-                            android:textSize="18sp"
-                            android:layout_marginEnd="8dp"/>
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Global Blocklist"
-                            android:textSize="14sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/text"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="&#x1F310;" android:textSize="18sp" android:layout_marginEnd="8dp"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Global Blocklist" android:textSize="14sp"
+                            android:textStyle="bold" android:textColor="@color/text"/>
                     </LinearLayout>
-                    <TextView
-                        android:id="@+id/globalBlocklistSummary"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Tap to configure"
-                        android:textSize="12sp"
-                        android:textColor="@color/subtext"
-                        android:layout_marginTop="2dp"/>
+                    <TextView android:id="@+id/globalBlocklistSummary"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Tap to configure" android:textSize="12sp"
+                        android:textColor="@color/subtext" android:layout_marginTop="2dp"/>
                 </LinearLayout>
-                <TextView
-                    android:id="@+id/globalBlocklistBadge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="OFF"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/subtext"
-                    android:background="@drawable/badge_type"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:paddingTop="3dp"
-                    android:paddingBottom="3dp"/>
+                <TextView android:id="@+id/globalBlocklistBadge"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="OFF" android:textSize="11sp" android:textStyle="bold"
+                    android:textColor="@color/subtext" android:background="@drawable/badge_type"
+                    android:paddingStart="8dp" android:paddingEnd="8dp"
+                    android:paddingTop="3dp" android:paddingBottom="3dp"/>
             </LinearLayout>
 
             <!-- Add new rule card -->

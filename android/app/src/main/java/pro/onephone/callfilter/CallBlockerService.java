@@ -100,15 +100,12 @@ public class CallBlockerService extends CallScreeningService {
             rType = "schedule"; rPattern = activeSchedule.name;
         }
 
-        // 6. Global blocklist — admin-curated numbers blocked by reason category
+        // 6. Global blocklist
         if (!shouldReject) {
-            String globalReason = GlobalBlocklistManager.getInstance(this)
-                .isNumberBlocked(number);
+            String globalReason = GlobalBlocklistManager.getInstance(this).isNumberBlocked(number);
             if (globalReason != null) {
-                shouldReject = true;
-                rType    = "global_list";
-                rPattern = globalReason;
-                Log.d(TAG, "GLOBAL BLOCKLIST matched: reason=" + globalReason);
+                shouldReject = true; rType = "global_list"; rPattern = globalReason;
+                Log.d(TAG, "GLOBAL BLOCKLIST matched: " + globalReason);
             }
         }
 

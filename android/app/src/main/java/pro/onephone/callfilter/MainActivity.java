@@ -115,13 +115,12 @@ public class MainActivity extends AppCompatActivity {
         blockAllBanner       = findViewById(R.id.blockAllBanner);
         blockAllStatus       = findViewById(R.id.blockAllStatus);
         btnStopBlockAll      = findViewById(R.id.btnStopBlockAll);
-        cardSchedules    = findViewById(R.id.cardSchedules);
-        schedulesSummary = findViewById(R.id.schedulesSummary);
-        schedulesBadge   = findViewById(R.id.schedulesActiveBadge);
-
-        cardGlobalBlocklist    = findViewById(R.id.cardGlobalBlocklist);
+        cardSchedules        = findViewById(R.id.cardSchedules);
+        cardGlobalBlocklist  = findViewById(R.id.cardGlobalBlocklist);
         globalBlocklistSummary = findViewById(R.id.globalBlocklistSummary);
         globalBlocklistBadge   = findViewById(R.id.globalBlocklistBadge);
+        schedulesSummary = findViewById(R.id.schedulesSummary);
+        schedulesBadge   = findViewById(R.id.schedulesActiveBadge);
     }
 
     private void setupCountrySpinner() {
@@ -360,9 +359,9 @@ public class MainActivity extends AppCompatActivity {
         // Global Blocklist tile
         if (globalBlocklistSummary != null && globalBlocklistBadge != null) {
             GlobalBlocklistManager glm = GlobalBlocklistManager.getInstance(this);
-            int totalG   = glm.getTotalEntries();
-            int activeG  = glm.getEnabledEntryCount();
-            int reasonsG = glm.getEnabledReasons().size();
+            int totalG  = glm.getTotalEntries();
+            int activeG = glm.getEnabledEntryCount();
+            int reasonG = glm.getEnabledReasons().size();
             if (totalG == 0) {
                 globalBlocklistSummary.setText("Not synced — tap to set up");
                 globalBlocklistBadge.setText("OFF");
@@ -372,7 +371,7 @@ public class MainActivity extends AppCompatActivity {
                 globalBlocklistBadge.setText("OFF");
                 globalBlocklistBadge.setTextColor(getResources().getColor(R.color.subtext, null));
             } else {
-                globalBlocklistSummary.setText(activeG + " numbers blocking · " + reasonsG + " reason" + (reasonsG == 1 ? "" : "s") + " enabled");
+                globalBlocklistSummary.setText(activeG + " blocking · " + reasonG + " reason" + (reasonG==1?"":"s") + " enabled");
                 globalBlocklistBadge.setText("ON");
                 globalBlocklistBadge.setTextColor(getResources().getColor(R.color.reject, null));
             }
@@ -563,13 +562,12 @@ public class MainActivity extends AppCompatActivity {
         });
         // Merge cloud-only rules into local (handles admin-added rules)
         SyncManager.getInstance(this).mergeRulesFromCloud();
-        // Pull schedules from cloud — always replace so admin-added schedules arrive
+        // Pull schedules from cloud on every resume (picks up admin-added schedules)
         ScheduleManager.getInstance(this).pullFromCloud();
+        // Sync global blocklist in background
+        SyncManager.getInstance(this).syncGlobalBlocklistAsync();
         // Refresh the UI after merge completes (HTTP async)
         banner_handler.postDelayed(() -> refreshUI(), 1_500L);
-
-        // Sync global blocklist in background on every launch
-        SyncManager.getInstance(this).syncGlobalBlocklistAsync();
         refreshBlockAllUI();
         banner_handler.postDelayed(banner_tick, 30_000L);
         maybePromptOverlayPermission();

@@ -242,7 +242,6 @@ public class AuthManager {
         if (ctx != null) {
             ctx.getSharedPreferences("CallFilterRules", Context.MODE_PRIVATE).edit().clear().commit();
             ctx.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE).edit().clear().commit();
-        // Clear global blocklist enabled-reasons (but keep the list itself — it's server data)
         GlobalBlocklistManager.getInstance(ctx).clear();
             ctx.getSharedPreferences("blocked_calls", Context.MODE_PRIVATE).edit().clear().commit();
             ctx.getSharedPreferences("subscription", Context.MODE_PRIVATE).edit().clear().commit();

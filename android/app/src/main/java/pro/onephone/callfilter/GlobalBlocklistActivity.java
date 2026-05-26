@@ -8,25 +8,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import java.util.*;
 
-/**
- * Global Blocklist management screen.
- *
- * Shows each reason category as a card with:
- *  - Number count in that category
- *  - Toggle switch to enable/disable blocking for that reason
- *
- * When a reason is enabled, every number in the global list tagged
- * with that reason will be blocked (in addition to the user's own rules).
- *
- * A "Sync now" button fetches the latest list from the server.
- */
 public class GlobalBlocklistActivity extends AppCompatActivity {
 
     private LinearLayout reasonsContainer;
-    private TextView     tvLastSync, tvTotalEntries, tvActiveCount;
-    private Button       btnSync;
-    private ImageButton  btnBack;
-    private TextView     emptyView;
+    private TextView tvLastSync, tvTotalEntries, tvActiveCount, emptyView;
+    private Button btnSync;
+    private ImageButton btnBack;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,72 +32,51 @@ public class GlobalBlocklistActivity extends AppCompatActivity {
 
         btnSync.setOnClickListener(v -> {
             btnSync.setEnabled(false);
-            btnSync.setText("Syncing…");
-            GlobalBlocklistManager.getInstance(this).syncAsync((ok, count, err) -> {
+            btnSync.setText("Syncing...");
+            GlobalBlocklistManager.getInstance(this).syncAsync((ok, count, err) ->
                 runOnUiThread(() -> {
                     btnSync.setEnabled(true);
-                    btnSync.setText("🔄 Sync Now");
-                    if (ok) {
-                        Toast.makeText(this,
-                            "✓ Synced " + count + " entries from server",
-                            Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(this,
-                            "Sync failed: " + (err != null ? err : "unknown error"),
-                            Toast.LENGTH_LONG).show();
-                    }
+                    btnSync.setText("Sync Now");
+                    Toast.makeText(this,
+                        ok ? "Synced " + count + " entries" : "Sync failed: " + err,
+                        Toast.LENGTH_SHORT).show();
                     refresh();
-                });
-            });
+                }));
         });
-
         refresh();
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        refresh();
-    }
+    @Override protected void onResume() { super.onResume(); refresh(); }
 
     private void refresh() {
         GlobalBlocklistManager mgr = GlobalBlocklistManager.getInstance(this);
-        Map<String, Integer>   counts  = mgr.getCountByReason();
-        Set<String>            enabled = mgr.getEnabledReasons();
+        Map<String,Integer> counts  = mgr.getCountByReason();
+        Set<String>         enabled = mgr.getEnabledReasons();
 
-        int total  = mgr.getTotalEntries();
-        int active = mgr.getEnabledEntryCount();
-
-        tvTotalEntries.setText(String.valueOf(total));
-        tvActiveCount.setText(String.valueOf(active));
+        tvTotalEntries.setText(String.valueOf(mgr.getTotalEntries()));
+        tvActiveCount.setText(String.valueOf(mgr.getEnabledEntryCount()));
 
         long lastSync = mgr.getLastSyncTs();
-        if (lastSync > 0) {
-            tvLastSync.setText("Last synced " + DateUtils.getRelativeTimeSpanString(
-                lastSync, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS));
-        } else {
-            tvLastSync.setText("Never synced — tap Sync Now");
-        }
+        tvLastSync.setText(lastSync > 0
+            ? "Last synced " + DateUtils.getRelativeTimeSpanString(lastSync,
+                System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)
+            : "Never synced — tap Sync Now");
 
         reasonsContainer.removeAllViews();
-
-        if (counts.isEmpty()) {
-            emptyView.setVisibility(View.VISIBLE);
-            return;
-        }
+        if (counts.isEmpty()) { emptyView.setVisibility(View.VISIBLE); return; }
         emptyView.setVisibility(View.GONE);
 
-        LayoutInflater inflater = LayoutInflater.from(this);
-        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+        LayoutInflater inf = LayoutInflater.from(this);
+        for (Map.Entry<String,Integer> entry : counts.entrySet()) {
             String reason = entry.getKey();
             int    count  = entry.getValue();
             boolean isOn  = enabled.contains(reason);
 
-            View card = inflater.inflate(R.layout.global_reason_card, reasonsContainer, false);
-            TextView tvReason  = card.findViewById(R.id.reasonCardTitle);
-            TextView tvCount   = card.findViewById(R.id.reasonCardCount);
-            SwitchCompat sw = card.findViewById(R.id.reasonCardSwitch);
-            TextView tvStatus  = card.findViewById(R.id.reasonCardStatus);
+            View card = inf.inflate(R.layout.global_reason_card, reasonsContainer, false);
+            TextView tvReason = card.findViewById(R.id.reasonCardTitle);
+            TextView tvCount  = card.findViewById(R.id.reasonCardCount);
+            SwitchCompat sw   = card.findViewById(R.id.reasonCardSwitch);
+            TextView tvStatus = card.findViewById(R.id.reasonCardStatus);
 
             tvReason.setText(reason);
             tvCount.setText(count + (count == 1 ? " number" : " numbers"));
@@ -121,13 +87,9 @@ public class GlobalBlocklistActivity extends AppCompatActivity {
             sw.setOnCheckedChangeListener((btn, checked) -> {
                 GlobalBlocklistManager.getInstance(this).setReasonEnabled(reason, checked);
                 tvStatus.setText(checked ? "Blocking" : "Off");
-                tvStatus.setTextColor(getResources().getColor(
-                    checked ? R.color.reject : R.color.subtext, null));
-                // Refresh summary counts
-                tvActiveCount.setText(String.valueOf(
-                    GlobalBlocklistManager.getInstance(this).getEnabledEntryCount()));
+                tvStatus.setTextColor(getResources().getColor(checked ? R.color.reject : R.color.subtext, null));
+                tvActiveCount.setText(String.valueOf(GlobalBlocklistManager.getInstance(this).getEnabledEntryCount()));
             });
-
             reasonsContainer.addView(card);
         }
     }

@@ -126,12 +126,9 @@ public class CallStateReceiver extends BroadcastReceiver {
 
         // 6. Global blocklist
         if (!shouldReject) {
-            String globalReason = GlobalBlocklistManager.getInstance(context)
-                .isNumberBlocked(number);
+            String globalReason = GlobalBlocklistManager.getInstance(context).isNumberBlocked(number);
             if (globalReason != null) {
-                shouldReject = true;
-                rType    = "global_list";
-                rPattern = globalReason;
+                shouldReject = true; rType = "global_list"; rPattern = globalReason;
             }
         }
 
