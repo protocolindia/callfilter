@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import api from '../api.js';
+import { api } from '../api.js';
 
 const REASONS_PRESET = [
   'Spam call', 'Cybercrime / fraud', 'Phishing',
