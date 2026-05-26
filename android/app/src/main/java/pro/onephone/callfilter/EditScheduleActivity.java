@@ -199,12 +199,30 @@ public class EditScheduleActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_PICK_CONTACTS && resultCode == RESULT_OK && data != null) {
-            ArrayList<String> nums   = data.getStringArrayListExtra("selected_numbers");
-            ArrayList<String> names  = data.getStringArrayListExtra("selected_names");
+        if (requestCode != REQ_PICK_CONTACTS || resultCode != RESULT_OK || data == null) return;
+        try {
+            // Guard: `editing` can be null if the activity was destroyed by the
+            // system while the picker was open and we lost our member state.
+            // In that case, refuse silently and let the user retry.
+            if (editing == null) {
+                android.widget.Toast.makeText(this,
+                    "Schedule state was reset. Please re-open and try again.",
+                    android.widget.Toast.LENGTH_LONG).show();
+                finish();
+                return;
+            }
+            ArrayList<String> nums  = data.getStringArrayListExtra("selected_numbers");
+            ArrayList<String> names = data.getStringArrayListExtra("selected_names");
+            if (editing.allowNumbers == null) editing.allowNumbers = new ArrayList<>();
+            if (editing.allowNames == null)   editing.allowNames   = new ArrayList<>();
             if (nums != null)  editing.allowNumbers = new ArrayList<>(nums);
-            if (names != null) editing.allowNames = new ArrayList<>(names);
+            if (names != null) editing.allowNames   = new ArrayList<>(names);
             renderAllowSummary();
+        } catch (Exception e) {
+            android.util.Log.e("EditSchedule", "onActivityResult crashed", e);
+            android.widget.Toast.makeText(this,
+                "Could not save exceptions: " + e.getMessage(),
+                android.widget.Toast.LENGTH_LONG).show();
         }
     }
 

@@ -1,179 +1,169 @@
-CallFilter v25.17 — items 1-5 from your batch
+CallFilter v25.17.1 — hotfix for v25.17 issues
 ================================================
 
-This drop implements items 1-5 from your 8-item list. Items 6-8
-(global blocklist, admin CRUD, multi-user roles) are queued for
-v25.18 and v25.19 respectively — they're each session-sized features
-that deserve their own focused build.
+This is a hotfix sprint, NOT v25.18. Still pending for separate drops:
+  • v25.18 — global blocklist DB + admin CRUD (your items 6+7)
+  • v25.19 — multi-user admin with roles (your item 8)
 
 ============================================================
-ITEM 1 — T&C / PRIVACY CHECKBOX ON SIGNUP
+BUG A — PERMISSION PROMPTS COLLIDING AT STARTUP
 ============================================================
 
-Signup page now has an explicit checkbox above the CONTINUE button:
+The v25.17 design was: PermissionsActivity is a HARD GATE — you can't
+proceed without granting. Plus MainActivity.onResume was firing THREE
+separate system prompts (overlay, notifications, default screening)
+all at once. Result: stacked windows, can't dismiss cleanly.
 
-   [☐] I accept the Terms & Conditions and Privacy Policy
-            CONTINUE
-        Terms & Conditions  ·  Privacy Policy
+Fix per Q1=b (soft mode + feature-gate redirect):
 
-  • Tapping the label (not just the box) toggles the checkbox
-  • "Terms & Conditions" link opens https://app.onephone.pro/terms
-  • "Privacy Policy" link opens https://app.onephone.pro/privacy
-  • Pressing CONTINUE without the box ticked → toast and blocked
-  • Hidden in login_mode (user already agreed when they signed up)
+  • Permissions gate REMOVED from boot flow:
+       SetPinActivity → MainActivity directly (was → Permissions → Main)
+       LoginActivity PIN unlock → MainActivity directly
+  • MainActivity.onResume NO LONGER auto-fires any system prompt
+  • PermissionsActivity completely rewritten as a "manage" screen,
+    reachable from Profile → 🛡️ Permissions
 
-New /privacy page added to the admin frontend (Privacy.jsx). The
-existing /terms page is unchanged.
+  Each permission has its OWN row with its own Grant button. Tapping
+  Grant fires ONE system prompt — never two stacked windows.
 
-============================================================
-ITEM 2 — LOGOUT BACK-STACK FIX
-============================================================
+  Rows shown:
+       Phone state          (runtime)
+       Contacts             (runtime)
+       Call log             (runtime)
+       Notifications        (runtime, Android 13+)
+       Display over other apps  (Settings page)
+       Default call screening app  (RoleManager)  ← critical for blocking
 
-After Sign-out, swipe-back used to return to the Profile screen. The
-issue was that `FLAG_ACTIVITY_CLEAR_TOP | FLAG_ACTIVITY_NEW_TASK`
-only clears activities ABOVE the destination in the same task — but
-LoginActivity wasn't on the stack yet, so it cleared nothing.
-
-Fix: use `FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK` plus
-`finishAffinity()`. This kills every activity in the current task and
-starts LoginActivity as the new root. Swipe-back from there → exits
-the app, as expected.
-
-Same fix applied to:
-   • ProfileActivity → Sign out
-   • ProfileActivity → Lock
-   • LoginActivity → Use a different number
+  All open one system interaction at a time, in response to user tap.
 
 ============================================================
-ITEM 3 — CONSOLIDATED PERMISSIONS SCREEN (DENY = BLOCKED)
+NEW PROFILE FEATURES
 ============================================================
 
-PermissionsActivity completely rewritten. Shows all required
-permissions on a single screen with the reason for each:
+🛡️ Permissions row — opens PermissionsActivity (above).
 
-   🛡️ Permissions
-   CallFilter needs these permissions to detect, evaluate, and block
-   unwanted calls. All processing happens on your device.
+🎁 Refer a friend row — opens Android share chooser. Pick WhatsApp,
+   SMS, email, anything that handles text. Message text:
 
-     ┌─────────────────────────────────────────────────┐
-     │ Phone state                                  ✗ │
-     │ Required. Lets the app detect when a call is    │
-     │ ringing so it can decide whether to block it.   │
-     ├─────────────────────────────────────────────────┤
-     │ Contacts                                     ✗ │
-     │ Required for Contacts-Only Mode and to          │
-     │ recognise known callers.                        │
-     ├─────────────────────────────────────────────────┤
-     │ Call log                                     ✗ │
-     │ Required to show your recent calls and detect   │
-     │ the number after a call ends (for the popup).   │
-     ├─────────────────────────────────────────────────┤
-     │ Notifications                                ✗ │
-     │ Required for the post-call "Block this number?" │
-     │ alert when the overlay can't draw.              │
-     └─────────────────────────────────────────────────┘
-              [GRANT ALL]
+      "I've been using Call Filter to block spam, scam, and unwanted
+       calls. It works great — you should try it.
 
-  • Tap GRANT ALL → Android runs the system dialog for each missing
-    permission in sequence
-  • If user denies any: red warning shows "CallFilter cannot work
-    without these permissions. Tap GRANT ALL to try again."
-  • If user picks "Don't ask again": Settings shortcut button appears
-  • Back button is DISABLED until all critical permissions are granted
-    (toast: "Please grant the required permissions to continue")
-  • NO "Skip" button — items 3's "should not move forward" requirement
+       Android: https://play.google.com/store/apps/details?id=pro.onephone.callfilter
+       iOS: https://apps.apple.com/app/onephone
 
-Wired into the flow at three entry points:
-   • SetPinActivity → PermissionsActivity → MainActivity   (new signup)
-   • OtpActivity (login_mode) → … → PermissionsActivity     (re-login)
-   • LoginActivity PIN unlock → PermissionsActivity → MainActivity
+       — shared via Call Filter"
 
-PermissionsActivity is idempotent — if all permissions are already
-granted, it immediately routes to MainActivity. So you don't see
-this screen on a returning launch where everything is in order.
+ℹ️ About card — at the bottom. Shows app name + dynamic version,
+   read from PackageManager so it always matches the actual installed
+   APK. Example: "Version 1.0.25 (build 25)".
 
 ============================================================
-ITEM 4 — POST-CALL POPUP: DIAGNOSTIC LOGGING + FALLBACK
+BUG B — CONTACT PICKER CRASHES
 ============================================================
 
-You said the popup STILL isn't appearing. Without logcat I can't see
-why for certain, so I've added detailed branch-by-branch logging plus
-a defensive try/catch around overlay creation that falls back to a
-notification if WindowManager throws.
+You said "when I select exception number from phone book in multiple
+places, the app is crashing". Most likely cause: the calling activity
+gets destroyed by the system while ContactPickerActivity is open
+(low memory or strict OEM background limits), then when the picker
+returns, the caller's `editing` member is null and the result handler
+NPEs.
 
-In PostCallBlockOverlay.offer():
+Fixed by hardening every onActivityResult call site:
 
-   D/PostCallOverlay: offer() called with number=+919876xxx
-   D/PostCallOverlay:   → skipped: rule already exists (type=prefix pattern=+919876)
+  • EditScheduleActivity — null-guards `editing`, wraps body in
+    try/catch, shows a toast and finishes instead of crashing
+  • MainActivity (Block All picker handler) — same treatment
+  • ContactPickerActivity itself — outer try/catch around the
+    ContentResolver.query() in case it throws on stricter OEM builds,
+    plus safe cursor close
 
-OR:
+If you still get a crash, please run:
 
-   D/PostCallOverlay: offer() called with number=+919876xxx
-   D/PostCallOverlay:   → skipped: number is in contacts
+    adb logcat -d -s AndroidRuntime:E -t 200
 
-OR:
-
-   D/PostCallOverlay: offer() called with number=+919876xxx
-   D/PostCallOverlay:   display path: NOTIFICATION (canDrawOverlays=false)
-   D/PostCallOverlay:   → notification posted
-
-OR:
-
-   D/PostCallOverlay: offer() called with number=+919876xxx
-   D/PostCallOverlay:   display path: OVERLAY (canDrawOverlays=true)
-   D/PostCallOverlay:   overlay failed: BadTokenException — falling back to notification
-
-Combined with CallStateReceiver's existing logging, you'll see the
-full path from PHONE_STATE broadcast → number resolution → offer().
-
-To capture:
-
-   adb logcat -c
-   # make a test call from an unknown number, ring 3s, disconnect
-   adb logcat -d -s CallStateReceiver:V PostCallOverlay:V CallBlockerService:V
-
-Paste the output and I'll fix the exact cause in v25.18.
+and paste the stack. The hardening covers the most likely cause but
+some OEMs (Xiaomi/Vivo/Realme) have unusual content provider quirks.
 
 ============================================================
-ITEM 5 — REASON PICKER ON RECENT CALLS BLOCK
+BUG C — "DON'T HAVE ACCOUNT? SIGN UP" ON PIN ENTRY PAGE
 ============================================================
 
-When you tap a number in Recent Calls and choose "Block", the flow
-now matches the post-call popup behaviour:
+LoginActivity PIN mode now hides the bottom "Don't have an account?
+Sign up" link. The link is still visible in MOBILE mode (when no
+local PIN exists) since that's where new users actually need it.
 
-   1. Confirmation dialog: "Block this number?" → Block
-   2. BlockReasonPickerActivity opens immediately
-       • Adds the PREFIX/REJECT rule (blockNow=true intent extra)
-       • Records the blocked-call entry
-       • Shows reason picker (Spam / Cybercrime / etc + Skip)
-   3. Pick a reason + Save → reason synced to backend
-   4. Or tap Skip → block still recorded, no reason
-   5. Web admin → user → Blocked Calls tab shows the reason
+============================================================
+BUG D — REASON PICKER NOT APPEARING (MANUAL OR POST-CALL)
+============================================================
 
-This uses BlockReasonPickerActivity (already exists from v25.14).
-RecentCallsActivity just routes to it instead of calling
-RulesManager.addRule directly.
+Two real bugs found and fixed:
+
+1. BlockReasonsCache had a wrong URL:
+       /api/block-reasons  →  /api/settings/block-reasons
+   So the cache refresh never succeeded. (The picker still got
+   defaults from the in-memory fallback, so this alone didn't cause
+   the no-show.)
+
+2. BlockReasonPickerActivity manifest theme was
+   Theme.Translucent.NoTitleBar. On Android 12+/13+ with strict
+   background-activity-launch rules, the activity launches but the
+   AlertDialog inside silently fails to render — the user sees
+   nothing. Changed to Theme.AppCompat.Dialog — a proper dialog
+   theme that renders reliably.
+
+Also added Log.d lines at every step of BlockReasonPickerActivity
+so if it STILL doesn't appear, the next logcat will show exactly
+where it stops:
+
+   D/BlockReasonPicker: onCreate: number=+919876xxx blockNow=true
+   D/BlockReasonPicker: reasons available: 7
+   D/BlockReasonPicker: dialog.show() called
+
+If you see all three but no picker → it's a device-specific
+overlay/dialog issue. If you DON'T see "dialog.show() called" →
+something is throwing before that line.
 
 ============================================================
 FILES TOUCHED
 ============================================================
 
-ANDROID
-  CHG res/layout/activity_signup.xml          T&C checkbox + Terms/Privacy links
-  CHG res/layout/activity_permissions.xml     Full rewrite — list view + status
-  NEW res/layout/permission_row.xml           Single permission row template
-  REWR java/.../PermissionsActivity.java      Consolidated screen with deny-block
-  CHG java/.../SignupActivity.java            T&C validation + openUrl helper
-  CHG java/.../ProfileActivity.java           Sign out flags + finishAffinity()
-  CHG java/.../LoginActivity.java             Switch-account fix + PIN→Permissions
-  CHG java/.../RecentCallsActivity.java       Block routes through reason picker
-  CHG java/.../PostCallBlockOverlay.java      Diagnostic logging + try/catch
+ANDROID — boot flow
+  CHG java/.../MainActivity.java
+      Removed maybePromptOverlayPermission, maybePromptNotificationPermission,
+      checkBlockingStatus from onResume — no more startup window storm
+  CHG java/.../SetPinActivity.java
+      → MainActivity directly (was → PermissionsActivity)
+  CHG java/.../LoginActivity.java
+      PIN unlock → MainActivity directly
+      PIN mode hides the "Sign up" link
 
-FRONTEND admin
-  NEW pages/Privacy.jsx                       /privacy route
-  CHG main.jsx                                Privacy route registered
+ANDROID — Permissions screen rewrite
+  REWR java/.../PermissionsActivity.java
+       Per-row Grant buttons, no boot gate, includes overlay + role rows
 
-No backend changes. No migrations.
+ANDROID — Profile additions
+  CHG res/layout/activity_profile.xml
+      🛡️ Permissions row + 🎁 Refer a friend row + ℹ️ About card
+  CHG java/.../ProfileActivity.java
+      Wires both new rows + dynamic version + shareReferral()
+
+ANDROID — reason picker fix
+  CHG AndroidManifest.xml
+      BlockReasonPickerActivity → Theme.AppCompat.Dialog
+  CHG java/.../BlockReasonsCache.java
+      Fixed URL to /api/settings/block-reasons
+  CHG java/.../BlockReasonPickerActivity.java
+      Added Log.d at every step for diagnostics
+
+ANDROID — contact picker crash hardening
+  CHG java/.../EditScheduleActivity.java
+      onActivityResult null-guards editing + try/catch
+  CHG java/.../MainActivity.java
+      Block All picker result wrapped in try/catch
+  CHG java/.../ContactPickerActivity.java
+      Outer try/catch around loadContacts + applyFilter
+
+No backend / frontend changes. No migrations.
 
 ============================================================
 DEPLOY
@@ -182,46 +172,55 @@ DEPLOY
 cd D:\\callfilter
 git pull origin main
 
-robocopy F:\\app\\CallManager\\callfilter-v25.17-monorepo\\callfilter-monorepo\\android  android  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.17-monorepo\\callfilter-monorepo\\backend  backend  /E
-robocopy F:\\app\\CallManager\\callfilter-v25.17-monorepo\\callfilter-monorepo\\frontend frontend /E
-copy F:\\app\\CallManager\\callfilter-v25.17-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
+robocopy F:\\app\\CallManager\\callfilter-v25.17.1-monorepo\\callfilter-monorepo\\android  android  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.17.1-monorepo\\callfilter-monorepo\\backend  backend  /E
+robocopy F:\\app\\CallManager\\callfilter-v25.17.1-monorepo\\callfilter-monorepo\\frontend frontend /E
+copy F:\\app\\CallManager\\callfilter-v25.17.1-monorepo\\callfilter-monorepo\\INTEGRATION_README.txt .
 
 git add .
-git commit -m "v25.17 — T&C checkbox, logout fix, consolidated perms, reason picker on RecentCalls"
+git commit -m "v25.17.1 — soft permissions, Profile rows, picker theme fix, contact crash guards"
 git push origin main
 
-# Then rebuild APK
+# Rebuild APK in Android Studio
 
 ============================================================
 POST-DEPLOY TESTS
 ============================================================
 
-T&C checkbox:
-[ ] Signup screen shows checkbox above CONTINUE
-[ ] Tapping label toggles checkbox
-[ ] Pressing CONTINUE without checking → toast blocks it
-[ ] Terms link opens https://app.onephone.pro/terms
-[ ] Privacy link opens https://app.onephone.pro/privacy
+[ ] Fresh install + signup → after Set PIN → MainActivity opens
+    directly, no system prompts firing on top of each other
 
-Logout:
-[ ] Profile → Sign out → confirm → LoginActivity opens
-[ ] Press back / swipe back → app exits (does NOT show Profile)
+[ ] Profile screen shows three new rows above Logout:
+       🛡️ Permissions
+       🎁 Refer a friend
+       ℹ️ About (card with version number)
 
-Permissions:
-[ ] Fresh install, OTP → Set PIN → permissions screen with all 4 (or 3
-    if Android <13) rows visible, each with ✗ initially
-[ ] Tap GRANT ALL → system dialogs run sequentially
-[ ] If you deny one: red warning + GRANT ALL still works
-[ ] Press back: toast "Please grant the required permissions to continue"
-[ ] After all granted → MainActivity opens automatically
+[ ] Tap 🛡️ Permissions → 6 rows (or 5 on Android <13):
+       Phone state / Contacts / Call log / Notifications / Display over other apps / Default call screening app
+    Each granted permission shows ✓ (green). Each missing shows
+    "Grant" (clickable). Tap Grant on Default call screening app →
+    Android role picker → pick CallFilter → only this one prompt fires.
 
-Recent Calls block:
-[ ] Recent Calls tab → long-press any number → Block
-[ ] Block dialog opens, tap Block
-[ ] Reason picker activity opens — pick "Spam call" → Save
-[ ] Admin → user → Blocked Calls → entry has "Spam call" reason
+[ ] Refer a friend → share chooser opens → pick WhatsApp / Messages /
+    Gmail → message contains both app store links
 
-Post-call popup (diagnostic):
-[ ] Capture logcat as described in item 4 above
-[ ] Paste the output to me — I'll fix it in v25.18 with the exact cause
+[ ] PIN entry page → no "Don't have an account? Sign up" link visible
+    at the bottom. Mobile-entry page DOES show it.
+
+[ ] Recent Calls → tap a number → Block → reason picker dialog appears
+    showing the 7 default reasons + Skip + Save. Pick one → Save →
+    admin sees the reason in Blocked Calls tab.
+
+[ ] Edit a Schedule → tap "Exceptions" / pick contacts → select some
+    contacts → Done. Returns to schedule editor without crashing.
+    Repeat in Block All Now dialog.
+
+If post-call popup STILL doesn't appear OR reason picker STILL doesn't
+appear on Recent Calls block, paste:
+
+    adb logcat -d -s CallStateReceiver:V PostCallOverlay:V \
+                    BlockReasonPicker:V CallBlockerService:V
+
+The new BlockReasonPicker log lines will tell us if the activity
+launches but the dialog never shows (device-specific) or if something
+throws before the dialog can be built.
