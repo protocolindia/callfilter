@@ -43,10 +43,29 @@ public class ProfileActivity extends AppCompatActivity {
             autoSmsSw.setOnCheckedChangeListener((b, checked) -> {
                 smsR.setEnabled(checked);
                 if (checked) {
-                    // Request SEND_SMS permission if not granted
+                    // Check SEND_SMS permission
                     if (checkSelfPermission(android.Manifest.permission.SEND_SMS)
                             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        requestPermissions(new String[]{android.Manifest.permission.SEND_SMS}, 201);
+                        // Request permission — if previously denied, open Settings
+                        if (shouldShowRequestPermissionRationale(android.Manifest.permission.SEND_SMS)) {
+                            requestPermissions(new String[]{android.Manifest.permission.SEND_SMS}, 201);
+                        } else {
+                            // Open app settings so user can grant manually
+                            new androidx.appcompat.app.AlertDialog.Builder(this)
+                                .setTitle("SMS Permission Required")
+                                .setMessage("To send auto-reply messages, please grant the 'Send SMS' permission in App Settings.\n\nNote: Only SEND permission is used — your inbox is never read.")
+                                .setPositiveButton("Open Settings", (d2, w2) -> {
+                                    android.content.Intent i = new android.content.Intent(
+                                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        android.net.Uri.fromParts("package", getPackageName(), null));
+                                    startActivity(i);
+                                })
+                                .setNegativeButton("Cancel", (d2, w2) -> {
+                                    autoSmsSw.setChecked(false);
+                                    smsR.setEnabled(false);
+                                })
+                                .show();
+                        }
                     }
                 }
             });

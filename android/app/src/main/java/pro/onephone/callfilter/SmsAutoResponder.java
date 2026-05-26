@@ -82,7 +82,7 @@ public class SmsAutoResponder {
                 } else {
                     sms.sendTextMessage(number, null, msg, null, null);
                 }
-                Log.d(TAG, "Auto-SMS sent to " + number + " (reason: " + reason + ")");
+                Log.d(TAG, "Auto-SMS sent to " + number + " (block_all temporary)");
             } catch (Exception e) {
                 Log.w(TAG, "Auto-SMS failed to " + number + ": " + e.getMessage());
             }

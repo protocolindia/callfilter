@@ -56,8 +56,8 @@ public class PermissionsActivity extends AppCompatActivity {
             "Required for Contacts-Only Mode and to recognise known callers.",
             true));
         list.add(new Perm(Manifest.permission.SEND_SMS,
-            "Send SMS",
-            "Optional. Enables auto-reply SMS to blocked callers. Can be toggled in Profile.",
+            "Send SMS (optional)",
+            "Enables auto-reply SMS when Block All Now is active. Only SEND permission is used — your inbox is never read. Enable in Profile settings.",
             false));
         list.add(new Perm(Manifest.permission.READ_CALL_LOG,
             "Call log",
