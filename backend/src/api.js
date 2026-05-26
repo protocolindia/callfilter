@@ -1144,3 +1144,17 @@ router.get('/global-blocklist', async (req, res, next) => {
     res.json({ ok: true, entries: rows, total: rows.length, synced_at: new Date().toISOString() });
   } catch (e) { next(e); }
 });
+
+// ── GLOBAL BLOCKLIST CONFIG — app settings ────────────────────────────
+router.get('/global-blocklist/config', async (req, res, next) => {
+  try {
+    const showTotal  = await one("SELECT value FROM settings WHERE key='global_blocklist_show_total'");
+    const showActive = await one("SELECT value FROM settings WHERE key='global_blocklist_show_active'");
+    res.json({
+      ok: true,
+      show_total:  (showTotal?.value  ?? 'true') === 'true',
+      show_active: (showActive?.value ?? 'true') === 'true',
+    });
+  } catch (e) { next(e); }
+});
+

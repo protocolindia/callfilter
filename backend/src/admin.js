@@ -813,4 +813,44 @@ router.delete('/global-blocklist/:id', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+
+// ── GLOBAL BLOCKLIST IMPORT — bulk CSV/Excel upload ───────────────────
+router.post('/global-blocklist/import', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = req.body || {};
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'rows array is required' });
+    }
+
+    let inserted = 0, skipped = 0, errors = [];
+
+    for (const row of rows) {
+      const number = (row.number || row.Number || row.NUMBER || '').toString().trim().replace(/[\s\-().]/g, '');
+      const reason = (row.reason || row.Reason || row.REASON || '').toString().trim();
+      const notes  = (row.notes  || row.Notes  || row.NOTES  || '').toString().trim();
+
+      if (!number || !reason) { skipped++; continue; }
+
+      try {
+        // Skip duplicates silently
+        const exists = await one(
+          'SELECT id FROM global_blocklist WHERE number = $1 AND active = TRUE', [number]);
+        if (exists) { skipped++; continue; }
+
+        await query(
+          `INSERT INTO global_blocklist(number, reason, notes, added_by)
+           VALUES ($1, $2, $3, $4)`,
+          [number, reason, notes || null, req.admin.username + ' (import)']);
+        inserted++;
+      } catch (e) {
+        errors.push({ number, error: e.message });
+      }
+    }
+
+    await audit(req.admin.username, 'global_block_imported',
+      `inserted=${inserted} skipped=${skipped}`);
+    res.json({ ok: true, inserted, skipped, errors: errors.slice(0, 10) });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

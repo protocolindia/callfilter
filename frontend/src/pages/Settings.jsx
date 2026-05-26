@@ -246,6 +246,52 @@ export default function Settings() {
           )}
         </section>
 
+        {/* Global Blocklist Settings */}
+        <section className="card">
+          <h2>🌐 Global Blocklist</h2>
+          <p style={{ color:'var(--subtext)', fontSize:14, marginBottom:16 }}>
+            Control what information the app shows to users about the global blocklist.
+          </p>
+          <div className="settings-grid">
+            <div className="field" style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+              background:'var(--surface)', borderRadius:8, padding:'14px 16px' }}>
+              <div>
+                <div style={{ fontWeight:600, fontSize:14, color:'var(--text)' }}>Show total number count</div>
+                <div style={{ fontSize:12, color:'var(--subtext)', marginTop:2 }}>
+                  App shows "X total numbers" on the Global Blocklist screen
+                </div>
+              </div>
+              <label style={{ display:'flex', alignItems:'center', cursor:'pointer', gap:8 }}>
+                <input type="checkbox"
+                  checked={settings.global_blocklist_show_total !== 'false'}
+                  onChange={e => update('global_blocklist_show_total', e.target.checked ? 'true' : 'false')}
+                  style={{ width:18, height:18 }}/>
+                <span style={{ fontSize:13, color:'var(--text)' }}>
+                  {settings.global_blocklist_show_total !== 'false' ? 'Visible' : 'Hidden'}
+                </span>
+              </label>
+            </div>
+            <div className="field" style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+              background:'var(--surface)', borderRadius:8, padding:'14px 16px' }}>
+              <div>
+                <div style={{ fontWeight:600, fontSize:14, color:'var(--text)' }}>Show currently blocking count</div>
+                <div style={{ fontSize:12, color:'var(--subtext)', marginTop:2 }}>
+                  App shows "X currently blocking" on the Global Blocklist screen
+                </div>
+              </div>
+              <label style={{ display:'flex', alignItems:'center', cursor:'pointer', gap:8 }}>
+                <input type="checkbox"
+                  checked={settings.global_blocklist_show_active !== 'false'}
+                  onChange={e => update('global_blocklist_show_active', e.target.checked ? 'true' : 'false')}
+                  style={{ width:18, height:18 }}/>
+                <span style={{ fontSize:13, color:'var(--text)' }}>
+                  {settings.global_blocklist_show_active !== 'false' ? 'Visible' : 'Hidden'}
+                </span>
+              </label>
+            </div>
+          </div>
+        </section>
+
         <button type="submit" className="btn btn-primary" disabled={saving}>
           {saving ? 'Saving…' : 'Save settings'}
         </button>

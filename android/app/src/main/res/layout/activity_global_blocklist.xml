@@ -3,6 +3,7 @@
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="@color/bg">
 
+    <!-- Header -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="horizontal" android:gravity="center_vertical" android:padding="16dp">
         <ImageButton android:id="@+id/btnBack"
@@ -21,40 +22,49 @@
             android:paddingStart="12dp" android:paddingEnd="12dp" android:minWidth="0dp"/>
     </LinearLayout>
 
+    <!-- Stats row -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="16dp"
         android:paddingBottom="8dp">
-        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+        <LinearLayout android:id="@+id/statsTotalCard"
+            android:layout_width="0dp" android:layout_weight="1"
             android:layout_height="wrap_content" android:orientation="vertical"
-            android:background="@drawable/card_bg" android:padding="12dp" android:layout_marginEnd="8dp">
+            android:background="@drawable/card_bg" android:padding="12dp"
+            android:layout_marginEnd="8dp">
             <TextView android:id="@+id/globalTotalEntries"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="0" android:textSize="24sp" android:textStyle="bold" android:textColor="@color/text"/>
+                android:text="0" android:textSize="24sp" android:textStyle="bold"
+                android:textColor="@color/text"/>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="Total numbers" android:textSize="11sp" android:textColor="@color/subtext"/>
         </LinearLayout>
-        <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+        <LinearLayout android:id="@+id/statsActiveCard"
+            android:layout_width="0dp" android:layout_weight="1"
             android:layout_height="wrap_content" android:orientation="vertical"
             android:background="@drawable/card_bg" android:padding="12dp">
             <TextView android:id="@+id/globalActiveCount"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="0" android:textSize="24sp" android:textStyle="bold" android:textColor="@color/reject"/>
+                android:text="0" android:textSize="24sp" android:textStyle="bold"
+                android:textColor="@color/reject"/>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="Currently blocking" android:textSize="11sp" android:textColor="@color/subtext"/>
         </LinearLayout>
     </LinearLayout>
 
+    <!-- Last sync -->
     <TextView android:id="@+id/globalLastSync"
         android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:text="Never synced" android:textSize="12sp" android:textColor="@color/muted"
         android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingBottom="8dp"/>
 
+    <!-- Info -->
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="Enable a reason to block all matching numbers. Blocked calls show a globe symbol in your call log."
         android:textSize="12sp" android:textColor="@color/subtext"
         android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
         android:lineSpacingMultiplier="1.4"/>
 
+    <!-- Reason cards -->
     <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
         <LinearLayout android:id="@+id/globalReasonsContainer"
             android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -62,7 +72,7 @@
             android:paddingEnd="16dp" android:paddingBottom="24dp">
             <TextView android:id="@+id/globalEmptyView"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="No entries yet.\nTap Sync Now to download from server."
+                android:text="No reasons defined yet.\nAdd block reasons in Settings, then tap Sync Now."
                 android:textSize="14sp" android:textColor="@color/subtext"
                 android:gravity="center" android:paddingTop="48dp"
                 android:lineSpacingMultiplier="1.5" android:visibility="visible"/>

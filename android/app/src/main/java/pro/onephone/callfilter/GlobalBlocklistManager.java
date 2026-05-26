@@ -13,6 +13,8 @@ public class GlobalBlocklistManager {
     private static final String KEY_ENTRIES         = "entries";
     private static final String KEY_ENABLED_REASONS = "enabled_reasons";
     private static final String KEY_LAST_SYNC       = "last_sync_ts";
+    private static final String KEY_SHOW_TOTAL  = "show_total";
+    private static final String KEY_SHOW_ACTIVE = "show_active";
 
     public static class Entry {
         public final String number;
@@ -111,6 +113,9 @@ public class GlobalBlocklistManager {
 
     public long getLastSyncTs() { return prefs.getLong(KEY_LAST_SYNC, 0L); }
 
+    public boolean isShowTotal()  { return prefs.getBoolean(KEY_SHOW_TOTAL,  true); }
+    public boolean isShowActive() { return prefs.getBoolean(KEY_SHOW_ACTIVE, true); }
+
     public interface SyncCallback { void onDone(boolean success, int count, String error); }
 
     public void syncAsync(final SyncCallback cb) {
@@ -143,6 +148,19 @@ public class GlobalBlocklistManager {
                     });
             } catch (Exception e) { if (cb != null) cb.onDone(false, 0, e.getMessage()); }
         }).start();
+    }
+
+    private void fetchConfigAsync() {
+        BackendClient.get(AuthManager.BACKEND_URL + "/api/global-blocklist/config",
+            new BackendClient.Callback() {
+                public void onResult(boolean ok, JSONObject resp, String err) {
+                    if (!ok || resp == null) return;
+                    prefs.edit()
+                        .putBoolean(KEY_SHOW_TOTAL,  resp.optBoolean("show_total",  true))
+                        .putBoolean(KEY_SHOW_ACTIVE, resp.optBoolean("show_active", true))
+                        .commit();
+                }
+            });
     }
 
     public void clear() {
