@@ -2,7 +2,6 @@ package pro.onephone.callfilter;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;
-import android.util.Log;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
@@ -30,7 +29,6 @@ import java.util.List;
  */
 public class BlockReasonPickerActivity extends AppCompatActivity {
 
-    private static final String TAG = "BlockReasonPicker";
     public static final String EXTRA_NUMBER    = "number";
     public static final String EXTRA_BLOCK_NOW = "block_now";
 
@@ -41,7 +39,6 @@ public class BlockReasonPickerActivity extends AppCompatActivity {
 
         final String number = getIntent().getStringExtra(EXTRA_NUMBER);
         final boolean blockNow = getIntent().getBooleanExtra(EXTRA_BLOCK_NOW, false);
-        Log.d(TAG, "onCreate: number=" + number + " blockNow=" + blockNow);
 
         if (number == null || number.isEmpty()) {
             finish();
@@ -61,7 +58,6 @@ public class BlockReasonPickerActivity extends AppCompatActivity {
 
         final List<String> reasons = BlockReasonsCache.getInstance(this).get();
         final String[] items = reasons.toArray(new String[0]);
-        Log.d(TAG, "reasons available: " + items.length);
         final int[] picked = { -1 };
 
         new AlertDialog.Builder(this)
@@ -91,6 +87,5 @@ public class BlockReasonPickerActivity extends AppCompatActivity {
                 finish();
             })
             .show();
-        Log.d(TAG, "dialog.show() called");
     }
 }

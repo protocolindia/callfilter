@@ -85,8 +85,6 @@ public class ContactPickerActivity extends AppCompatActivity {
         contacts.clear();
         Cursor c = null;
         try {
-            // Outer try catches SecurityException / IllegalStateException from
-            // ContentResolver.query() on stricter OEM builds
             c = getContentResolver().query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 new String[]{
@@ -113,16 +111,8 @@ public class ContactPickerActivity extends AppCompatActivity {
                     contacts.add(e);
                 }
             }
-        } catch (Exception e) {
-            android.util.Log.e("ContactPicker", "loadContacts failed", e);
-            Toast.makeText(this, "Could not load contacts: " + e.getMessage(),
-                Toast.LENGTH_LONG).show();
-        } finally { if (c != null) try { c.close(); } catch (Exception ignored) {} }
-        try {
-            applyFilter(searchInput.getText().toString());
-        } catch (Exception e) {
-            android.util.Log.e("ContactPicker", "applyFilter failed", e);
-        }
+        } finally { if (c != null) c.close(); }
+        applyFilter(searchInput.getText().toString());
     }
 
     private void applyFilter(String query) {

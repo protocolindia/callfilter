@@ -53,7 +53,7 @@ public class SetPinActivity extends AppCompatActivity {
     }
 
     private void goToMain() {
-        final Intent i = new Intent(this, MainActivity.class);
+        final Intent i = new Intent(this, PermissionsActivity.class);
         i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
 
         AuthManager.getInstance(this).verifyAccountStillExists(

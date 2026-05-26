@@ -68,7 +68,7 @@ public class BlockReasonsCache {
     public void refreshAsync() {
         AuthManager auth = AuthManager.getInstance(appCtx);
         if (!auth.isBackendEnabled()) return;
-        BackendClient.get(AuthManager.BACKEND_URL + "/api/settings/block-reasons",
+        BackendClient.get(AuthManager.BACKEND_URL + "/api/block-reasons",
             new BackendClient.Callback() {
                 public void onResult(boolean ok, JSONObject resp, String err) {
                     if (!ok || resp == null) {

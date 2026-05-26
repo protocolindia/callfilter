@@ -508,27 +508,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == BlockAllNowDialog.REQ_PICK_CONTACTS_FOR_BLOCK_ALL
-                && resultCode == RESULT_OK && data != null) {
-            try {
-                java.util.ArrayList<String> nums = data.getStringArrayListExtra("selected_numbers");
-                java.util.ArrayList<String> names = data.getStringArrayListExtra("selected_names");
-                if (nums == null) nums = new java.util.ArrayList<>();
-                if (names == null) names = new java.util.ArrayList<>();
-                if (blockAllDialog != null) {
-                    blockAllDialog.resumeWithPickedContacts(nums, names);
-                } else {
-                    // Dialog state was lost (process death while picker open).
-                    // Tell the user instead of crashing.
-                    android.widget.Toast.makeText(this,
-                        "Selection lost — please try Block All again.",
-                        android.widget.Toast.LENGTH_LONG).show();
-                }
-            } catch (Exception e) {
-                android.util.Log.e("MainActivity", "picker result failed", e);
-                android.widget.Toast.makeText(this,
-                    "Could not save contacts: " + e.getMessage(),
-                    android.widget.Toast.LENGTH_LONG).show();
-            }
+                && resultCode == RESULT_OK && data != null && blockAllDialog != null) {
+            java.util.ArrayList<String> nums = data.getStringArrayListExtra("selected_numbers");
+            java.util.ArrayList<String> names = data.getStringArrayListExtra("selected_names");
+            if (nums == null) nums = new java.util.ArrayList<>();
+            if (names == null) names = new java.util.ArrayList<>();
+            blockAllDialog.resumeWithPickedContacts(nums, names);
         }
     }
 
@@ -584,6 +569,8 @@ public class MainActivity extends AppCompatActivity {
         SyncManager.getInstance(this).syncGlobalBlocklistAsync();
         refreshBlockAllUI();
         banner_handler.postDelayed(banner_tick, 30_000L);
+        maybePromptOverlayPermission();
+        maybePromptNotificationPermission();
         // NOTE: do NOT pull rules on resume — that races with just-added local
         // rules and wipes them. Initial cloud pull happens only on login
         // (LoginActivity.handleLogin) and is gated by the initial-sync flag.
@@ -594,9 +581,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         subMgr.refreshAsync();
-        // checkBlockingStatus() removed from onResume — was triggering the
-        // "Default call screening app" prompt over other system dialogs.
-        // The user manages this from Profile → Permissions now.
+        checkBlockingStatus();
         refreshUI();
     }
 

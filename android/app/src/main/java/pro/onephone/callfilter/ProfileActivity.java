@@ -104,24 +104,6 @@ public class ProfileActivity extends AppCompatActivity {
             autoSum.setText(checked ? "Locks after 5 minutes in background" : "Off");
         });
 
-        // ----- Permissions row -----
-        findViewById(R.id.rowPermissions).setOnClickListener(v -> {
-            startActivity(new Intent(ProfileActivity.this, PermissionsActivity.class));
-        });
-
-        // ----- Refer a friend row -----
-        findViewById(R.id.rowRefer).setOnClickListener(v -> shareReferral());
-
-        // ----- About card — fill dynamic version -----
-        TextView aboutVersion = findViewById(R.id.aboutVersion);
-        try {
-            android.content.pm.PackageInfo pi = getPackageManager()
-                .getPackageInfo(getPackageName(), 0);
-            aboutVersion.setText("Version " + pi.versionName + " (build " + pi.versionCode + ")");
-        } catch (Exception e) {
-            aboutVersion.setText("Version unknown");
-        }
-
         // ----- Sign out (full logout) — wipes everything -----
         findViewById(R.id.rowLogout).setOnClickListener(v -> {
             new AlertDialog.Builder(this)
@@ -241,26 +223,6 @@ public class ProfileActivity extends AppCompatActivity {
             } else {
                 Toast.makeText(this, "Contacts permission denied", Toast.LENGTH_LONG).show();
             }
-        }
-    }
-
-    /** Refer-a-friend share sheet. Lets the user pick WhatsApp, SMS, etc. */
-    private void shareReferral() {
-        String msg =
-            "I've been using Call Filter to block spam, scam, and unwanted calls. "
-            + "It works great — you should try it.\n\n"
-            + "Android: https://play.google.com/store/apps/details?id=" + getPackageName() + "\n"
-            + "iOS: https://apps.apple.com/app/onephone\n\n"
-            + "— shared via Call Filter";
-        Intent send = new Intent(Intent.ACTION_SEND);
-        send.setType("text/plain");
-        send.putExtra(Intent.EXTRA_SUBJECT, "Try Call Filter");
-        send.putExtra(Intent.EXTRA_TEXT, msg);
-        try {
-            startActivity(Intent.createChooser(send, "Refer Call Filter via"));
-        } catch (Exception e) {
-            android.widget.Toast.makeText(this,
-                "No app available to share with", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
 }
