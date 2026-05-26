@@ -425,7 +425,7 @@
                     android:id="@+id/btnSaveSmsMessage"
                     android:layout_width="wrap_content" android:layout_height="36dp"
                     android:text="Save message" android:textSize="12sp" android:textColor="#fff"
-                    android:background="@drawable/btn_accept"
+                    android:background="@drawable/btn_accent"
                     android:paddingStart="14dp" android:paddingEnd="14dp"
                     android:layout_marginTop="8dp" android:minWidth="0dp"/>
             </LinearLayout>
