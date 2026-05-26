@@ -67,7 +67,6 @@ async function migrate() {
     razorpay_secret_live: '',
     razorpay_webhook_secret: '',
     block_reasons: 'Spam call\nCybercrime / fraud\nPhishing\nTelemarketing / promotional\nRobocall / IVR\nPersonal harassment\nOther',
-    block_reasons: 'Spam call\nCybercrime / fraud\nPhishing\nTelemarketing / promotional\nRobocall / IVR\nPersonal harassment\nOther'
     global_blocklist_show_total:  'true',
     global_blocklist_show_active: 'true',
   };
