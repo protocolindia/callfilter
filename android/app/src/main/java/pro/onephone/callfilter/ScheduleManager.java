@@ -151,6 +151,31 @@ public class ScheduleManager {
         }).start();
     }
 
+    /** Always pulls from cloud, replacing local schedules.
+     *  Called on every app resume so admin-added schedules arrive. */
+    public void pullFromCloud() {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+
+        String url = AuthManager.BACKEND_URL + "/api/schedules/list?user_id=" + auth.getUserId();
+        BackendClient.get(url, new BackendClient.Callback() {
+            public void onResult(boolean ok, JSONObject resp, String err) {
+                if (!ok || resp == null) return;
+                JSONArray arr = resp.optJSONArray("schedules");
+                if (arr == null || arr.length() == 0) return; // don't wipe local if server empty
+                synchronized (ScheduleManager.this) {
+                    cache.clear();
+                    for (int i = 0; i < arr.length(); i++) {
+                        JSONObject o = arr.optJSONObject(i);
+                        if (o != null) cache.add(Schedule.fromJson(o));
+                    }
+                    persist();
+                    Log.d(TAG, "Pulled " + cache.size() + " schedules from cloud");
+                }
+            }
+        });
+    }
+
     public void pullFromCloudIfEmpty() {
         if (!cache.isEmpty()) return;
         AuthManager auth = AuthManager.getInstance(appCtx);

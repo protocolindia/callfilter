@@ -62,7 +62,7 @@
     </LinearLayout>
 
     <!-- Toggle switch -->
-    <Switch
+    <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/reasonCardSwitch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

@@ -562,6 +562,8 @@ public class MainActivity extends AppCompatActivity {
         });
         // Merge cloud-only rules into local (handles admin-added rules)
         SyncManager.getInstance(this).mergeRulesFromCloud();
+        // Pull schedules from cloud — always replace so admin-added schedules arrive
+        ScheduleManager.getInstance(this).pullFromCloud();
         // Refresh the UI after merge completes (HTTP async)
         banner_handler.postDelayed(() -> refreshUI(), 1_500L);
 

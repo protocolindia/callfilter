@@ -5,6 +5,7 @@ import android.text.format.DateUtils;
 import android.view.*;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import java.util.*;
 
 /**
@@ -108,7 +109,7 @@ public class GlobalBlocklistActivity extends AppCompatActivity {
             View card = inflater.inflate(R.layout.global_reason_card, reasonsContainer, false);
             TextView tvReason  = card.findViewById(R.id.reasonCardTitle);
             TextView tvCount   = card.findViewById(R.id.reasonCardCount);
-            Switch   sw        = card.findViewById(R.id.reasonCardSwitch);
+            SwitchCompat sw = card.findViewById(R.id.reasonCardSwitch);
             TextView tvStatus  = card.findViewById(R.id.reasonCardStatus);
 
             tvReason.setText(reason);
