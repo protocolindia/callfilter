@@ -1,6 +1,6 @@
 package pro.onephone.callfilter;
 
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.os.Bundle;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;

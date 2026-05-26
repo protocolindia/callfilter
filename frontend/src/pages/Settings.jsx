@@ -247,3 +247,29 @@ export default function Settings() {
         </section>
 
         <button type="submit" className="btn btn-primary" disabled={saving}>
+          {saving ? 'Saving…' : 'Save settings'}
+        </button>
+        {savedFlag && <span className="alert alert-success" style={{marginLeft:12}}>✓ Saved</span>}
+        {error && <span className="alert alert-error" style={{marginLeft:12}}>{error}</span>}
+      </form>
+
+      <form onSubmit={handlePassword} style={{ marginTop: 24 }}>
+        <section className="card">
+          <h2>Change Admin Password</h2>
+          {pwMsg && <div className={`alert ${pwMsg.startsWith('✓') ? 'alert-success' : 'alert-error'}`}>{pwMsg}</div>}
+          <div className="row">
+            <div className="col">
+              <label>Current password</label>
+              <input type="password" value={pwCurrent} onChange={e => setPwCurrent(e.target.value)} required/>
+            </div>
+            <div className="col">
+              <label>New password (min 6 chars)</label>
+              <input type="password" value={pwNew} onChange={e => setPwNew(e.target.value)} required minLength={6}/>
+            </div>
+          </div>
+          <button type="submit" className="btn btn-secondary">Update password</button>
+        </section>
+      </form>
+    </>
+  );
+}

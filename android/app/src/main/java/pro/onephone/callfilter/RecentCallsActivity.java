@@ -1,7 +1,7 @@
 package pro.onephone.callfilter;
 
 import android.Manifest;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.os.Bundle;

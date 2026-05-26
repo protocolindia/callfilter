@@ -28,7 +28,7 @@
         <activity
             android:name=".BlockReasonPickerActivity"
             android:exported="false"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:theme="@style/Theme.AppCompat.Dialog"
             android:excludeFromRecents="true"
             android:taskAffinity=""/>
         <activity

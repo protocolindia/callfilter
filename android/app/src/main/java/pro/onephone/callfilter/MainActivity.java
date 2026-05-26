@@ -1,7 +1,7 @@
 package pro.onephone.callfilter;
 
 import android.Manifest;
-import android.app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import android.app.role.RoleManager;
 import android.content.Context;
 import android.content.DialogInterface;
