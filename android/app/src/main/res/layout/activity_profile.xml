@@ -386,9 +386,10 @@
             </LinearLayout>
 
             <TextView
+                android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Call Filter · v1.0.25"
+                android:text="AI CallFilter · v1.25.183"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"

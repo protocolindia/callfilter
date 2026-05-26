@@ -27,6 +27,16 @@ public class ProfileActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile);
 
+        // Set version dynamically so it always matches the actual build
+        android.widget.TextView tvVer = findViewById(R.id.tvAppVersion);
+        if (tvVer != null) {
+            try {
+                String vn = getPackageManager()
+                    .getPackageInfo(getPackageName(), 0).versionName;
+                tvVer.setText("AI CallFilter  ·  v" + vn);
+            } catch (Exception ignored) {}
+        }
+
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
 
         mobileLabel        = findViewById(R.id.profileMobileLabel);
