@@ -29,6 +29,7 @@ export default function Layout({ children }) {
           <NavLink to="/billing" className={linkClass}>💳 Billing</NavLink>
           <NavLink to="/payments" className={linkClass}>💰 Payments</NavLink>
           <NavLink to="/block-reasons" className={linkClass}>📋 Block Reasons</NavLink>
+          <NavLink to="/global-blocklist" className={linkClass}>🌐 Global Blocklist</NavLink>
           <NavLink to="/settings" className={linkClass}>⚙️ Settings</NavLink>
           <NavLink to="/audit" className={linkClass}>📋 Audit Log</NavLink>
         </nav>

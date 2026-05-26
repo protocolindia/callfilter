@@ -692,4 +692,126 @@ router.post('/users/:id/activate', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+
+// ============================================================
+// GLOBAL BLOCKLIST — admin CRUD
+// ============================================================
+
+// GET  /admin/global-blocklist   — paginated list with search
+router.get('/global-blocklist', requireAdmin, async (req, res, next) => {
+  try {
+    const page   = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = (page - 1) * limit;
+    const search = (req.query.search || '').trim();
+    const reason = (req.query.reason || '').trim();
+
+    const where = [];
+    const params = [];
+    if (search) {
+      params.push('%' + search.toLowerCase() + '%');
+      where.push(`(LOWER(g.number) LIKE $${params.length} OR LOWER(g.notes) LIKE $${params.length})`);
+    }
+    if (reason) {
+      params.push(reason);
+      where.push(`g.reason = $${params.length}`);
+    }
+    const whereSql = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+
+    const total = await one(
+      `SELECT COUNT(*)::int AS n FROM global_blocklist g ${whereSql}`, params);
+    params.push(limit); params.push(offset);
+    const rows = await many(
+      `SELECT g.id, g.number, g.reason, g.notes, g.added_by,
+              g.active, g.created_at, g.updated_at
+         FROM global_blocklist g
+         ${whereSql}
+         ORDER BY g.created_at DESC
+         LIMIT $${params.length-1} OFFSET $${params.length}`, params);
+
+    // Also return distinct reasons for filter dropdown
+    const reasons = await many(
+      `SELECT DISTINCT reason FROM global_blocklist ORDER BY reason`);
+
+    res.json({ ok: true, entries: rows, total: total.n, page, limit,
+               reasons: reasons.map(r => r.reason) });
+  } catch (e) { next(e); }
+});
+
+// POST /admin/global-blocklist  — add entry
+router.post('/global-blocklist', requireAdmin, async (req, res, next) => {
+  try {
+    const { number, reason, notes } = req.body || {};
+    if (!number || !reason) {
+      return res.status(400).json({ error: 'number and reason are required' });
+    }
+    const clean = number.trim().replace(/[\s\-().]/g, '');
+    if (!clean) return res.status(400).json({ error: 'invalid number' });
+
+    // Dedup check: is this number already in the active list?
+    const exists = await one(
+      `SELECT id FROM global_blocklist WHERE number = $1 AND active = TRUE`, [clean]);
+    if (exists) {
+      return res.status(409).json({ error: 'duplicate',
+        message: 'This number is already in the active global blocklist' });
+    }
+    const entry = await one(
+      `INSERT INTO global_blocklist(number, reason, notes, added_by)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [clean, reason.trim(), (notes || '').trim() || null, req.admin.username]);
+    await audit(req.admin.username, 'global_block_added',
+      `${clean} reason="${reason}"`);
+    res.json({ ok: true, entry });
+  } catch (e) { next(e); }
+});
+
+// PUT /admin/global-blocklist/:id  — edit entry
+router.put('/global-blocklist/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { number, reason, notes, active } = req.body || {};
+    const clean = number ? number.trim().replace(/[\s\-().]/g, '') : undefined;
+
+    // If changing number, check dedup
+    if (clean) {
+      const dup = await one(
+        `SELECT id FROM global_blocklist WHERE number = $1 AND active = TRUE AND id <> $2`,
+        [clean, id]);
+      if (dup) {
+        return res.status(409).json({ error: 'duplicate',
+          message: 'Another active entry already has this number' });
+      }
+    }
+    const entry = await one(
+      `UPDATE global_blocklist
+          SET number     = COALESCE($1, number),
+              reason     = COALESCE($2, reason),
+              notes      = COALESCE($3, notes),
+              active     = COALESCE($4, active),
+              updated_at = NOW()
+        WHERE id = $5 RETURNING *`,
+      [clean || null,
+       reason ? reason.trim() : null,
+       notes !== undefined ? ((notes || '').trim() || null) : null,
+       active !== undefined ? active : null,
+       id]);
+    if (!entry) return res.status(404).json({ error: 'not found' });
+    await audit(req.admin.username, 'global_block_updated', `id=${id}`);
+    res.json({ ok: true, entry });
+  } catch (e) { next(e); }
+});
+
+// DELETE /admin/global-blocklist/:id  — hard delete
+router.delete('/global-blocklist/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const entry = await one(
+      `DELETE FROM global_blocklist WHERE id = $1 RETURNING number, reason`, [id]);
+    if (!entry) return res.status(404).json({ error: 'not found' });
+    await audit(req.admin.username, 'global_block_deleted',
+      `${entry.number} reason="${entry.reason}"`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

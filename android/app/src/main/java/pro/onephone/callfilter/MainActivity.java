@@ -49,7 +49,8 @@ public class MainActivity extends AppCompatActivity {
     // Cards (replacing inline rules list)
     private View cardActiveRules, cardRecentCalls;
     private TextView rulesSummary, rulesCount;
-    private View blockedCallsCard, cardSchedules;
+    private View blockedCallsCard, cardSchedules, cardGlobalBlocklist;
+    private TextView globalBlocklistSummary, globalBlocklistBadge;
 
     private String currentType = Rule.TYPE_PREFIX;
 
@@ -116,6 +117,10 @@ public class MainActivity extends AppCompatActivity {
         cardSchedules    = findViewById(R.id.cardSchedules);
         schedulesSummary = findViewById(R.id.schedulesSummary);
         schedulesBadge   = findViewById(R.id.schedulesActiveBadge);
+
+        cardGlobalBlocklist    = findViewById(R.id.cardGlobalBlocklist);
+        globalBlocklistSummary = findViewById(R.id.globalBlocklistSummary);
+        globalBlocklistBadge   = findViewById(R.id.globalBlocklistBadge);
     }
 
     private void setupCountrySpinner() {
@@ -168,6 +173,11 @@ public class MainActivity extends AppCompatActivity {
 
         cardSchedules.setOnClickListener(v ->
             startActivity(new Intent(MainActivity.this, SchedulesActivity.class)));
+
+        if (cardGlobalBlocklist != null) {
+            cardGlobalBlocklist.setOnClickListener(v ->
+                startActivity(new Intent(MainActivity.this, GlobalBlocklistActivity.class)));
+        }
 
         btnTopMenu.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
 
@@ -344,6 +354,27 @@ public class MainActivity extends AppCompatActivity {
             schedulesSummary.setText(all.size() + " schedule" + (all.size() == 1 ? "" : "s")
                                      + " — none active now");
             schedulesBadge.setVisibility(View.GONE);
+        }
+
+        // Global Blocklist tile
+        if (globalBlocklistSummary != null && globalBlocklistBadge != null) {
+            GlobalBlocklistManager glm = GlobalBlocklistManager.getInstance(this);
+            int totalG   = glm.getTotalEntries();
+            int activeG  = glm.getEnabledEntryCount();
+            int reasonsG = glm.getEnabledReasons().size();
+            if (totalG == 0) {
+                globalBlocklistSummary.setText("Not synced — tap to set up");
+                globalBlocklistBadge.setText("OFF");
+                globalBlocklistBadge.setTextColor(getResources().getColor(R.color.subtext, null));
+            } else if (activeG == 0) {
+                globalBlocklistSummary.setText(totalG + " numbers available — none enabled");
+                globalBlocklistBadge.setText("OFF");
+                globalBlocklistBadge.setTextColor(getResources().getColor(R.color.subtext, null));
+            } else {
+                globalBlocklistSummary.setText(activeG + " numbers blocking · " + reasonsG + " reason" + (reasonsG == 1 ? "" : "s") + " enabled");
+                globalBlocklistBadge.setText("ON");
+                globalBlocklistBadge.setTextColor(getResources().getColor(R.color.reject, null));
+            }
         }
 
         // Active rules card — just show the count + summary; full list lives in RulesActivity
@@ -533,6 +564,9 @@ public class MainActivity extends AppCompatActivity {
         SyncManager.getInstance(this).mergeRulesFromCloud();
         // Refresh the UI after merge completes (HTTP async)
         banner_handler.postDelayed(() -> refreshUI(), 1_500L);
+
+        // Sync global blocklist in background on every launch
+        SyncManager.getInstance(this).syncGlobalBlocklistAsync();
         refreshBlockAllUI();
         banner_handler.postDelayed(banner_tick, 30_000L);
         maybePromptOverlayPermission();

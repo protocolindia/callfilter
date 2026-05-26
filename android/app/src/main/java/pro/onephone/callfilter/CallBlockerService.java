@@ -100,7 +100,19 @@ public class CallBlockerService extends CallScreeningService {
             rType = "schedule"; rPattern = activeSchedule.name;
         }
 
-        // 6. Frequency-bypass — overrides ALL rejections (Q3 = bypass wins).
+        // 6. Global blocklist — admin-curated numbers blocked by reason category
+        if (!shouldReject) {
+            String globalReason = GlobalBlocklistManager.getInstance(this)
+                .isNumberBlocked(number);
+            if (globalReason != null) {
+                shouldReject = true;
+                rType    = "global_list";
+                rPattern = globalReason;
+                Log.d(TAG, "GLOBAL BLOCKLIST matched: reason=" + globalReason);
+            }
+        }
+
+        // 7. Frequency-bypass — overrides ALL rejections (Q3 = bypass wins).
         // Uses the active schedule's frequency config. If no schedule is active
         // but Block All is, frequency-bypass is OFF (Block All has no freq config).
         if (shouldReject && activeSchedule != null && activeSchedule.freqEnabled) {

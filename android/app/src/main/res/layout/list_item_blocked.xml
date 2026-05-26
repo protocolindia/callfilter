@@ -1,22 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:orientation="vertical" android:background="@drawable/card_bg"
-    android:padding="14dp" android:layout_marginBottom="8dp">
-    <TextView android:id="@+id/blockedNumber"
-        android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="+91..." android:textSize="16sp" android:textStyle="bold"
-        android:textColor="@color/text"/>
-    <LinearLayout android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:orientation="horizontal"
-        android:layout_marginTop="4dp">
-        <TextView android:id="@+id/blockedRule"
-            android:layout_width="0dp" android:layout_weight="1"
-            android:layout_height="wrap_content" android:text="PREFIX · 9494"
-            android:textSize="12sp" android:textColor="@color/subtext"/>
-        <TextView android:id="@+id/blockedTime"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="just now" android:textSize="12sp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/card_bg"
+    android:padding="14dp"
+    android:layout_marginBottom="8dp">
+
+    <!-- Number row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <!-- Globe icon — only visible when blocked by global list -->
+        <TextView
+            android:id="@+id/globalBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="&#x1F310;"
+            android:textSize="16sp"
+            android:layout_marginEnd="6dp"
+            android:visibility="gone"/>
+        <TextView
+            android:id="@+id/blockedNumber"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="+91..."
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/text"/>
+        <TextView
+            android:id="@+id/blockedTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="just now"
+            android:textSize="12sp"
             android:textColor="@color/muted"/>
+    </LinearLayout>
+
+    <!-- Rule / reason row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="4dp"
+        android:gravity="center_vertical">
+        <TextView
+            android:id="@+id/blockedRule"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="PREFIX · 9494"
+            android:textSize="12sp"
+            android:textColor="@color/subtext"/>
+        <!-- Reason pill — shown for global-list and post-call categorized blocks -->
+        <TextView
+            android:id="@+id/blockedReasonPill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Spam call"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="@color/reject"
+            android:background="@drawable/badge_reject"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:visibility="gone"/>
     </LinearLayout>
 </LinearLayout>

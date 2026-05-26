@@ -57,6 +57,7 @@
         <activity android:name=".SchedulesActivity"    android:exported="false"/>
         <activity android:name=".EditScheduleActivity" android:exported="false"/>
         <activity android:name=".ContactPickerActivity" android:exported="false"/>
+        <activity android:name=".GlobalBlocklistActivity" android:exported="false"/>
 
         <service
             android:name=".CallBlockerService"

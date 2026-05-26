@@ -11,6 +11,7 @@ public class SignupActivity extends AppCompatActivity {
     private Spinner countrySpinner;
     private EditText mobileInput, nameInput;
     private Button btnContinue;
+    private android.widget.CheckBox cbAcceptTerms;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,6 +30,20 @@ public class SignupActivity extends AppCompatActivity {
         mobileInput    = findViewById(R.id.mobileInput);
         nameInput      = findViewById(R.id.nameInput);
         btnContinue    = findViewById(R.id.btnContinue);
+        cbAcceptTerms  = findViewById(R.id.cbAcceptTerms);
+
+        // Tapping the label toggles the checkbox (more forgiving touch target)
+        android.view.View lblTerms = findViewById(R.id.lblAcceptTerms);
+        if (lblTerms != null && cbAcceptTerms != null) {
+            lblTerms.setOnClickListener(v -> cbAcceptTerms.setChecked(!cbAcceptTerms.isChecked()));
+        }
+        // T&C and Privacy Policy links → open in browser
+        android.view.View.OnClickListener openTerms = v -> openUrl("https://app.onephone.pro/terms");
+        android.view.View.OnClickListener openPriv  = v -> openUrl("https://app.onephone.pro/privacy");
+        android.view.View ltLink = findViewById(R.id.linkTerms);
+        android.view.View lpLink = findViewById(R.id.linkPrivacy);
+        if (ltLink != null) ltLink.setOnClickListener(openTerms);
+        if (lpLink != null) lpLink.setOnClickListener(openPriv);
 
         ArrayAdapter<CountryData> adapter = new ArrayAdapter<>(this,
             R.layout.spinner_item, CountryData.LIST);
@@ -52,6 +67,11 @@ public class SignupActivity extends AppCompatActivity {
             }
             if (loginMode) {
                 // Existing account — make this look like "verify your mobile",
+                // including hiding the T&C checkbox (they accepted it when signing up)
+                if (cbAcceptTerms != null) {
+                    android.view.View parent = (android.view.View) cbAcceptTerms.getParent();
+                    if (parent != null) parent.setVisibility(android.view.View.GONE);
+                }
                 // NOT a fresh signup. Hide name section + cross-link.
                 TextView title = findViewById(R.id.signupTitle);
                 if (title != null) title.setText("Verify your mobile");
@@ -99,6 +119,15 @@ public class SignupActivity extends AppCompatActivity {
         final String mobile = mobileInput.getText().toString().trim();
         final String name = nameInput.getText().toString().trim();
         boolean isLoginMode = getIntent() != null && getIntent().getBooleanExtra("login_mode", false);
+
+        // T&C required for fresh signups (skipped in login_mode — they already agreed
+        // when they originally signed up)
+        if (!isLoginMode && (cbAcceptTerms == null || !cbAcceptTerms.isChecked())) {
+            Toast.makeText(this,
+                "Please accept the Terms & Conditions and Privacy Policy to continue",
+                Toast.LENGTH_LONG).show();
+            return;
+        }
         if (!isLoginMode && name.length() < 2) {
             Toast.makeText(this, "Please enter your name", Toast.LENGTH_SHORT).show();
             nameInput.requestFocus();
@@ -125,5 +154,16 @@ public class SignupActivity extends AppCompatActivity {
                         message != null ? message : "Signup failed", Toast.LENGTH_LONG).show();
                 }
             });
+    }
+
+    private void openUrl(String url) {
+        try {
+            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                android.net.Uri.parse(url));
+            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not open " + url, Toast.LENGTH_SHORT).show();
+        }
     }
 }

@@ -10,8 +10,10 @@ import Audit from './pages/Audit.jsx';
 import Billing from './pages/Billing.jsx';
 import Payments from './pages/Payments.jsx';
 import BlockReasons from './pages/BlockReasons.jsx';
+import GlobalBlocklist from './pages/GlobalBlocklist.jsx';
 import UserDetail from './pages/UserDetail.jsx';
 import Terms from './pages/Terms.jsx';
+import Privacy from './pages/Privacy.jsx';
 import { AuthProvider, useAuth } from './auth.jsx';
 import './style.css';
 
@@ -26,6 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route element={<Protected><App /></Protected>}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -36,6 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/billing" element={<Billing />} />
           <Route path="/payments" element={<Payments />} />
           <Route path="/block-reasons" element={<BlockReasons />} />
+          <Route path="/global-blocklist" element={<GlobalBlocklist />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

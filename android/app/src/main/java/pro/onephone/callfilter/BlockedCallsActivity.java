@@ -29,7 +29,7 @@ public class BlockedCallsActivity extends AppCompatActivity {
 
         btnBack.setOnClickListener(v -> finish());
 
-        btnClear.setOnClickListener(v -> {
+        btnClear.setOnClickListener(v ->
             new AlertDialog.Builder(this)
                 .setTitle("Clear log?")
                 .setMessage("This will delete the blocked-call log on this device.")
@@ -38,32 +38,65 @@ public class BlockedCallsActivity extends AppCompatActivity {
                     refresh();
                 })
                 .setNegativeButton("Cancel", null)
-                .show();
-        });
+                .show());
 
         refresh();
     }
 
     private void refresh() {
-        List<BlockedCallsManager.Entry> entries = BlockedCallsManager.getInstance(this).getEntries();
+        List<BlockedCallsManager.Entry> entries =
+            BlockedCallsManager.getInstance(this).getEntries();
         totalCount.setText(String.valueOf(entries.size()));
         container.removeAllViews();
+
         if (entries.isEmpty()) {
             emptyView.setVisibility(View.VISIBLE);
             return;
         }
         emptyView.setVisibility(View.GONE);
+
         LayoutInflater inf = LayoutInflater.from(this);
         for (BlockedCallsManager.Entry e : entries) {
             View row = inf.inflate(R.layout.list_item_blocked, container, false);
-            TextView numView  = row.findViewById(R.id.blockedNumber);
-            TextView ruleView = row.findViewById(R.id.blockedRule);
-            TextView timeView = row.findViewById(R.id.blockedTime);
+
+            TextView numView    = row.findViewById(R.id.blockedNumber);
+            TextView ruleView   = row.findViewById(R.id.blockedRule);
+            TextView timeView   = row.findViewById(R.id.blockedTime);
+            TextView globeBadge = row.findViewById(R.id.globalBadge);
+            TextView reasonPill = row.findViewById(R.id.blockedReasonPill);
+
             numView.setText(e.number);
-            ruleView.setText(e.ruleType.toUpperCase()
-                + (e.rulePattern.isEmpty() ? "" : " · " + e.rulePattern));
-            timeView.setText(DateUtils.getRelativeTimeSpanString(e.blockedAtMs,
-                System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS));
+            timeView.setText(DateUtils.getRelativeTimeSpanString(
+                e.blockedAtMs, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS));
+
+            boolean isGlobal = "global_list".equals(e.ruleType);
+
+            if (isGlobal) {
+                // Global blocklist block — show globe + reason as the label
+                globeBadge.setVisibility(View.VISIBLE);
+                String reason = (e.rulePattern != null && !e.rulePattern.isEmpty())
+                    ? e.rulePattern : "Global list";
+                ruleView.setText("GLOBAL · " + reason);
+
+                // Also show the reason pill
+                reasonPill.setText(reason);
+                reasonPill.setVisibility(View.VISIBLE);
+
+            } else {
+                // Normal rule-based block
+                globeBadge.setVisibility(View.GONE);
+                ruleView.setText(e.ruleType.toUpperCase()
+                    + (e.rulePattern.isEmpty() ? "" : " · " + e.rulePattern));
+
+                // Show reason pill if a categorization reason was picked
+                if (e.reason != null && !e.reason.isEmpty()) {
+                    reasonPill.setText(e.reason);
+                    reasonPill.setVisibility(View.VISIBLE);
+                } else {
+                    reasonPill.setVisibility(View.GONE);
+                }
+            }
+
             container.addView(row);
         }
     }

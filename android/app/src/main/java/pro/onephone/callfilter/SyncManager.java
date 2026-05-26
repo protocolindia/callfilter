@@ -329,4 +329,15 @@ public class SyncManager {
             }
         }).start();
     }
+
+    // ===== Global blocklist sync =====
+    /** Fetches the global blocklist from the server and caches it locally. */
+    public void syncGlobalBlocklistAsync() {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled()) return;
+        GlobalBlocklistManager.getInstance(appCtx).syncAsync((ok, count, err) -> {
+            if (ok) Log.d(TAG, "Global blocklist synced: " + count + " entries");
+            else    Log.w(TAG, "Global blocklist sync failed: " + err);
+        });
+    }
 }

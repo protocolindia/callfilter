@@ -1135,3 +1135,20 @@ router.get('/settings/block-reasons', async (req, res, next) => {
 });
 
 module.exports = router;
+
+// ============================================================
+// GLOBAL BLOCKLIST — public endpoint for app to sync
+// Returns all active entries so the app can block them locally.
+// ============================================================
+router.get('/global-blocklist', async (req, res, next) => {
+  try {
+    const rows = await many(
+      `SELECT number, reason
+         FROM global_blocklist
+        WHERE active = TRUE
+        ORDER BY reason, number`
+    );
+    res.json({ ok: true, entries: rows, total: rows.length,
+               synced_at: new Date().toISOString() });
+  } catch (e) { next(e); }
+});

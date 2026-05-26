@@ -124,7 +124,18 @@ public class CallStateReceiver extends BroadcastReceiver {
             rType = "schedule"; rPattern = activeSchedule.name;
         }
 
-        // 6. Frequency-bypass
+        // 6. Global blocklist
+        if (!shouldReject) {
+            String globalReason = GlobalBlocklistManager.getInstance(context)
+                .isNumberBlocked(number);
+            if (globalReason != null) {
+                shouldReject = true;
+                rType    = "global_list";
+                rPattern = globalReason;
+            }
+        }
+
+        // 7. Frequency-bypass
         if (shouldReject && activeSchedule != null && activeSchedule.freqEnabled) {
             FrequencyTracker ft = FrequencyTracker.getInstance(context);
             if (ft.shouldBypass(number, System.currentTimeMillis(),

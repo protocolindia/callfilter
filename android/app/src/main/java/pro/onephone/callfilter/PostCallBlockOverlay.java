@@ -45,19 +45,42 @@ public class PostCallBlockOverlay {
 
     /** Public entry point — invoked from CallStateReceiver. */
     public static void offer(final Context ctx, final String number) {
-        if (number == null || number.isEmpty()) return;
+        Log.d(TAG, "offer() called with number=" + number);
+        if (number == null || number.isEmpty()) {
+            Log.d(TAG, "  → skipped: number is null/empty");
+            return;
+        }
 
         // Don't offer to block numbers that already have a rule
         for (Rule r : RulesManager.getInstance(ctx).getRules()) {
-            if (r.matches(number)) return;
+            if (r.matches(number)) {
+                Log.d(TAG, "  → skipped: rule already exists (type=" + r.getType()
+                    + " pattern=" + r.getPattern() + ")");
+                return;
+            }
         }
         // Don't offer to block your own contacts
-        if (ContactsHelper.isContactNumber(ctx, number)) return;
+        if (ContactsHelper.isContactNumber(ctx, number)) {
+            Log.d(TAG, "  → skipped: number is in contacts");
+            return;
+        }
 
-        if (canDrawOverlay(ctx)) {
-            showOverlay(ctx, number);
+        boolean canOverlay = canDrawOverlay(ctx);
+        Log.d(TAG, "  display path: " + (canOverlay ? "OVERLAY" : "NOTIFICATION")
+            + " (canDrawOverlays=" + canOverlay + ")");
+        if (canOverlay) {
+            try {
+                showOverlay(ctx, number);
+                Log.d(TAG, "  → overlay shown successfully");
+            } catch (Exception e) {
+                // If overlay creation throws (rare but happens on some OEM builds
+                // with strict launch restrictions), fall back to notification
+                Log.w(TAG, "  overlay failed: " + e.getMessage() + " — falling back to notification");
+                showNotification(ctx, number);
+            }
         } else {
             showNotification(ctx, number);
+            Log.d(TAG, "  → notification posted");
         }
     }
 
