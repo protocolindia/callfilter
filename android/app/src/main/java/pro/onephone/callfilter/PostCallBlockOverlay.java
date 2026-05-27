@@ -96,27 +96,76 @@ public class PostCallBlockOverlay {
         final View view = LayoutInflater.from(ctx).inflate(R.layout.post_call_block_popup, null);
         ((TextView) view.findViewById(R.id.popupNumber)).setText(number);
 
-        // Populate inline reason chips
-        android.widget.LinearLayout chipsContainer =
-            view.findViewById(R.id.reasonChipsContainer);
-        final String[] selectedReason = { BlockReasonsCache.getInstance(ctx).get()
-            .isEmpty() ? "Spam call" : BlockReasonsCache.getInstance(ctx).get().get(0) };
+        final Handler handler = new Handler(Looper.getMainLooper());
+        final Runnable[] autoDismissRef = new Runnable[1];
 
+        View.OnClickListener dismiss = v -> {
+            if (autoDismissRef[0] != null) handler.removeCallbacks(autoDismissRef[0]);
+            try { wm.removeViewImmediate(view); } catch (Exception ignored) {}
+        };
+
+        // Skip just dismisses
+        view.findViewById(R.id.popupDismiss).setOnClickListener(dismiss);
+        view.findViewById(R.id.popupSkip).setOnClickListener(dismiss);
+
+        // Build reason buttons — each tap = instant block + dismiss
+        android.widget.LinearLayout chipsContainer = view.findViewById(R.id.reasonChipsContainer);
         if (chipsContainer != null) {
             java.util.List<String> reasons = BlockReasonsCache.getInstance(ctx).get();
-            android.view.LayoutInflater inf = android.view.LayoutInflater.from(ctx);
+            float dp = ctx.getResources().getDisplayMetrics().density;
+            int marginV = (int)(6 * dp);
+            int padH = (int)(20 * dp);
+            int padV = (int)(14 * dp);
+
             for (String reason : reasons) {
-                android.widget.RadioButton rb = new android.widget.RadioButton(ctx);
-                rb.setText(reason);
-                rb.setTextColor(0xFFFFFFFF);
-                rb.setButtonTintList(android.content.res.ColorStateList.valueOf(0xFF4F8EF7));
-                rb.setTextSize(14f);
-                rb.setPadding(16, 10, 16, 10);
-                rb.setChecked(reason.equals(selectedReason[0]));
-                rb.setOnCheckedChangeListener((btn, checked) -> {
-                    if (checked) selectedReason[0] = reason;
+                android.widget.TextView btn = new android.widget.TextView(ctx);
+                btn.setText(reason);
+                btn.setTextColor(0xFFFFFFFF);
+                btn.setTextSize(15f);
+                btn.setTypeface(null, android.graphics.Typeface.BOLD);
+                btn.setPadding(padH, padV, padH, padV);
+                btn.setClickable(true);
+                btn.setFocusable(true);
+
+                // Rounded background
+                android.graphics.drawable.GradientDrawable bg =
+                    new android.graphics.drawable.GradientDrawable();
+                bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                bg.setCornerRadius(10 * dp);
+                bg.setColor(0xFF1E1E26);
+                bg.setStroke((int)(1.5f * dp), 0xFF2D2E36);
+                btn.setBackground(bg);
+
+                android.widget.LinearLayout.LayoutParams lp2 =
+                    new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+                lp2.setMargins(0, marginV, 0, marginV);
+                btn.setLayoutParams(lp2);
+                btn.setForeground(ctx.obtainStyledAttributes(
+                    new int[]{android.R.attr.selectableItemBackground}).getDrawable(0));
+
+                final String thisReason = reason;
+                btn.setOnClickListener(v -> {
+                    // Highlight selected
+                    bg.setColor(0xFF1A2A4A);
+                    bg.setStroke((int)(2 * dp), 0xFF4F8EF7);
+                    // Block with this reason — no second confirmation
+                    handler.postDelayed(() -> {
+                        dismiss.onClick(v);
+                        RulesManager.getInstance(ctx).addRule(
+                            number, Rule.TYPE_PREFIX, Rule.ACTION_REJECT);
+                        SyncManager.getInstance(ctx).syncRulesAsync();
+                        BlockedCallsManager.getInstance(ctx).recordBlock(
+                            number, "manual", thisReason, "reject");
+                        SyncManager.getInstance(ctx).syncBlockedCallsAsync();
+                        Toast.makeText(ctx,
+                            "✗ Blocked: " + number + " (" + thisReason + ")",
+                            Toast.LENGTH_SHORT).show();
+                    }, 200); // 200ms to show highlight before dismissing
                 });
-                chipsContainer.addView(rb);
+
+                chipsContainer.addView(btn);
             }
         }
 
@@ -126,45 +175,18 @@ public class PostCallBlockOverlay {
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.CENTER;
 
-        final Handler handler = new Handler(Looper.getMainLooper());
-        final Runnable autoDismiss = new Runnable() {
-            public void run() {
-                try { wm.removeViewImmediate(view); } catch (Exception ignored) {}
-            }
-        };
-
-        View.OnClickListener dismiss = v -> {
-            handler.removeCallbacks(autoDismiss);
+        autoDismissRef[0] = () -> {
             try { wm.removeViewImmediate(view); } catch (Exception ignored) {}
         };
 
-        view.findViewById(R.id.popupDismiss).setOnClickListener(dismiss);
-        view.findViewById(R.id.popupSkip).setOnClickListener(dismiss);
-
-        view.findViewById(R.id.popupBlock).setOnClickListener(v -> {
-            String reason = selectedReason[0];
-            dismiss.onClick(v);
-            // Add rule directly — no followup window
-            RulesManager.getInstance(ctx).addRule(number, Rule.TYPE_PREFIX, Rule.ACTION_REJECT);
-            SyncManager.getInstance(ctx).syncRulesAsync();
-            // Record the block with reason
-            BlockedCallsManager.getInstance(ctx).recordBlock(
-                number, "manual", reason, "reject");
-            // Sync to server
-            SyncManager.getInstance(ctx).syncBlockedCallsAsync();
-            // Toast confirmation
-            new Handler(Looper.getMainLooper()).post(() ->
-                Toast.makeText(ctx, "Blocked: " + number + " (" + reason + ")",
-                    Toast.LENGTH_SHORT).show());
-        });
-
         try {
             wm.addView(view, lp);
-            handler.postDelayed(autoDismiss, AUTO_DISMISS_MS);
+            handler.postDelayed(autoDismissRef[0], AUTO_DISMISS_MS);
         } catch (Exception e) {
             Log.e(TAG, "addView failed, falling back to notification", e);
             showNotification(ctx, number);

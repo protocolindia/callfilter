@@ -72,6 +72,7 @@ public class GlobalBlockPopupManager {
                 if (tvAdmin  != null) tvAdmin.setText(adminName != null ? adminName : "Global Blocklist");
 
                 // Load image
+                android.view.View spacer = view.findViewById(R.id.gbpImageSpacer);
                 if (imgView != null && imagePath != null) {
                     File imgFile = new File(imagePath);
                     if (imgFile.exists()) {
@@ -79,14 +80,15 @@ public class GlobalBlockPopupManager {
                         if (bmp != null) {
                             imgView.setImageBitmap(bmp);
                             imgView.setVisibility(View.VISIBLE);
+                            if (spacer != null) spacer.setVisibility(View.GONE);
                             Log.d(TAG, "Image loaded: " + imagePath);
                         } else {
                             imgView.setVisibility(View.GONE);
-                            Log.w(TAG, "BitmapFactory returned null for: " + imagePath);
+                            Log.w(TAG, "BitmapFactory null: " + imagePath);
                         }
                     } else {
                         imgView.setVisibility(View.GONE);
-                        Log.w(TAG, "Image file not found: " + imagePath);
+                        Log.w(TAG, "Image file missing: " + imagePath);
                     }
                 } else if (imgView != null) {
                     imgView.setVisibility(View.GONE);
@@ -98,7 +100,8 @@ public class GlobalBlockPopupManager {
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                     PixelFormat.TRANSLUCENT);
                 lp.gravity = Gravity.CENTER;
 

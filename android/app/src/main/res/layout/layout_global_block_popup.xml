@@ -3,171 +3,171 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#E8000000">
+    android:background="#F0000000">
 
-    <!-- Spacer top -->
-    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
-
-    <!-- Card -->
+    <!-- Brand bar -->
     <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:background="@color/card">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="&#x1F6E1;"
+            android:textSize="22sp"
+            android:layout_marginEnd="10dp"/>
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="AI CallFilter"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/accent"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="BLOCKED"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="#fff"
+            android:background="#CCEF4444"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"/>
+    </LinearLayout>
+
+    <!-- Admin image - takes as much space as available -->
+    <ImageView
+        android:id="@+id/gbpImage"
+        android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="10"
+        android:layout_weight="1"
+        android:scaleType="centerCrop"
+        android:visibility="gone"/>
+
+    <!-- Spacer when no image -->
+    <View
+        android:id="@+id/gbpImageSpacer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="visible"/>
+
+    <!-- Info card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="@drawable/card_bg"
-        android:layout_margin="16dp"
-        android:elevation="12dp">
+        android:background="@color/card"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="16dp">
 
-        <!-- Admin popup image -->
-        <ImageView
-            android:id="@+id/gbpImage"
+        <!-- Blocked number - scrollable to handle long numbers -->
+        <HorizontalScrollView
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="4"
-            android:scaleType="centerCrop"
-            android:visibility="gone"/>
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:layout_marginBottom="16dp">
+            <TextView
+                android:id="@+id/gbpNumber"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textColor="@color/reject"
+                android:singleLine="true"/>
+        </HorizontalScrollView>
 
-        <!-- Brand header -->
+        <!-- Reason row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:background="#1A000000"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp"
-            android:paddingTop="14dp"
-            android:paddingBottom="10dp">
+            android:background="@color/surface"
+            android:padding="14dp"
+            android:layout_marginBottom="8dp">
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="&#x1F6E1;"
-                android:textSize="22sp"
-                android:layout_marginEnd="10dp"/>
-            <TextView
+                android:text="&#x1F310;"
+                android:textSize="18sp"
+                android:layout_marginEnd="12dp"/>
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="AI CallFilter"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:textColor="@color/accent"/>
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="CALL BLOCKED"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="@color/reject"
-                android:background="@drawable/badge_reject"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:paddingTop="3dp"
-                android:paddingBottom="3dp"/>
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="REASON"
+                    android:textSize="10sp"
+                    android:textColor="@color/subtext"/>
+                <TextView
+                    android:id="@+id/gbpReason"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text"/>
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Content -->
+        <!-- Source row -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="5"
-            android:orientation="vertical"
-            android:padding="24dp"
-            android:gravity="center_vertical">
-
-            <!-- Blocked number -->
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@color/surface"
+            android:padding="14dp"
+            android:layout_marginBottom="20dp">
             <TextView
-                android:id="@+id/gbpNumber"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="26sp"
-                android:textStyle="bold"
-                android:textColor="@color/reject"
-                android:layout_marginBottom="16dp"/>
-
-            <!-- Reason row -->
+                android:text="&#x1F4CB;"
+                android:textSize="18sp"
+                android:layout_marginEnd="12dp"/>
             <LinearLayout
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="@drawable/card_bg"
-                android:padding="14dp"
-                android:layout_marginBottom="10dp">
+                android:orientation="vertical">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="&#x1F310; "
-                    android:textSize="18sp"/>
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Reason"
-                        android:textSize="11sp"
-                        android:textColor="@color/subtext"/>
-                    <TextView
-                        android:id="@+id/gbpReason"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="15sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text"/>
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- Source row -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="@drawable/card_bg"
-                android:padding="14dp"
-                android:layout_marginBottom="24dp">
+                    android:text="SOURCE"
+                    android:textSize="10sp"
+                    android:textColor="@color/subtext"/>
                 <TextView
+                    android:id="@+id/gbpAdminName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="&#x1F4CB; "
-                    android:textSize="18sp"/>
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Source"
-                        android:textSize="11sp"
-                        android:textColor="@color/subtext"/>
-                    <TextView
-                        android:id="@+id/gbpAdminName"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="15sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/accent"/>
-                </LinearLayout>
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/accent"/>
             </LinearLayout>
-
-            <!-- Dismiss -->
-            <Button
-                android:id="@+id/gbpDismiss"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="Dismiss"
-                android:textSize="16sp"
-                android:textColor="#fff"
-                android:background="@drawable/btn_accent"
-                android:minWidth="0dp"/>
         </LinearLayout>
-    </LinearLayout>
 
-    <!-- Spacer bottom -->
-    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
+        <!-- Dismiss -->
+        <Button
+            android:id="@+id/gbpDismiss"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="DISMISS"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="#fff"
+            android:background="@drawable/btn_accent"
+            android:minWidth="0dp"/>
+    </LinearLayout>
 </LinearLayout>
