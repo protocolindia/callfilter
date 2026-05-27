@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { api, getAdminRole } from '../api.js';
+import { api, getAdminRole, getAdminMeta } from '../api.js';
 
 const REASONS_PRESET = [
   'Spam call','Cybercrime / fraud','Phishing',
@@ -19,6 +19,8 @@ export default function GlobalBlocklist() {
   const [activeTab, setActiveTab] = useState('list');
   const role = getAdminRole();
   const isSuperAdmin = role === 'super_admin';
+  const isGlobalDb = role === 'global_db_admin' || role === 'global_db_user';
+  const [assignedReasons, setAssignedReasons] = useState([]);
 
   // ── List state ────────────────────────────────────────────────────────
   const [entries, setEntries]   = useState([]);
@@ -88,6 +90,14 @@ export default function GlobalBlocklist() {
     } catch (e) { setError(e.message || 'Failed'); }
     finally { setLoading(false); }
   }, [page, search, filterReason]);
+
+  // Fetch assigned reasons for global_db roles (limits reason dropdown)
+  useEffect(() => {
+    if (!isGlobalDb) return;
+    api.get('/admin/global-db-stats').then(d => {
+      if (d.assigned_reasons?.length) setAssignedReasons(d.assigned_reasons);
+    }).catch(()=>{});
+  }, [isGlobalDb]);
 
   useEffect(() => { if (activeTab === 'list') load(1); }, [search, filterReason, activeTab]);
   useEffect(() => { if (activeTab === 'list') load(page); }, [page]);
@@ -167,7 +177,10 @@ export default function GlobalBlocklist() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-  const allReasons = [...new Set([...REASONS_PRESET, ...reasons])];
+  // For global_db roles, only show their assigned reasons; others see all
+  const allReasons = isGlobalDb && assignedReasons.length > 0
+    ? assignedReasons
+    : [...new Set([...REASONS_PRESET, ...reasons])];
   const totalPages = Math.ceil(total/limit);
   const fmt = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
 

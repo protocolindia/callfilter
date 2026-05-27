@@ -355,6 +355,25 @@ export default function AdminUsers() {
         </div>
       )}
 
+      {/* Full image preview modal */}
+      {previewImg && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)',
+          display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}
+          onClick={()=>setPreviewImg(null)}>
+          <div style={{ position:'relative', maxWidth:'90vw', maxHeight:'90vh' }}>
+            <img src={previewImg} alt="Popup preview"
+              style={{ maxWidth:'100%', maxHeight:'85vh', borderRadius:8, display:'block' }}/>
+            <button onClick={()=>setPreviewImg(null)}
+              style={{ position:'absolute', top:-12, right:-12, background:'#ef4444',
+                color:'#fff', border:'none', borderRadius:'50%', width:28, height:28,
+                cursor:'pointer', fontWeight:700, fontSize:16, lineHeight:'28px' }}>×</button>
+            <p style={{ color:'#fff', textAlign:'center', marginTop:8, fontSize:13 }}>
+              Click anywhere to close
+            </p>
+          </div>
+        </div>
+      )}
+
       {error && <p style={{ color:'var(--reject)' }}>{error}</p>}
 
       {/* Table */}
@@ -462,14 +481,26 @@ export default function AdminUsers() {
                           background:'var(--accent)', color:'#fff', cursor:'pointer',
                           fontWeight:600, fontSize:12 }}>Edit</button>
                       {isSuperAdmin && u.role === 'global_db_admin' && (
-                        <button onClick={()=>openImageUpload(u)}
-                          style={{ padding:'4px 10px', borderRadius:4, border:'none',
-                            background: u.popup_image_data
-                              ? 'rgba(34,197,94,0.15)' : 'rgba(79,142,247,0.15)',
-                            color: u.popup_image_data ? '#22c55e' : '#4f8ef7',
-                            cursor:'pointer', fontWeight:600, fontSize:12 }}>
-                          {u.popup_image_data ? '📷 Image ✓' : '📷 Add Image'}
-                        </button>
+                        <>
+                          <button onClick={()=>openImageUpload(u)}
+                            style={{ padding:'4px 10px', borderRadius:4, border:'none',
+                              background: u.popup_image_data
+                                ? 'rgba(34,197,94,0.15)' : 'rgba(79,142,247,0.15)',
+                              color: u.popup_image_data ? '#22c55e' : '#4f8ef7',
+                              cursor:'pointer', fontWeight:600, fontSize:12 }}>
+                            {u.popup_image_data ? '📷 Image ✓' : '📷 Add Image'}
+                          </button>
+                          {u.popup_image_data && (
+                            <button onClick={()=>{
+                                setPreviewImg(`data:${u.popup_image_mime||'image/jpeg'};base64,${u.popup_image_data}`);
+                              }}
+                              style={{ padding:'4px 10px', borderRadius:4, border:'none',
+                                background:'rgba(107,114,128,0.15)', color:'var(--text)',
+                                cursor:'pointer', fontWeight:600, fontSize:12 }}>
+                              👁 View
+                            </button>
+                          )}
+                        </>
                       )}
                       <button onClick={()=>handleDelete(u)}
                         style={{ padding:'4px 10px', borderRadius:4, border:'none',

@@ -17,7 +17,7 @@ export default function Layout({ children }) {
   const { username, logout } = useAuth();
   const role = getAdminRole();
   const meta = getAdminMeta();
-  const isGlobalOnly = role === 'global_db_user'; // global_db_admin also sees Users
+  const isGlobalOnly = role === 'global_db_admin' || role === 'global_db_user';
   const can = (...roles) => role === 'super_admin' || roles.includes(role);
 
   const handleLogout = () => { logout(); navigate('/login'); };
@@ -35,7 +35,7 @@ export default function Layout({ children }) {
         </div>
         <nav>
           {!isGlobalOnly && <NavLink to="/dashboard" className={linkClass}>📊 Dashboard</NavLink>}
-          {(can('admin','support') || role === 'global_db_admin') && <NavLink to="/users" className={linkClass}>👥 Users</NavLink>}
+          {can('admin','support') && <NavLink to="/users" className={linkClass}>👥 Users</NavLink>}
           {can('admin','billing') && <NavLink to="/billing" className={linkClass}>💳 Billing</NavLink>}
           {can('admin','billing') && <NavLink to="/payments" className={linkClass}>💰 Payments</NavLink>}
           {can('admin','support') && <NavLink to="/block-reasons" className={linkClass}>📋 Block Reasons</NavLink>}

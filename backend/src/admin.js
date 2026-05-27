@@ -41,9 +41,8 @@ router.get('/stats', requireAdmin, async (req, res, next) => {
 // GET /admin/users
 router.get('/users', requireAdmin, async (req, res, next) => {
   try {
-    // global_db_admin can view app users (view only, no sensitive billing data)
     const role = req.admin.role;
-    if (!['super_admin','admin','support','global_db_admin'].includes(role))
+    if (!['super_admin','admin','support'].includes(role))
       return res.status(403).json({ error: 'Forbidden' });
 
     const q = (req.query.q || '').trim();
@@ -68,7 +67,7 @@ router.get('/users', requireAdmin, async (req, res, next) => {
 router.get('/users/:id', requireAdmin, async (req, res, next) => {
   try {
     const role = req.admin.role;
-    if (!['super_admin','admin','support','global_db_admin'].includes(role))
+    if (!['super_admin','admin','support'].includes(role))
       return res.status(403).json({ error: 'Forbidden' });
 
     const id = parseInt(req.params.id, 10);
@@ -1202,6 +1201,81 @@ router.put('/admin-users/:id/assigned-reasons', requireAdmin, async (req, res, n
     await audit(req.admin.username, 'assigned_reasons_updated',
       `admin_id=${req.params.id} reasons=${reasons.join(',')}`);
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+
+// GET /admin/global-db-stats — dashboard stats for global_db_admin and global_db_user
+router.get('/global-db-stats', requireAdmin, async (req, res, next) => {
+  try {
+    const role = req.admin.role;
+    if (!['global_db_admin','global_db_user'].includes(role))
+      return res.status(403).json({ error: 'Forbidden' });
+
+    let myEntries = 0, mySubUsers = 0, assignedReasons = [];
+
+    if (role === 'global_db_admin') {
+      // Own entries
+      const own = await one(
+        'SELECT COUNT(*)::int AS n FROM global_blocklist WHERE added_by_admin_id = $1 AND deleted_at IS NULL',
+        [req.admin.id]);
+      myEntries = own.n;
+
+      // Sub-users entries
+      const sub = await one(
+        `SELECT COUNT(*)::int AS n FROM global_blocklist
+          WHERE added_by_admin_id IN (
+            SELECT id FROM admin_users WHERE parent_id = $1 AND deleted_at IS NULL)
+          AND deleted_at IS NULL`,
+        [req.admin.id]);
+
+      myEntries += sub.n;
+
+      // Sub-user count
+      const subs = await one(
+        'SELECT COUNT(*)::int AS n FROM admin_users WHERE parent_id = $1 AND deleted_at IS NULL',
+        [req.admin.id]);
+      mySubUsers = subs.n;
+
+      // Assigned reasons
+      const row = await one('SELECT assigned_reasons FROM admin_users WHERE id = $1', [req.admin.id]);
+      try { assignedReasons = JSON.parse(row?.assigned_reasons || '[]'); } catch {}
+
+      // Recent entries
+      const recent = await many(
+        `SELECT g.number, g.reason, g.created_at, au.username AS added_by_username
+           FROM global_blocklist g
+           LEFT JOIN admin_users au ON au.id = g.added_by_admin_id
+          WHERE g.added_by_admin_id = $1
+             OR g.added_by_admin_id IN (
+               SELECT id FROM admin_users WHERE parent_id = $1)
+          ORDER BY g.created_at DESC LIMIT 10`,
+        [req.admin.id]);
+
+      return res.json({ ok:true, role, my_entries:myEntries, sub_users:mySubUsers,
+        assigned_reasons:assignedReasons, recent });
+
+    } else { // global_db_user
+      const own = await one(
+        'SELECT COUNT(*)::int AS n FROM global_blocklist WHERE added_by_admin_id = $1 AND deleted_at IS NULL',
+        [req.admin.id]);
+      myEntries = own.n;
+
+      // Get parent's assigned reasons
+      const par = await one(
+        `SELECT a2.assigned_reasons FROM admin_users a1
+          JOIN admin_users a2 ON a2.id = a1.parent_id
+         WHERE a1.id = $1`, [req.admin.id]);
+      try { assignedReasons = JSON.parse(par?.assigned_reasons || '[]'); } catch {}
+
+      const recent = await many(
+        `SELECT number, reason, created_at FROM global_blocklist
+          WHERE added_by_admin_id = $1 ORDER BY created_at DESC LIMIT 10`,
+        [req.admin.id]);
+
+      return res.json({ ok:true, role, my_entries:myEntries, sub_users:0,
+        assigned_reasons:assignedReasons, recent });
+    }
   } catch (e) { next(e); }
 });
 
