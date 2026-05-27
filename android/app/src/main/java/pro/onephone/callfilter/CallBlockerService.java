@@ -127,8 +127,12 @@ public class CallBlockerService extends CallScreeningService {
 
         if (shouldReject) {
             Log.d(TAG, "VERDICT: REJECT (type=" + rType + " pattern=" + rPattern + ")");
-            // Auto-send SMS reply if enabled by user
+            // Auto-send SMS reply if enabled (Block All Now only)
             SmsAutoResponder.getInstance(this).sendIfEnabled(number, rType);
+            // Show global block popup if this was a global_list block
+            if ("global_list".equals(rType)) {
+                showGlobalBlockPopup(number, rPattern);
+            }
             FrequencyTracker.getInstance(this)
                 .recordRejection(number, System.currentTimeMillis());
             BlockedCallsManager.getInstance(this)
@@ -144,4 +148,23 @@ public class CallBlockerService extends CallScreeningService {
             respondToCall(callDetails, new CallResponse.Builder().build());
         }
     }
+    private void showGlobalBlockPopup(String number, String reason) {
+        try {
+            GlobalBlocklistManager.AdminConfig cfg =
+                GlobalBlocklistManager.getInstance(this).getAdminConfigForNumber(number);
+            // Only show popup if admin has a popup image configured
+            if (cfg == null || cfg.popupImagePath == null) return;
+            android.content.Intent i = new android.content.Intent(this, GlobalBlockPopupActivity.class);
+            i.putExtra(GlobalBlockPopupActivity.EXTRA_NUMBER,     number);
+            i.putExtra(GlobalBlockPopupActivity.EXTRA_REASON,     reason);
+            i.putExtra(GlobalBlockPopupActivity.EXTRA_ADMIN_NAME, cfg.displayName);
+            i.putExtra(GlobalBlockPopupActivity.EXTRA_IMAGE_PATH, cfg.popupImagePath);
+            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
+                       android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(i);
+        } catch (Exception e) {
+            android.util.Log.w("CallBlockerService", "showGlobalBlockPopup: " + e);
+        }
+    }
+
 }

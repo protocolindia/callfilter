@@ -74,6 +74,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         setContentView(R.layout.activity_main);
+
+        // Warm up contacts cache immediately so lookups are fast
+        ContactsCacheManager.getInstance(this).warmUp();
         rulesManager = RulesManager.getInstance(this);
         bindViews();
         setupCountrySpinner();
@@ -567,6 +570,8 @@ public class MainActivity extends AppCompatActivity {
         });
         // Merge cloud-only rules into local (handles admin-added rules)
         SyncManager.getInstance(this).mergeRulesFromCloud();
+        // Refresh contacts cache in background (fast lookup for incoming calls)
+        ContactsCacheManager.getInstance(this).refreshAsync();
         // Pull schedules from cloud on every resume (picks up admin-added schedules)
         ScheduleManager.getInstance(this).pullFromCloud();
         // Sync global blocklist in background

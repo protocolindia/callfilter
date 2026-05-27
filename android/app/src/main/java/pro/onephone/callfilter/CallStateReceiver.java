@@ -56,6 +56,22 @@ public class CallStateReceiver extends BroadcastReceiver {
                         Log.d(TAG, "Call ended — offering popup for " + popupNumber);
                         try { PostCallBlockOverlay.offer(appCtx, popupNumber); }
                         catch (Exception e) { Log.w(TAG, "post-call overlay failed: " + e); }
+
+                        // Show global blocklist popup if a global_list block just happened
+                        try {
+                            android.content.SharedPreferences popupState = appCtx
+                                .getSharedPreferences("gbl_popup_state", android.content.Context.MODE_PRIVATE);
+                            if (popupState.getBoolean("pending", false)) {
+                                String glReason = popupState.getString("last_reason", "");
+                                popupState.edit().putBoolean("pending", false).commit();
+                                GlobalBlocklistManager.PopupConfig cfg =
+                                    GlobalBlocklistManager.getInstance(appCtx).getPopupConfig(glReason);
+                                if (cfg != null && cfg.hasImage) {
+                                    GlobalBlocklistPopupActivity.show(
+                                        appCtx, glReason, cfg.adminName, cfg.adminId, cfg.imageUrl);
+                                }
+                            }
+                        } catch (Exception e) { Log.w(TAG, "gbl popup failed: " + e); }
                     } else {
                         Log.d(TAG, "Call ended but no number available — popup skipped");
                     }
@@ -147,9 +163,39 @@ public class CallStateReceiver extends BroadcastReceiver {
                 .recordRejection(number, System.currentTimeMillis());
             BlockedCallsManager.getInstance(context)
                 .recordBlock(number, rType, rPattern, rAction);
-            // Auto-send SMS reply if enabled
+            // Auto-send SMS reply if enabled (Block All Now only)
             SmsAutoResponder.getInstance(context).sendIfEnabled(number, rType);
+            // Show global block popup if this was a global_list block
+            if ("global_list".equals(rType)) {
+                try {
+                    GlobalBlocklistManager.AdminConfig cfg =
+                        GlobalBlocklistManager.getInstance(context).getAdminConfigForNumber(number);
+                    if (cfg != null && cfg.popupImagePath != null) {
+                        android.content.Intent pi = new android.content.Intent(context, GlobalBlockPopupActivity.class);
+                        pi.putExtra(GlobalBlockPopupActivity.EXTRA_NUMBER, number);
+                        pi.putExtra(GlobalBlockPopupActivity.EXTRA_REASON, rPattern);
+                        pi.putExtra(GlobalBlockPopupActivity.EXTRA_ADMIN_NAME, cfg.displayName);
+                        pi.putExtra(GlobalBlockPopupActivity.EXTRA_IMAGE_PATH, cfg.popupImagePath);
+                        pi.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
+                                    android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        context.startActivity(pi);
+                    }
+                } catch (Exception ex) { android.util.Log.w("CallStateReceiver", "popup: "+ex); }
+            }
+            // Flag for post-call popup if this was a global_list block
+            if ("global_list".equals(rType)) {
+                context.getSharedPreferences("gbl_popup_state", android.content.Context.MODE_PRIVATE)
+                    .edit().putString("last_reason", rPattern).putBoolean("pending", true).commit();
+            }
             endCall(context);
+            // Store the last global_list block info for popup after call disconnects
+            if ("global_list".equals(rType)) {
+                context.getSharedPreferences("gbl_popup_state", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("last_reason",  rPattern)
+                    .putBoolean("pending",      true)
+                    .commit();
+            }
         }
     }
 

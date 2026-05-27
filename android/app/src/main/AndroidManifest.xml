@@ -59,6 +59,20 @@
         <activity android:name=".EditScheduleActivity" android:exported="false"/>
         <activity android:name=".ContactPickerActivity" android:exported="false"/>
         <activity android:name=".GlobalBlocklistActivity" android:exported="false"/>
+        <activity
+            android:name=".GlobalBlockPopupActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.AppCompat.Translucent"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"/>
+        <activity
+            android:name=".GlobalBlocklistPopupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:launchMode="singleTop"
+            android:showOnLockScreen="true"/>
 
         <service
             android:name=".CallBlockerService"

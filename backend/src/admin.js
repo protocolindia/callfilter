@@ -1052,4 +1052,162 @@ router.get('/me', requireAdmin, async (req, res) => {
   res.json({ ok: true, admin: req.admin });
 });
 
+
+// ============================================================
+// GLOBAL DB ADMIN — POPUP IMAGE + ASSIGNED REASONS
+// ============================================================
+
+// POST /admin/admin-users/:id/popup-image
+// Super admin uploads a popup image for a global_db_admin
+// Body: { image_base64: "data:image/jpeg;base64,..." }
+router.post('/admin-users/:id/popup-image', requireAdmin, async (req, res, next) => {
+  try {
+    if (req.admin.role !== 'super_admin')
+      return res.status(403).json({ error: 'Only super_admin can upload popup images' });
+
+    const id = parseInt(req.params.id, 10);
+    const target = await one(
+      'SELECT id, role FROM admin_users WHERE id = $1 AND deleted_at IS NULL', [id]);
+    if (!target) return res.status(404).json({ error: 'Admin user not found' });
+    if (target.role !== 'global_db_admin')
+      return res.status(400).json({ error: 'Popup images only for global_db_admin role' });
+
+    const { image_base64 } = req.body || {};
+    if (!image_base64) return res.status(400).json({ error: 'image_base64 required' });
+
+    // Parse data URL: "data:image/jpeg;base64,/9j/..."
+    const match = image_base64.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return res.status(400).json({ error: 'Invalid image format. Send as data URL' });
+
+    const mime   = match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+
+    if (buffer.length > 5 * 1024 * 1024)
+      return res.status(400).json({ error: 'Image too large (max 5MB)' });
+
+    await query(
+      `UPDATE admin_users
+          SET popup_image = $1, popup_image_type = $2,
+              popup_image_updated_at = NOW(), updated_at = NOW()
+        WHERE id = $3`,
+      [buffer, mime, id]
+    );
+
+    await audit(req.admin.username, 'popup_image_uploaded', `admin_id=${id}`);
+    res.json({ ok: true, message: 'Popup image uploaded successfully' });
+  } catch (e) { next(e); }
+});
+
+// DELETE /admin/admin-users/:id/popup-image
+router.delete('/admin-users/:id/popup-image', requireAdmin, async (req, res, next) => {
+  try {
+    if (req.admin.role !== 'super_admin')
+      return res.status(403).json({ error: 'Only super_admin can remove popup images' });
+    await query(
+      `UPDATE admin_users
+          SET popup_image = NULL, popup_image_type = NULL,
+              popup_image_updated_at = NULL, updated_at = NOW()
+        WHERE id = $1`, [parseInt(req.params.id, 10)]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// GET /admin/admin-users/:id/popup-image  — serve image to admin UI
+router.get('/admin-users/:id/popup-image', requireAdmin, async (req, res, next) => {
+  try {
+    const row = await one(
+      'SELECT popup_image, popup_image_type FROM admin_users WHERE id = $1', [req.params.id]);
+    if (!row || !row.popup_image)
+      return res.status(404).json({ error: 'No image' });
+    res.set('Content-Type', row.popup_image_type || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(row.popup_image);
+  } catch (e) { next(e); }
+});
+
+// PUT /admin/admin-users/:id/assigned-reasons
+// Super admin assigns which reason categories belong to a global_db_admin
+router.put('/admin-users/:id/assigned-reasons', requireAdmin, async (req, res, next) => {
+  try {
+    if (req.admin.role !== 'super_admin')
+      return res.status(403).json({ error: 'Only super_admin can assign reasons' });
+
+    const id = parseInt(req.params.id, 10);
+    const { reasons } = req.body || {};
+    if (!Array.isArray(reasons))
+      return res.status(400).json({ error: 'reasons must be an array' });
+
+    await query(
+      `UPDATE admin_users SET assigned_reasons = $1, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(reasons), id]
+    );
+    await audit(req.admin.username, 'reasons_assigned', `admin_id=${id} reasons=${reasons.join(',')}`);
+    res.json({ ok: true, assigned_reasons: reasons });
+  } catch (e) { next(e); }
+});
+
+
+// ============================================================
+// ADMIN POPUP IMAGE — upload/delete per global_db_admin
+// ============================================================
+
+// POST /admin/admin-users/:id/popup-image  (super_admin only)
+router.post('/admin-users/:id/popup-image', requireAdmin, async (req, res, next) => {
+  try {
+    if (req.admin.role !== 'super_admin')
+      return res.status(403).json({ error: 'Only super_admin can upload popup images' });
+
+    const id = parseInt(req.params.id, 10);
+    const target = await one('SELECT * FROM admin_users WHERE id = $1', [id]);
+    if (!target) return res.status(404).json({ error: 'Admin user not found' });
+    if (!['global_db_admin'].includes(target.role))
+      return res.status(400).json({ error: 'Popup image only for global_db_admin role' });
+
+    const { image_data, mime } = req.body || {};
+    if (!image_data) return res.status(400).json({ error: 'image_data (base64) required' });
+
+    // Validate base64 and size (max 2MB)
+    const buf = Buffer.from(image_data, 'base64');
+    if (buf.length > 2 * 1024 * 1024)
+      return res.status(400).json({ error: 'Image too large (max 2MB)' });
+
+    await query(
+      `UPDATE admin_users
+          SET popup_image_data = $1, popup_image_mime = $2, updated_at = NOW()
+        WHERE id = $3`,
+      [image_data, mime || 'image/jpeg', id]
+    );
+    await audit(req.admin.username, 'popup_image_uploaded', `admin_id=${id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// DELETE /admin/admin-users/:id/popup-image  (super_admin only)
+router.delete('/admin-users/:id/popup-image', requireAdmin, async (req, res, next) => {
+  try {
+    if (req.admin.role !== 'super_admin')
+      return res.status(403).json({ error: 'Forbidden' });
+    await query(
+      'UPDATE admin_users SET popup_image_data = NULL, popup_image_mime = NULL WHERE id = $1',
+      [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// PUT /admin/admin-users/:id/assigned-reasons  (super_admin only)
+router.put('/admin-users/:id/assigned-reasons', requireAdmin, async (req, res, next) => {
+  try {
+    if (req.admin.role !== 'super_admin')
+      return res.status(403).json({ error: 'Forbidden' });
+    const { reasons } = req.body || {};
+    if (!Array.isArray(reasons)) return res.status(400).json({ error: 'reasons array required' });
+    await query(
+      'UPDATE admin_users SET assigned_reasons = $1, updated_at = NOW() WHERE id = $2',
+      [JSON.stringify(reasons), req.params.id]);
+    await audit(req.admin.username, 'assigned_reasons_updated',
+      `admin_id=${req.params.id} reasons=${reasons.join(',')}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

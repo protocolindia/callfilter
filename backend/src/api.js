@@ -1141,7 +1141,35 @@ router.get('/global-blocklist', async (req, res, next) => {
     const rows = await many(
       'SELECT number, reason FROM global_blocklist WHERE active = TRUE ORDER BY reason, number'
     );
-    res.json({ ok: true, entries: rows, total: rows.length, synced_at: new Date().toISOString() });
+    // Fetch popup configs for global_db_admins (image URL, name, assigned reasons)
+    const popupAdmins = await query(
+      `SELECT id, display_name, assigned_reasons, popup_image_updated_at
+         FROM admin_users
+        WHERE role = 'global_db_admin'
+          AND active = TRUE
+          AND deleted_at IS NULL
+          AND assigned_reasons IS NOT NULL`
+    );
+
+    const popupConfigs = {};
+    for (const admin of (popupAdmins.rows || [])) {
+      let reasons = [];
+      try { reasons = admin.assigned_reasons ? JSON.parse(admin.assigned_reasons) : []; }
+      catch { reasons = []; }
+      for (const reason of reasons) {
+        popupConfigs[reason] = {
+          admin_id:    admin.id,
+          admin_name:  admin.display_name || 'Global Safety',
+          has_image:   !!admin.popup_image_updated_at,
+          image_url:   admin.popup_image_updated_at
+                       ? `/api/global-blocklist/popup-image/${admin.id}` : null,
+          image_updated_at: admin.popup_image_updated_at
+        };
+      }
+    }
+
+    res.json({ ok: true, entries: rows, total: rows.length,
+               synced_at: new Date().toISOString(), popup_configs: popupConfigs });
   } catch (e) { next(e); }
 });
 
@@ -1184,6 +1212,26 @@ router.get('/global-blocklist/user-config', async (req, res, next) => {
     try { reasons = row.global_enabled_reasons ? JSON.parse(row.global_enabled_reasons) : []; }
     catch { reasons = []; }
     res.json({ ok: true, enabled_reasons: reasons });
+  } catch (e) { next(e); }
+});
+
+// GET /api/global-blocklist/popup-image/:admin_id — public, served to app
+router.get('/global-blocklist/popup-image/:admin_id', async (req, res, next) => {
+  try {
+    const { one: getOne, query: dbQuery } = require('./db.js');
+    const row = await getOne(
+      `SELECT popup_image, popup_image_type, popup_image_updated_at
+         FROM admin_users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL`,
+      [parseInt(req.params.admin_id, 10)]
+    );
+    if (!row || !row.popup_image)
+      return res.status(404).json({ error: 'No image' });
+    res.set('Content-Type', row.popup_image_type || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    if (row.popup_image_updated_at) {
+      res.set('Last-Modified', new Date(row.popup_image_updated_at).toUTCString());
+    }
+    res.send(row.popup_image);
   } catch (e) { next(e); }
 });
 

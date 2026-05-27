@@ -13,13 +13,59 @@ public class GlobalBlocklistManager {
     private static final String KEY_ENTRIES         = "entries";
     private static final String KEY_ENABLED_REASONS = "enabled_reasons";
     private static final String KEY_LAST_SYNC       = "last_sync_ts";
-    private static final String KEY_SHOW_TOTAL  = "show_total";
-    private static final String KEY_SHOW_ACTIVE = "show_active";
+    private static final String KEY_SHOW_TOTAL      = "show_total";
+    private static final String KEY_SHOW_ACTIVE     = "show_active";
+    private static final String KEY_ADMIN_CONFIGS   = "admin_configs";
+
+    // Map: number -> admin_id (which global_db_admin added this number)
+    private final java.util.HashMap<String, Long> numberAdminMap = new java.util.HashMap<>();
+    // Map: admin_id -> AdminConfig (display name, assigned reasons, popup image path)
+    private final java.util.HashMap<Long, AdminConfig> adminConfigs = new java.util.HashMap<>();
+
+    public static class AdminConfig {
+        public final long   adminId;
+        public final String displayName;
+        public final java.util.List<String> assignedReasons;
+        public final String popupImagePath; // local file path, null if none
+        AdminConfig(long id, String name, java.util.List<String> reasons, String imgPath) {
+            adminId = id; displayName = name;
+            assignedReasons = reasons; popupImagePath = imgPath;
+        }
+    }
+    private static final String KEY_POPUP_CONFIGS = "popup_configs"; // JSON
 
     public static class Entry {
         public final String number;
         public final String reason;
-        Entry(String n, String r) { number = n; reason = r; }
+        public final long   adminId;
+        Entry(String n, String r, long a) { number = n; reason = r; adminId = a; }
+        Entry(String n, String r)         { number = n; reason = r; adminId = 0; }
+    }
+
+    public static class PopupConfig {
+        public final int    adminId;
+        public final String adminName;
+        public final boolean hasImage;
+        public final String imageUrl;
+        PopupConfig(int id, String name, boolean hasImg, String url) {
+            adminId = id; adminName = name; hasImage = hasImg; imageUrl = url;
+        }
+    }
+
+    /** Returns popup config for the given block reason, or null if none. */
+    public synchronized PopupConfig getPopupConfig(String reason) {
+        String json = prefs.getString(KEY_POPUP_CONFIGS, "{}");
+        try {
+            org.json.JSONObject obj = new org.json.JSONObject(json);
+            if (!obj.has(reason)) return null;
+            org.json.JSONObject cfg = obj.getJSONObject(reason);
+            return new PopupConfig(
+                cfg.optInt("admin_id", 0),
+                cfg.optString("admin_name", ""),
+                cfg.optBoolean("has_image", false),
+                cfg.optString("image_url", "")
+            );
+        } catch (Exception e) { return null; }
     }
 
     private final Context ctx;
@@ -178,10 +224,12 @@ public class GlobalBlocklistManager {
                                 if (arr == null) arr = new JSONArray();
                                 List<Entry> fresh = new ArrayList<>();
                                 for (int i = 0; i < arr.length(); i++) {
-                                    JSONObject o = arr.optJSONObject(i);
+                                    org.json.JSONObject o = arr.optJSONObject(i);
                                     if (o == null) continue;
-                                    String num = o.optString("number",""); String rsn = o.optString("reason","");
-                                    if (!num.isEmpty() && !rsn.isEmpty()) fresh.add(new Entry(num, rsn));
+                                    String num = o.optString("number","");
+                                    String rsn = o.optString("reason","");
+                                    long   aid = o.optLong("added_by_admin_id", 0);
+                                    if (!num.isEmpty() && !rsn.isEmpty()) fresh.add(new Entry(num, rsn, aid));
                                 }
                                 synchronized (GlobalBlocklistManager.this) {
                                     entries.clear(); entries.addAll(fresh);
@@ -207,6 +255,30 @@ public class GlobalBlocklistManager {
                         .commit();
                 }
             });
+    }
+
+    /** Save popup image to app files dir, return local path */
+    private String savePopupImage(long adminId, String base64Data, String mime) {
+        try {
+            byte[] data = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT);
+            String ext  = mime.contains("png") ? ".png" : ".jpg";
+            java.io.File f = new java.io.File(ctx.getFilesDir(), "popup_" + adminId + ext);
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(f)) { fos.write(data); }
+            return f.getAbsolutePath();
+        } catch (Exception e) { Log.w(TAG, "savePopupImage failed: " + e); return null; }
+    }
+
+    /** Get AdminConfig for a given number (null if not found) */
+    public synchronized AdminConfig getAdminConfigForNumber(String number) {
+        if (number == null) return null;
+        Long adminId = numberAdminMap.get(number.replaceAll("[\\s\\-().]",""));
+        if (adminId == null) return null;
+        return adminConfigs.get(adminId);
+    }
+
+    /** Get AdminConfig by adminId */
+    public synchronized AdminConfig getAdminConfig(long adminId) {
+        return adminConfigs.get(adminId);
     }
 
     /** Called on account reset — clears downloaded data but KEEPS enabled reasons
