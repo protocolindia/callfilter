@@ -10,6 +10,25 @@ export function setToken(token) {
   else localStorage.removeItem('cf_token');
 }
 
+// Store admin metadata from login response
+export function setAdminMeta(data) {
+  if (data) localStorage.setItem('cf_admin', JSON.stringify({
+    username: data.username,
+    display_name: data.display_name || data.username,
+    role: data.role || 'admin'
+  }));
+  else localStorage.removeItem('cf_admin');
+}
+
+export function getAdminMeta() {
+  try { return JSON.parse(localStorage.getItem('cf_admin') || 'null'); }
+  catch { return null; }
+}
+
+export function getAdminRole() {
+  return getAdminMeta()?.role || 'admin';
+}
+
 async function request(path, options = {}) {
   const token = getToken();
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };

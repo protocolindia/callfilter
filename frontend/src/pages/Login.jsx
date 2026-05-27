@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, setToken, setAdminMeta } from '../api.js';
 import { useAuth } from '../auth.jsx';
 
 export default function Login() {

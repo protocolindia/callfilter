@@ -76,6 +76,28 @@ async function migrate() {
        ON CONFLICT (key) DO NOTHING`, [k, v]);
   }
 
+  // ── Seed super_admin from env vars (first deploy only) ────────────
+  const existingAdmins = await one('SELECT COUNT(*)::int AS n FROM admin_users');
+  if (!existingAdmins || existingAdmins.n === 0) {
+    const bcrypt = require('bcryptjs');
+    const envUser = process.env.ADMIN_USERNAME || 'admin';
+    const envPass = process.env.ADMIN_PASSWORD || 'changeme';
+    const hash = await bcrypt.hash(envPass, 12);
+    await query(
+      `INSERT INTO admin_users(username, password_hash, display_name, role)
+       VALUES ($1, $2, $3, 'super_admin')
+       ON CONFLICT (username) DO NOTHING`,
+      [envUser, hash, 'Super Admin']
+    );
+    // Link existing global_blocklist entries to this super_admin
+    await query(
+      `UPDATE global_blocklist
+          SET added_by_admin_id = (SELECT id FROM admin_users WHERE role='super_admin' LIMIT 1)
+        WHERE added_by_admin_id IS NULL`
+    );
+    console.log('  ✓ Super admin seeded from env vars');
+  }
+
   // Seed default admin if none exists
   const adminCount = await one('SELECT COUNT(*)::int AS c FROM admins');
   if (adminCount.c === 0) {

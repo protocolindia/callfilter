@@ -11,6 +11,7 @@ import Billing from './pages/Billing.jsx';
 import Payments from './pages/Payments.jsx';
 import BlockReasons from './pages/BlockReasons.jsx';
 import GlobalBlocklist from './pages/GlobalBlocklist.jsx';
+import AdminUsers from './pages/AdminUsers.jsx';
 import UserDetail from './pages/UserDetail.jsx';
 import Terms from './pages/Terms.jsx';
 import Privacy from './pages/Privacy.jsx';
@@ -40,6 +41,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/payments" element={<Payments />} />
           <Route path="/block-reasons" element={<BlockReasons />} />
           <Route path="/global-blocklist" element={<GlobalBlocklist />} />
+          <Route path="/admin-users" element={<AdminUsers currentRole={getAdminRole()} />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

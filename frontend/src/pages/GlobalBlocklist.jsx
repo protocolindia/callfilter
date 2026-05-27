@@ -324,14 +324,27 @@ export default function GlobalBlocklist() {
                   </td>
                 </tr>
               ) : (
-                <tr key={entry.id} style={{borderBottom:'1px solid var(--border)'}}>
+                <tr key={entry.id} style={{borderBottom:'1px solid var(--border)', opacity: entry.deleted_at ? 0.45 : 1}}>
                   <td style={{padding:'12px 16px',fontFamily:'monospace',fontWeight:600,color:'var(--text)'}}>{entry.number}</td>
                   <td style={{padding:'12px 16px'}}>
                     <span style={{background:'rgba(239,68,68,0.15)',color:'#ef4444',
                       borderRadius:4,padding:'2px 8px',fontSize:12,fontWeight:600}}>{entry.reason}</span>
                   </td>
                   <td style={{padding:'12px 16px',color:'var(--subtext)',fontSize:13}}>{entry.notes||'—'}</td>
-                  <td style={{padding:'12px 16px',color:'var(--subtext)',fontSize:13}}>{entry.added_by}</td>
+                  <td style={{padding:'12px 16px',color:'var(--text)',fontSize:13,fontWeight:500}}>
+                    {entry.added_by_display || entry.added_by_username || entry.added_by || '—'}
+                  </td>
+                  <td style={{padding:'12px 16px'}}>
+                    {entry.added_by_role && (
+                      <span style={{
+                        background: ({super_admin:'#a855f7',admin:'#4f8ef7',global_db_admin:'#ef4444',global_db_user:'#fb923c'}[entry.added_by_role]||'#6b7280')+'22',
+                        color:       ({super_admin:'#a855f7',admin:'#4f8ef7',global_db_admin:'#ef4444',global_db_user:'#fb923c'}[entry.added_by_role]||'#6b7280'),
+                        borderRadius:4, padding:'2px 6px', fontSize:10, fontWeight:700
+                      }}>
+                        {({super_admin:'SA',admin:'ADM',support:'SUP',billing:'BIL',global_db_admin:'GDA',global_db_user:'GDU'}[entry.added_by_role]||entry.added_by_role)}
+                      </span>
+                    )}
+                  </td>
                   <td style={{padding:'12px 16px',color:'var(--subtext)',fontSize:12,whiteSpace:'nowrap'}}>{fmt(entry.created_at)}</td>
                   <td style={{padding:'12px 16px'}}>
                     <button onClick={()=>toggleActive(entry)}

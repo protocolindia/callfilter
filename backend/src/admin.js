@@ -12,20 +12,8 @@ async function audit(actor, event, details) {
 }
 
 // POST /admin/login
-router.post('/login', async (req, res, next) => {
-  try {
-    const { username, password } = req.body || {};
-    if (!username || !password) return res.status(400).json({ error: 'username and password required' });
-    const a = await one('SELECT * FROM admins WHERE username = $1', [username]);
-    if (!a || !bcrypt.compareSync(password, a.password_hash)) {
-      await audit(username, 'login_failed', 'Invalid credentials');
-      return res.status(401).json({ error: 'Invalid username or password' });
-    }
-    const token = sign({ admin: true, id: a.id, username: a.username });
-    await audit(a.username, 'login_success', '');
-    res.json({ ok: true, token, username: a.username });
-  } catch (e) { next(e); }
-});
+const { loginHandler } = require('./auth_admin.js');
+router.post('/login', loginHandler);
 
 // GET /admin/me
 router.get('/me', requireAdmin, (req, res) => {
@@ -701,40 +689,55 @@ router.post('/users/:id/activate', requireAdmin, async (req, res, next) => {
 // GET  /admin/global-blocklist   — paginated list with search
 router.get('/global-blocklist', requireAdmin, async (req, res, next) => {
   try {
+    const role = req.admin.role;
+    // Check access
+    if (!['super_admin','admin','support','billing',
+          'global_db_admin','global_db_user'].includes(role)) {
+      const { PERMS } = require('./auth_admin.js');
+      if (!PERMS[role]?.includes('*') && !PERMS[role]?.includes('global_blocklist_view'))
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const page   = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const limit  = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const limit  = Math.min(parseInt(req.query.limit, 10) || 50, 200);
     const offset = (page - 1) * limit;
     const search = (req.query.search || '').trim();
     const reason = (req.query.reason || '').trim();
 
+    // Build scope filter
+    const { globalScopeWhere } = require('./auth_admin.js');
+    const scope = await globalScopeWhere(req.admin, 0);
+
     const where = [];
-    const params = [];
+    const params = [...(scope?.params || [])];
+    if (scope?.where) where.push(scope.where.replace(/^AND /, ''));
+    // Hide soft-deleted unless super_admin
+    if (role !== 'super_admin') where.push('g.deleted_at IS NULL');
+
     if (search) {
       params.push('%' + search.toLowerCase() + '%');
       where.push(`(LOWER(g.number) LIKE $${params.length} OR LOWER(g.notes) LIKE $${params.length})`);
     }
-    if (reason) {
-      params.push(reason);
-      where.push(`g.reason = $${params.length}`);
-    }
-    const whereSql = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+    if (reason) { params.push(reason); where.push(`g.reason = $${params.length}`); }
 
-    const total = await one(
-      `SELECT COUNT(*)::int AS n FROM global_blocklist g ${whereSql}`, params);
+    const whereSql = where.length ? ('WHERE ' + where.join(' AND ')) : '';
+    const totalRow = await one(`SELECT COUNT(*)::int AS n FROM global_blocklist g ${whereSql}`, params);
+
     params.push(limit); params.push(offset);
     const rows = await many(
       `SELECT g.id, g.number, g.reason, g.notes, g.added_by,
-              g.active, g.created_at, g.updated_at
+              g.active, g.created_at, g.updated_at, g.deleted_at,
+              au.username AS added_by_username,
+              au.display_name AS added_by_display,
+              au.role AS added_by_role
          FROM global_blocklist g
+         LEFT JOIN admin_users au ON au.id = g.added_by_admin_id
          ${whereSql}
          ORDER BY g.created_at DESC
          LIMIT $${params.length-1} OFFSET $${params.length}`, params);
 
-    // Also return distinct reasons for filter dropdown
-    const reasons = await many(
-      `SELECT DISTINCT reason FROM global_blocklist ORDER BY reason`);
-
-    res.json({ ok: true, entries: rows, total: total.n, page, limit,
+    const reasons = await many('SELECT DISTINCT reason FROM global_blocklist WHERE deleted_at IS NULL ORDER BY reason');
+    res.json({ ok: true, entries: rows, total: totalRow.n, page, limit,
                reasons: reasons.map(r => r.reason) });
   } catch (e) { next(e); }
 });
@@ -759,7 +762,8 @@ router.post('/global-blocklist', requireAdmin, async (req, res, next) => {
     const entry = await one(
       `INSERT INTO global_blocklist(number, reason, notes, added_by)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [clean, reason.trim(), (notes || '').trim() || null, req.admin.username]);
+      [clean, reason.trim(), (notes || '').trim() || null, req.admin.username,
+       req.admin.id || null]);
     await audit(req.admin.username, 'global_block_added',
       `${clean} reason="${reason}"`);
     res.json({ ok: true, entry });
@@ -806,11 +810,26 @@ router.put('/global-blocklist/:id', requireAdmin, async (req, res, next) => {
 router.delete('/global-blocklist/:id', requireAdmin, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const entry = await one(
-      `DELETE FROM global_blocklist WHERE id = $1 RETURNING number, reason`, [id]);
+    const entry = await one('SELECT * FROM global_blocklist WHERE id = $1', [id]);
     if (!entry) return res.status(404).json({ error: 'not found' });
-    await audit(req.admin.username, 'global_block_deleted',
-      `${entry.number} reason="${entry.reason}"`);
+
+    // Check scope for global_db roles
+    if (['global_db_admin','global_db_user'].includes(req.admin.role)) {
+      const { globalScopeWhere } = require('./auth_admin.js');
+      const scope = await globalScopeWhere(req.admin, 0);
+      if (scope && scope.params && !scope.params.includes(entry.added_by_admin_id))
+        return res.status(403).json({ error: 'Out of scope' });
+    }
+
+    if (req.admin.role === 'super_admin') {
+      // Hard delete
+      await query('DELETE FROM global_blocklist WHERE id = $1', [id]);
+      await audit(req.admin.username, 'global_block_hard_deleted', `${entry.number}`);
+    } else {
+      // Soft delete
+      await query('UPDATE global_blocklist SET deleted_at = NOW(), active = FALSE WHERE id = $1', [id]);
+      await audit(req.admin.username, 'global_block_soft_deleted', `${entry.number}`);
+    }
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -867,6 +886,164 @@ router.get('/users/:id/global-config', requireAdmin, async (req, res, next) => {
     catch { reasons = []; }
     res.json({ ok: true, enabled_reasons: reasons });
   } catch (e) { next(e); }
+});
+
+
+// ============================================================
+// ADMIN USER MANAGEMENT — CRUD for multi-admin roles
+// ============================================================
+
+// GET /admin/admin-users — list admin users (scoped by role)
+router.get('/admin-users', requireAdmin, async (req, res, next) => {
+  try {
+    const role = req.admin.role;
+    let rows;
+
+    if (role === 'super_admin' || role === 'admin') {
+      // See all admin users
+      rows = await many(
+        `SELECT id, username, display_name, role, active, parent_id,
+                created_at, last_login_at, deleted_at,
+                (SELECT username FROM admin_users p WHERE p.id = au.parent_id) AS parent_username,
+                (SELECT username FROM admin_users cr WHERE cr.id = au.created_by) AS created_by_username
+           FROM admin_users au
+          ORDER BY created_at ASC`
+      );
+    } else if (role === 'global_db_admin') {
+      // Only see own sub-users (global_db_user children)
+      rows = await many(
+        `SELECT id, username, display_name, role, active, parent_id,
+                created_at, last_login_at, deleted_at
+           FROM admin_users
+          WHERE parent_id = $1 AND role = 'global_db_user'
+          ORDER BY created_at ASC`,
+        [req.admin.id]
+      );
+    } else {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    res.json({ ok: true, users: rows });
+  } catch (e) { next(e); }
+});
+
+// POST /admin/admin-users — create admin user
+router.post('/admin-users', requireAdmin, async (req, res, next) => {
+  try {
+    const creatorRole = req.admin.role;
+    if (!['super_admin','admin','global_db_admin'].includes(creatorRole))
+      return res.status(403).json({ error: 'Forbidden' });
+
+    const { username, password, display_name, role } = req.body || {};
+    if (!username || !password || !role)
+      return res.status(400).json({ error: 'username, password and role are required' });
+
+    // Role restrictions
+    if (creatorRole === 'global_db_admin' && role !== 'global_db_user')
+      return res.status(403).json({ error: 'Global DB Admin can only create global_db_user accounts' });
+    if (creatorRole === 'admin' && role === 'super_admin')
+      return res.status(403).json({ error: 'Admin cannot create super_admin accounts' });
+
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash(password, 12);
+    const parent_id = creatorRole === 'global_db_admin' ? req.admin.id : null;
+
+    const newUser = await one(
+      `INSERT INTO admin_users(username, password_hash, display_name, role, parent_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, display_name, role, active, created_at`,
+      [username.trim(), hash, (display_name||'').trim()||null, role, parent_id, req.admin.id]
+    );
+
+    await audit(req.admin.username, 'admin_user_created',
+      `${newUser.username} role=${role}`);
+    res.json({ ok: true, user: newUser });
+  } catch (e) {
+    if (e.message?.includes('unique')) return res.status(409).json({ error: 'Username already exists' });
+    next(e);
+  }
+});
+
+// PUT /admin/admin-users/:id — update admin user
+router.put('/admin-users/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const creatorRole = req.admin.role;
+
+    // Check scope
+    const target = await one('SELECT * FROM admin_users WHERE id = $1', [id]);
+    if (!target) return res.status(404).json({ error: 'Not found' });
+
+    if (creatorRole === 'global_db_admin' && target.parent_id !== req.admin.id)
+      return res.status(403).json({ error: 'Out of scope' });
+    if (!['super_admin','admin','global_db_admin'].includes(creatorRole))
+      return res.status(403).json({ error: 'Forbidden' });
+
+    const { display_name, password, active, role } = req.body || {};
+    const bcrypt = require('bcryptjs');
+
+    const hash = password ? await bcrypt.hash(password, 12) : null;
+
+    const updated = await one(
+      `UPDATE admin_users SET
+          display_name  = COALESCE($1, display_name),
+          password_hash = COALESCE($2, password_hash),
+          active        = COALESCE($3, active),
+          role          = COALESCE($4, role),
+          updated_at    = NOW()
+        WHERE id = $5
+        RETURNING id, username, display_name, role, active`,
+      [display_name||null, hash, active??null, role||null, id]
+    );
+    await audit(req.admin.username, 'admin_user_updated', `id=${id}`);
+    res.json({ ok: true, user: updated });
+  } catch (e) { next(e); }
+});
+
+// DELETE /admin/admin-users/:id — soft or hard delete
+router.delete('/admin-users/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const creatorRole = req.admin.role;
+
+    if (!['super_admin','admin','global_db_admin'].includes(creatorRole))
+      return res.status(403).json({ error: 'Forbidden' });
+
+    const target = await one('SELECT * FROM admin_users WHERE id = $1', [id]);
+    if (!target) return res.status(404).json({ error: 'Not found' });
+    if (target.id === req.admin.id)
+      return res.status(400).json({ error: 'Cannot delete yourself' });
+
+    if (creatorRole === 'global_db_admin' && target.parent_id !== req.admin.id)
+      return res.status(403).json({ error: 'Out of scope' });
+
+    if (creatorRole === 'super_admin') {
+      // Hard delete
+      await query('DELETE FROM admin_users WHERE id = $1', [id]);
+      await audit(req.admin.username, 'admin_user_hard_deleted', `${target.username}`);
+    } else {
+      // Soft delete
+      await query('UPDATE admin_users SET deleted_at = NOW(), active = FALSE WHERE id = $1', [id]);
+      await audit(req.admin.username, 'admin_user_soft_deleted', `${target.username}`);
+    }
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// POST /admin/admin-users/:id/restore — restore soft-deleted (super_admin only)
+router.post('/admin-users/:id/restore', requireAdmin,
+  async (req, res, next) => {
+  try {
+    if (req.admin.role !== 'super_admin')
+      return res.status(403).json({ error: 'Only super_admin can restore' });
+    await query(
+      'UPDATE admin_users SET deleted_at = NULL, active = TRUE WHERE id = $1', [req.params.id]);
+    await audit(req.admin.username, 'admin_user_restored', `id=${req.params.id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// GET /admin/me — current admin user info
+router.get('/me', requireAdmin, async (req, res) => {
+  res.json({ ok: true, admin: req.admin });
 });
 
 module.exports = router;
