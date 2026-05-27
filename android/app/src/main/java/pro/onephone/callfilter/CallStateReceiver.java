@@ -57,18 +57,27 @@ public class CallStateReceiver extends BroadcastReceiver {
                         try { PostCallBlockOverlay.offer(appCtx, popupNumber); }
                         catch (Exception e) { Log.w(TAG, "post-call overlay failed: " + e); }
 
-                        // Show global blocklist popup if a global_list block just happened
+                        // Show popup if global_list block had an image configured
                         try {
                             android.content.SharedPreferences popupState = appCtx
                                 .getSharedPreferences("gbl_popup_state", android.content.Context.MODE_PRIVATE);
                             if (popupState.getBoolean("pending", false)) {
+                                String glNumber = popupState.getString("last_number", "");
                                 String glReason = popupState.getString("last_reason", "");
                                 popupState.edit().putBoolean("pending", false).commit();
-                                GlobalBlocklistManager.PopupConfig cfg =
-                                    GlobalBlocklistManager.getInstance(appCtx).getPopupConfig(glReason);
-                                if (cfg != null && cfg.hasImage) {
-                                    GlobalBlocklistPopupActivity.show(
-                                        appCtx, glReason, cfg.adminName, cfg.adminId, cfg.imageUrl);
+                                GlobalBlocklistManager.AdminConfig cfg =
+                                    GlobalBlocklistManager.getInstance(appCtx)
+                                        .getAdminConfigForNumber(glNumber);
+                                if (cfg != null && cfg.popupImagePath != null) {
+                                    android.content.Intent pi = new android.content.Intent(
+                                        appCtx, GlobalBlockPopupActivity.class);
+                                    pi.putExtra(GlobalBlockPopupActivity.EXTRA_NUMBER, glNumber);
+                                    pi.putExtra(GlobalBlockPopupActivity.EXTRA_REASON, glReason);
+                                    pi.putExtra(GlobalBlockPopupActivity.EXTRA_ADMIN_NAME, cfg.displayName);
+                                    pi.putExtra(GlobalBlockPopupActivity.EXTRA_IMAGE_PATH, cfg.popupImagePath);
+                                    pi.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
+                                                android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                                    appCtx.startActivity(pi);
                                 }
                             }
                         } catch (Exception e) { Log.w(TAG, "gbl popup failed: " + e); }

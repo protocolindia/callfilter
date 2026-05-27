@@ -434,7 +434,7 @@
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="AI CallFilter · v1.25.194"
+                android:text="AI CallFilter · v1.25.195"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"
