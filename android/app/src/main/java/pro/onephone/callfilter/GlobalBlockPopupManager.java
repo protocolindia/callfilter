@@ -95,13 +95,12 @@ public class GlobalBlockPopupManager {
                 // Window params — same approach as PostCallBlockOverlay
                 WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT);
-                lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-                lp.y = 80; // pixels from top
+                lp.gravity = Gravity.CENTER;
 
                 // Auto-dismiss runnable
                 final Runnable autoDismiss = () -> {

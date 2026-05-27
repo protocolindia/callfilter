@@ -96,17 +96,39 @@ public class PostCallBlockOverlay {
         final View view = LayoutInflater.from(ctx).inflate(R.layout.post_call_block_popup, null);
         ((TextView) view.findViewById(R.id.popupNumber)).setText(number);
 
-        int type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+        // Populate inline reason chips
+        android.widget.LinearLayout chipsContainer =
+            view.findViewById(R.id.reasonChipsContainer);
+        final String[] selectedReason = { BlockReasonsCache.getInstance(ctx).get()
+            .isEmpty() ? "Spam call" : BlockReasonsCache.getInstance(ctx).get().get(0) };
+
+        if (chipsContainer != null) {
+            java.util.List<String> reasons = BlockReasonsCache.getInstance(ctx).get();
+            android.view.LayoutInflater inf = android.view.LayoutInflater.from(ctx);
+            for (String reason : reasons) {
+                android.widget.RadioButton rb = new android.widget.RadioButton(ctx);
+                rb.setText(reason);
+                rb.setTextColor(0xFFFFFFFF);
+                rb.setButtonTintList(android.content.res.ColorStateList.valueOf(0xFF4F8EF7));
+                rb.setTextSize(14f);
+                rb.setPadding(16, 10, 16, 10);
+                rb.setChecked(reason.equals(selectedReason[0]));
+                rb.setOnCheckedChangeListener((btn, checked) -> {
+                    if (checked) selectedReason[0] = reason;
+                });
+                chipsContainer.addView(rb);
+            }
+        }
+
+        // Full-screen overlay
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                | WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT);
-        lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-        int margin = (int) (16 * ctx.getResources().getDisplayMetrics().density);
-        lp.y = margin * 3;
+        lp.gravity = Gravity.CENTER;
 
         final Handler handler = new Handler(Looper.getMainLooper());
         final Runnable autoDismiss = new Runnable() {
@@ -122,15 +144,22 @@ public class PostCallBlockOverlay {
 
         view.findViewById(R.id.popupDismiss).setOnClickListener(dismiss);
         view.findViewById(R.id.popupSkip).setOnClickListener(dismiss);
+
         view.findViewById(R.id.popupBlock).setOnClickListener(v -> {
-            // Dismiss the overlay; the picker activity will do the rule add + record
+            String reason = selectedReason[0];
             dismiss.onClick(v);
-            Intent picker = new Intent(ctx, BlockReasonPickerActivity.class);
-            picker.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            picker.putExtra(BlockReasonPickerActivity.EXTRA_NUMBER, number);
-            picker.putExtra(BlockReasonPickerActivity.EXTRA_BLOCK_NOW, true);
-            try { ctx.startActivity(picker); }
-            catch (Exception e) { Log.e(TAG, "Could not launch reason picker", e); }
+            // Add rule directly — no followup window
+            RulesManager.getInstance(ctx).addRule(number, Rule.TYPE_PREFIX, Rule.ACTION_REJECT);
+            SyncManager.getInstance(ctx).syncRulesAsync();
+            // Record the block with reason
+            BlockedCallsManager.getInstance(ctx).recordBlock(
+                number, "manual", reason, "reject");
+            // Sync to server
+            SyncManager.getInstance(ctx).syncBlockedCallsAsync();
+            // Toast confirmation
+            new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(ctx, "Blocked: " + number + " (" + reason + ")",
+                    Toast.LENGTH_SHORT).show());
         });
 
         try {
