@@ -741,13 +741,13 @@ router.get('/global-blocklist', requireAdmin, async (req, res, next) => {
          FROM global_blocklist g
          LEFT JOIN admin_users au ON au.id = g.added_by_admin_id
          LEFT JOIN (
-           SELECT bc.raw_number,
-                  COUNT(*)          AS block_count,
+           SELECT bc.number,
+                  COUNT(*)                   AS block_count,
                   COUNT(DISTINCT bc.user_id) AS user_count
              FROM blocked_calls bc
             WHERE bc.rule_type = 'global_list'
-            GROUP BY bc.raw_number
-         ) stats ON stats.raw_number = g.number
+            GROUP BY bc.number
+         ) stats ON stats.number = g.number
          ${whereSql}
          ORDER BY g.created_at DESC
          LIMIT $${params.length-1} OFFSET $${params.length}`, params);
