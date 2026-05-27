@@ -275,7 +275,18 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'razorpay_webhook_secret',
       'block_reasons',
       'global_blocklist_show_total',
-      'global_blocklist_show_active'
+      'global_blocklist_show_active',
+      'sms_api_url',
+      'sms_api_userid',
+      'sms_api_password',
+      'sms_api_sender_name',
+      'sms_api_sender_number',
+      'sms_api_mobile_param',
+      'sms_api_message_param',
+      'sms_api_category',
+      'sms_api_template_id',
+      'sms_api_message_template',
+      'sms_provider'
     ];
     const incoming = req.body || {};
     for (const k of allowed) {
@@ -1293,6 +1304,58 @@ router.get('/global-db-stats', requireAdmin, async (req, res, next) => {
       return res.json({ ok:true, role, my_entries:myEntries, sub_users:0,
         assigned_reasons:assignedReasons, recent });
     }
+  } catch (e) { next(e); }
+});
+
+
+// POST /admin/test-sms — send a test OTP to verify SMS API config
+router.post('/test-sms', requireAdmin, async (req, res, next) => {
+  try {
+    if (req.admin.role !== 'super_admin')
+      return res.status(403).json({ error: 'Only super_admin can send test SMS' });
+
+    const { mobile } = req.body || {};
+    if (!mobile) return res.status(400).json({ error: 'mobile number required' });
+
+    const getSetting = async key => {
+      const row = await one('SELECT value FROM settings WHERE key = $1', [key]);
+      return row?.value || null;
+    };
+
+    const apiUrl       = await getSetting('sms_api_url');
+    const userid       = await getSetting('sms_api_userid');
+    const password     = await getSetting('sms_api_password');
+    const senderName   = await getSetting('sms_api_sender_name');
+    const senderNumber = await getSetting('sms_api_sender_number');
+    const mobileParam  = (await getSetting('sms_api_mobile_param'))  || 'mobileno';
+    const messageParam = (await getSetting('sms_api_message_param')) || 'message';
+    const category     = await getSetting('sms_api_category');
+    const templateId   = await getSetting('sms_api_template_id');
+    const msgTemplate  = (await getSetting('sms_api_message_template'))
+                         || '{OTP} is your OTP. Do not share with anyone.';
+
+    if (!apiUrl || !userid)
+      return res.status(400).json({ error: 'SMS API URL and userid are required. Configure in settings.' });
+
+    const testOtp = '123456';
+    const message = msgTemplate.replace(/\{OTP\}/g, testOtp);
+    const mobileClean = mobile.replace(/^\+/, '');
+
+    const params = new URLSearchParams({ userid, password: password || '', [mobileParam]: mobileClean, [messageParam]: message });
+    if (senderName)   params.set('sendername',   senderName);
+    if (senderNumber) params.set('sendernumber', senderNumber);
+    if (category)     params.set('category',     category);
+    if (templateId)   params.set('templateid',   templateId);
+
+    const smsUrl = `${apiUrl}?${params.toString()}`;
+    console.log('[TestSMS] URL:', smsUrl.replace(password || '', '***'));
+
+    const fetch  = require('node-fetch').default || require('node-fetch');
+    const smsRes = await fetch(smsUrl, { method: 'GET' });
+    const body   = await smsRes.text();
+
+    await audit(req.admin.username, 'test_sms_sent', `to=${mobileClean}`);
+    res.json({ ok: true, status: smsRes.status, response: body.substring(0, 300), url_preview: smsUrl.split('?')[0] });
   } catch (e) { next(e); }
 });
 

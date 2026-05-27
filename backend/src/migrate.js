@@ -49,7 +49,17 @@ async function migrate() {
 
   // Seed default settings
   const defaults = {
-    sms_provider:         'none',
+    sms_provider:         'custom_url',
+    sms_api_url:          '',
+    sms_api_userid:       '',
+    sms_api_password:     '',
+    sms_api_sender_name:  '',
+    sms_api_sender_number:'',
+    sms_api_mobile_param: 'mobileno',
+    sms_api_message_param:'message',
+    sms_api_category:     '',
+    sms_api_template_id:  '',
+    sms_api_message_template: '{OTP} is your OTP to verify your phone number. Do not share with anyone.',
     sms_api_key:          '',
     sms_api_secret:       '',
     sms_sender_id:        '',

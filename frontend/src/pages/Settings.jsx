@@ -3,7 +3,10 @@ import { api } from '../api';
 
 export default function Settings() {
   const [settings, setSettings] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [testMobile, setTestMobile] = useState('');
+  const [testSmsMsg, setTestSmsMsg] = useState('');
+  const [testSmsSending, setTestSmsSending] = useState(false);
   const [savedFlag, setSavedFlag] = useState(false);
   const [error, setError] = useState('');
 
@@ -244,6 +247,123 @@ export default function Settings() {
               {settings.razorpay_mode === 'live' ? ' with real money.' : ' (no real money).'}
             </div>
           )}
+        </section>
+
+        {/* SMS API Configuration */}
+        <section className="card">
+          <h2>📱 SMS API Configuration</h2>
+          <p style={{ color:'var(--subtext)', fontSize:14, marginBottom:16 }}>
+            Configure your SMS gateway to deliver OTPs to users.
+            Based on URL format: <code style={{ background:'var(--surface)', padding:'2px 6px', borderRadius:4, fontSize:12 }}>
+              https://api.example.com?userid=X&password=Y&mobileno=91XXXXXXXXXX&message=OTP...
+            </code>
+          </p>
+
+          <div className="settings-grid">
+
+            <div className="field">
+              <label>SMS API URL</label>
+              <input value={settings.sms_api_url || ''} onChange={e => update('sms_api_url', e.target.value)}
+                placeholder="https://sms.mudunuru.com/SendSMS.aspx"/>
+              <small className="muted">Base URL without parameters</small>
+            </div>
+
+            <div className="field">
+              <label>User ID <span className="muted">(userid param)</span></label>
+              <input value={settings.sms_api_userid || ''} onChange={e => update('sms_api_userid', e.target.value)}
+                placeholder="myerppro"/>
+            </div>
+
+            <div className="field">
+              <label>Password <span className="muted">(password param)</span></label>
+              <input type="password" value={settings.sms_api_password || ''} onChange={e => update('sms_api_password', e.target.value)}
+                placeholder="••••••••"/>
+            </div>
+
+            <div className="field">
+              <label>Sender Name <span className="muted">(sendername param)</span></label>
+              <input value={settings.sms_api_sender_name || ''} onChange={e => update('sms_api_sender_name', e.target.value)}
+                placeholder="BZIONX"/>
+            </div>
+
+            <div className="field">
+              <label>Sender Number <span className="muted">(sendernumber param, optional)</span></label>
+              <input value={settings.sms_api_sender_number || ''} onChange={e => update('sms_api_sender_number', e.target.value)}
+                placeholder="9493333747"/>
+            </div>
+
+            <div className="field">
+              <label>Category <span className="muted">(category param)</span></label>
+              <input value={settings.sms_api_category || ''} onChange={e => update('sms_api_category', e.target.value)}
+                placeholder="2"/>
+            </div>
+
+            <div className="field">
+              <label>Template ID <span className="muted">(templateid param)</span></label>
+              <input value={settings.sms_api_template_id || ''} onChange={e => update('sms_api_template_id', e.target.value)}
+                placeholder="1207175299467151781"/>
+            </div>
+
+            <div className="field">
+              <label>Mobile Number Param Name</label>
+              <input value={settings.sms_api_mobile_param || 'mobileno'} onChange={e => update('sms_api_mobile_param', e.target.value)}
+                placeholder="mobileno"/>
+              <small className="muted">Default: mobileno</small>
+            </div>
+
+            <div className="field">
+              <label>Message Param Name</label>
+              <input value={settings.sms_api_message_param || 'message'} onChange={e => update('sms_api_message_param', e.target.value)}
+                placeholder="message"/>
+              <small className="muted">Default: message</small>
+            </div>
+
+            <div className="field" style={{ gridColumn:'1 / -1' }}>
+              <label>OTP Message Template</label>
+              <textarea rows={3} value={settings.sms_api_message_template || ''} onChange={e => update('sms_api_message_template', e.target.value)}
+                placeholder="{OTP} is your OTP to verify your phone number at yourapp.com. Please do not share OTP with anyone. Your Team"
+                style={{ width:'100%', resize:'vertical' }}/>
+              <small className="muted">Use <strong>&#123;OTP&#125;</strong> as placeholder — it gets replaced with the actual 6-digit code</small>
+            </div>
+
+          </div>
+
+          {/* Preview */}
+          {settings.sms_api_url && (
+            <div style={{ marginTop:16, padding:12, background:'var(--surface)', borderRadius:6, fontSize:12 }}>
+              <div style={{ color:'var(--subtext)', marginBottom:4, fontWeight:600 }}>URL Preview (OTP = 123456):</div>
+              <div style={{ color:'var(--text)', wordBreak:'break-all', fontFamily:'monospace' }}>
+                {settings.sms_api_url}?userid={settings.sms_api_userid || 'USERID'}&password=***&{settings.sms_api_mobile_param || 'mobileno'}=91XXXXXXXXXX&sendername={settings.sms_api_sender_name || 'SENDER'}&{settings.sms_api_message_param || 'message'}={(settings.sms_api_message_template || '{OTP} is your OTP').replace('{OTP}', '123456')}&category={settings.sms_api_category || ''}&templateid={settings.sms_api_template_id || ''}
+              </div>
+            </div>
+          )}
+
+          {/* Test SMS */}
+          <div style={{ marginTop:20, padding:16, background:'var(--surface)', borderRadius:8 }}>
+            <div style={{ fontWeight:600, fontSize:14, marginBottom:8 }}>🧪 Test SMS</div>
+            <p style={{ color:'var(--subtext)', fontSize:13, margin:'0 0 10px' }}>
+              Save settings first, then send a test OTP (123456) to verify your SMS API works.
+            </p>
+            <div style={{ display:'flex', gap:8 }}>
+              <input value={testMobile} onChange={e => setTestMobile(e.target.value)}
+                placeholder="+919876543210 or 919876543210"
+                style={{ flex:1, padding:'8px 12px', borderRadius:6, border:'1px solid var(--border)',
+                  background:'var(--card)', color:'var(--text)', fontSize:14 }}/>
+              <button type="button" onClick={handleTestSms} disabled={testSmsSending}
+                style={{ padding:'8px 18px', borderRadius:6, border:'none',
+                  background:'#22c55e', color:'#fff', fontWeight:600,
+                  cursor:testSmsSending ? 'not-allowed' : 'pointer',
+                  opacity:testSmsSending ? 0.6 : 1, fontSize:13 }}>
+                {testSmsSending ? 'Sending…' : 'Send Test'}
+              </button>
+            </div>
+            {testSmsMsg && (
+              <p style={{ margin:'8px 0 0', fontSize:13,
+                color: testSmsMsg.startsWith('✓') ? '#22c55e' : 'var(--reject)' }}>
+                {testSmsMsg}
+              </p>
+            )}
+          </div>
         </section>
 
         <button type="submit" className="btn btn-primary" disabled={saving}>

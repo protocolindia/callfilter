@@ -81,7 +81,46 @@ router.post('/signup', async (req, res, next) => {
     const legacyToggle = (await getSetting('otp_show_in_response')) === 'true';
     const isDevMode = smsProvider === 'none' || legacyToggle;
 
-    // TODO: when smsProvider !== 'none', dispatch via that provider here.
+    // Send OTP via configured SMS API
+    if (!isDevMode) {
+      try {
+        const apiUrl        = (await getSetting('sms_api_url'))            || '';
+        const userid        = (await getSetting('sms_api_userid'))         || '';
+        const password      = (await getSetting('sms_api_password'))       || '';
+        const senderName    = (await getSetting('sms_api_sender_name'))    || '';
+        const senderNumber  = (await getSetting('sms_api_sender_number'))  || '';
+        const mobileParam   = (await getSetting('sms_api_mobile_param'))   || 'mobileno';
+        const messageParam  = (await getSetting('sms_api_message_param'))  || 'message';
+        const category      = (await getSetting('sms_api_category'))       || '';
+        const templateId    = (await getSetting('sms_api_template_id'))    || '';
+        const msgTemplate   = (await getSetting('sms_api_message_template'))
+                              || '{OTP} is your OTP. Do not share with anyone.';
+
+        if (apiUrl && userid) {
+          const message = msgTemplate.replace(/\{OTP\}/g, code);
+          const mobile  = `${user.dial_code || ''}${user.mobile}`.replace(/^\+/, '');
+
+          const params = new URLSearchParams({
+            userid, password,
+            [mobileParam]: mobile,
+            [messageParam]: message,
+          });
+          if (senderName)   params.set('sendername',   senderName);
+          if (senderNumber) params.set('sendernumber', senderNumber);
+          if (category)     params.set('category',     category);
+          if (templateId)   params.set('templateid',   templateId);
+
+          const smsUrl = `${apiUrl}?${params.toString()}`;
+          const fetch  = require('node-fetch').default || require('node-fetch');
+          const smsRes = await fetch(smsUrl, { method: 'GET', timeout: 10000 });
+          const body   = await smsRes.text();
+          console.log(`[SMS] status=${smsRes.status} response=${body.substring(0,100)}`);
+        }
+      } catch (smsErr) {
+        console.error('[SMS] send failed:', smsErr.message);
+        // Don't fail the OTP request — just log and continue
+      }
+    }
 
     res.json({
       ok: true,
