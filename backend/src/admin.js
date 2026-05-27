@@ -1115,8 +1115,7 @@ router.delete('/admin-users/:id/popup-image', requireAdmin, async (req, res, nex
       return res.status(403).json({ error: 'Only super_admin can remove popup images' });
     await query(
       `UPDATE admin_users
-          SET popup_image = NULL, popup_image_type = NULL,
-              popup_image_updated_at = NULL, updated_at = NOW()
+          SET popup_image_data = NULL, popup_image_mime = NULL, updated_at = NOW()
         WHERE id = $1`, [parseInt(req.params.id, 10)]);
     res.json({ ok: true });
   } catch (e) { next(e); }
@@ -1126,12 +1125,14 @@ router.delete('/admin-users/:id/popup-image', requireAdmin, async (req, res, nex
 router.get('/admin-users/:id/popup-image', requireAdmin, async (req, res, next) => {
   try {
     const row = await one(
-      'SELECT popup_image, popup_image_type FROM admin_users WHERE id = $1', [req.params.id]);
-    if (!row || !row.popup_image)
+      'SELECT popup_image_data, popup_image_mime FROM admin_users WHERE id = $1',
+      [parseInt(req.params.id, 10)]);
+    if (!row || !row.popup_image_data)
       return res.status(404).json({ error: 'No image' });
-    res.set('Content-Type', row.popup_image_type || 'image/jpeg');
+    const buf = Buffer.from(row.popup_image_data, 'base64');
+    res.set('Content-Type', row.popup_image_mime || 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=3600');
-    res.send(row.popup_image);
+    res.send(buf);
   } catch (e) { next(e); }
 });
 

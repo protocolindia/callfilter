@@ -1134,46 +1134,63 @@ router.get('/settings/block-reasons', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-module.exports = router;
 
+// ============================================================
+// GLOBAL BLOCKLIST — Public endpoints (no auth required)
+// ============================================================
+
+// GET /api/global-blocklist — full list + admin popup configs
 router.get('/global-blocklist', async (req, res, next) => {
   try {
+    // Entries with resolved admin_id (sub-user numbers map to parent admin)
     const rows = await many(
-      'SELECT number, reason FROM global_blocklist WHERE active = TRUE ORDER BY reason, number'
+      `SELECT g.number, g.reason,
+              COALESCE(
+                CASE WHEN au.role = 'global_db_user' THEN au.parent_id
+                     ELSE g.added_by_admin_id END,
+                g.added_by_admin_id
+              ) AS added_by_admin_id
+         FROM global_blocklist g
+         LEFT JOIN admin_users au ON au.id = g.added_by_admin_id
+        WHERE g.active = TRUE AND g.deleted_at IS NULL
+        ORDER BY g.reason, g.number`
     );
-    // Fetch popup configs for global_db_admins (image URL, name, assigned reasons)
-    const popupAdmins = await query(
-      `SELECT id, display_name, assigned_reasons, popup_image_updated_at
+
+    // Admin configs — include popup image as base64 for offline use on device
+    const admins = await many(
+      `SELECT id, display_name, assigned_reasons,
+              popup_image_data, popup_image_mime
          FROM admin_users
         WHERE role = 'global_db_admin'
           AND active = TRUE
-          AND deleted_at IS NULL
-          AND assigned_reasons IS NOT NULL`
+          AND deleted_at IS NULL`
     );
 
-    const popupConfigs = {};
-    for (const admin of (popupAdmins.rows || [])) {
+    const adminConfigs = admins.map(a => {
       let reasons = [];
-      try { reasons = admin.assigned_reasons ? JSON.parse(admin.assigned_reasons) : []; }
+      try { reasons = a.assigned_reasons ? JSON.parse(a.assigned_reasons) : []; }
       catch { reasons = []; }
-      for (const reason of reasons) {
-        popupConfigs[reason] = {
-          admin_id:    admin.id,
-          admin_name:  admin.display_name || 'Global Safety',
-          has_image:   !!admin.popup_image_updated_at,
-          image_url:   admin.popup_image_updated_at
-                       ? `/api/global-blocklist/popup-image/${admin.id}` : null,
-          image_updated_at: admin.popup_image_updated_at
-        };
-      }
-    }
+      return {
+        admin_id:         a.id,
+        display_name:     a.display_name || 'Global Safety',
+        assigned_reasons: reasons,
+        has_popup_image:  !!a.popup_image_data,
+        popup_image_data: a.popup_image_data || null,
+        popup_image_mime: a.popup_image_mime || 'image/jpeg',
+      };
+    });
 
-    res.json({ ok: true, entries: rows, total: rows.length,
-               synced_at: new Date().toISOString(), popup_configs: popupConfigs });
+    res.json({
+      ok: true,
+      entries: rows,
+      total: rows.length,
+      admin_configs: adminConfigs,
+      synced_at: new Date().toISOString(),
+    });
   } catch (e) { next(e); }
 });
 
-// ── GLOBAL BLOCKLIST CONFIG — app settings ────────────────────────────
+// GET /api/global-blocklist/config — display settings for app
 router.get('/global-blocklist/config', async (req, res, next) => {
   try {
     const showTotal  = await one("SELECT value FROM settings WHERE key='global_blocklist_show_total'");
@@ -1186,22 +1203,21 @@ router.get('/global-blocklist/config', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ── PER-USER GLOBAL BLOCKLIST CONFIG ─────────────────────────────────
-// POST /api/global-blocklist/user-config  — save user's enabled reasons
+// POST /api/global-blocklist/user-config — save user's enabled reasons
 router.post('/global-blocklist/user-config', async (req, res, next) => {
   try {
     const { user_id, enabled_reasons } = req.body || {};
     if (!user_id) return res.status(400).json({ error: 'user_id required' });
-    const reasons = Array.isArray(enabled_reasons) ? enabled_reasons : [];
     await query(
       'UPDATE users SET global_enabled_reasons = $1 WHERE id = $2',
-      [JSON.stringify(reasons), parseInt(user_id, 10)]
+      [JSON.stringify(Array.isArray(enabled_reasons) ? enabled_reasons : []),
+       parseInt(user_id, 10)]
     );
-    res.json({ ok: true, saved: reasons.length });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
-// GET /api/global-blocklist/user-config?user_id=N — fetch user's enabled reasons
+// GET /api/global-blocklist/user-config?user_id=N
 router.get('/global-blocklist/user-config', async (req, res, next) => {
   try {
     const user_id = parseInt(req.query.user_id, 10);
@@ -1215,23 +1231,4 @@ router.get('/global-blocklist/user-config', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /api/global-blocklist/popup-image/:admin_id — public, served to app
-router.get('/global-blocklist/popup-image/:admin_id', async (req, res, next) => {
-  try {
-    const { one: getOne, query: dbQuery } = require('./db.js');
-    const row = await getOne(
-      `SELECT popup_image, popup_image_type, popup_image_updated_at
-         FROM admin_users WHERE id = $1 AND active = TRUE AND deleted_at IS NULL`,
-      [parseInt(req.params.admin_id, 10)]
-    );
-    if (!row || !row.popup_image)
-      return res.status(404).json({ error: 'No image' });
-    res.set('Content-Type', row.popup_image_type || 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=86400');
-    if (row.popup_image_updated_at) {
-      res.set('Last-Modified', new Date(row.popup_image_updated_at).toUTCString());
-    }
-    res.send(row.popup_image);
-  } catch (e) { next(e); }
-});
-
+module.exports = router;

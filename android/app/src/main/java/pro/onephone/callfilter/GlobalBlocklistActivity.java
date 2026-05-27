@@ -40,16 +40,52 @@ public class GlobalBlocklistActivity extends AppCompatActivity {
 
         btnBack.setOnClickListener(v -> finish());
 
+        // Check SYSTEM_ALERT_WINDOW permission (needed for popup)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M
+                && !android.provider.Settings.canDrawOverlays(this)) {
+            android.widget.TextView warn = new android.widget.TextView(this);
+            warn.setText("⚠ Grant 'Display over other apps' permission for call block popup");
+            warn.setTextColor(0xFFFF9800);
+            warn.setTextSize(12);
+            warn.setPadding(32,8,32,8);
+            // Insert before the sync text
+            ((android.view.ViewGroup) tvLastSync.getParent()).addView(warn,
+                ((android.view.ViewGroup) tvLastSync.getParent()).indexOfChild(tvLastSync));
+        }
+
         btnSync.setOnClickListener(v -> {
+            // If no overlay permission, offer to open settings
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M
+                    && !android.provider.Settings.canDrawOverlays(this)) {
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Permission needed")
+                    .setMessage("To show blocked call popups, please enable 'Display over other apps' for AI CallFilter.")
+                    .setPositiveButton("Open Settings", (d,w) -> {
+                        android.content.Intent i = new android.content.Intent(
+                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:" + getPackageName()));
+                        startActivity(i);
+                    })
+                    .setNegativeButton("Skip", null)
+                    .show();
+                return;
+            }
             btnSync.setEnabled(false);
             btnSync.setText("Syncing...");
             GlobalBlocklistManager.getInstance(this).syncAsync((ok, count, err) ->
                 runOnUiThread(() -> {
                     btnSync.setEnabled(true);
                     btnSync.setText("Sync Now");
-                    Toast.makeText(this,
-                        ok ? "Synced " + count + " entries" : "Sync failed: " + err,
-                        Toast.LENGTH_SHORT).show();
+                    if (ok) {
+                        GlobalBlocklistManager mgr = GlobalBlocklistManager.getInstance(this);
+                        // Count admins with popup images
+                        int entriesCount = count;
+                        Toast.makeText(this,
+                            "Synced " + entriesCount + " entries",
+                            Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "Sync failed: " + err, Toast.LENGTH_LONG).show();
+                    }
                     refresh();
                 }));
         });
