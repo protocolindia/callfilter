@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { api } from '../api.js';
-import { getAdminRole } from '../api.js';
+import { api, getAdminRole } from '../api.js';
 
 const ROLE_LABELS = {
   super_admin:     { label:'Super Admin',     color:'#a855f7' },
@@ -110,17 +109,13 @@ export default function AdminUsers() {
       { setAddErr('Select at least one reason category for this Global DB Admin'); return; }
     setAdding(true);
     try {
-      await api.post('/admin/admin-users',
+      const res = await api.post('/admin/admin-users',
         { username:addUser.trim(), password:addPass,
           display_name:addName.trim(), role:addRole });
-      // If global_db_admin, set assigned reasons
-      if (addRole === 'global_db_admin' && addSelectedReasons.length > 0) {
-        const newUser = (await api.get('/admin/admin-users')).users
-          .find(u => u.username === addUser.trim());
-        if (newUser) {
-          await api.put(`/admin/admin-users/${newUser.id}/assigned-reasons`,
-            { reasons: addSelectedReasons });
-        }
+      // If global_db_admin, set assigned reasons using the returned user id
+      if (addRole === 'global_db_admin' && addSelectedReasons.length > 0 && res?.user?.id) {
+        await api.put(`/admin/admin-users/${res.user.id}/assigned-reasons`,
+          { reasons: addSelectedReasons });
       }
       setAddUser(''); setAddPass(''); setAddName(''); setAddRole('');
       setAddSelectedReasons([]); setShowAdd(false); load();

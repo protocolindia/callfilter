@@ -42,7 +42,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/payments" element={<Payments />} />
           <Route path="/block-reasons" element={<BlockReasons />} />
           <Route path="/global-blocklist" element={<GlobalBlocklist />} />
-          <Route path="/admin-users" element={<AdminUsers currentRole={getAdminRole()} />} />
+          <Route path="/admin-users" element={<AdminUsers />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
