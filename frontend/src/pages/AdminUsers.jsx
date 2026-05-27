@@ -2,65 +2,109 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api, getAdminRole } from '../api.js';
 
 const ROLE_LABELS = {
-  super_admin:     { label:'Super Admin',     color:'#a855f7' },
-  admin:           { label:'Admin',           color:'#4f8ef7' },
-  support:         { label:'Support',         color:'#22c55e' },
-  billing:         { label:'Billing',         color:'#f59e0b' },
-  global_db_admin: { label:'Global DB Admin', color:'#ef4444' },
-  global_db_user:  { label:'Global DB User',  color:'#fb923c' },
+  super_admin:     { label: 'Super Admin',     color: '#a855f7' },
+  admin:           { label: 'Admin',           color: '#4f8ef7' },
+  support:         { label: 'Support',         color: '#22c55e' },
+  billing:         { label: 'Billing',         color: '#f59e0b' },
+  global_db_admin: { label: 'Global DB Admin', color: '#ef4444' },
+  global_db_user:  { label: 'Global DB User',  color: '#fb923c' },
 };
 
 const DEFAULT_REASONS = [
-  'Spam call','Cybercrime / fraud','Phishing',
-  'Telemarketing / promotional','Robocall / IVR',
-  'Personal harassment','Other'
+  'Spam call', 'Cybercrime / fraud', 'Phishing',
+  'Telemarketing / promotional', 'Robocall / IVR',
+  'Personal harassment', 'Other',
 ];
 
 const inp = {
-  padding:'8px 12px', borderRadius:6, border:'1px solid var(--border)',
-  background:'var(--surface)', color:'var(--text)', fontSize:14, boxSizing:'border-box', width:'100%'
+  padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+  background: 'var(--surface)', color: 'var(--text)', fontSize: 14,
+  boxSizing: 'border-box', width: '100%',
 };
 
+function btn(bg, color, extra) {
+  return {
+    padding: '5px 12px', borderRadius: 4, border: 'none',
+    background: bg, color: color, cursor: 'pointer',
+    fontWeight: 600, fontSize: 12, ...extra,
+  };
+}
+
 function RoleBadge({ role }) {
-  const r = ROLE_LABELS[role] || { label:role, color:'#6b7280' };
+  const r = ROLE_LABELS[role] || { label: role, color: '#6b7280' };
   return (
-    <span style={{ background:r.color+'22', color:r.color,
-      borderRadius:4, padding:'2px 8px', fontSize:12, fontWeight:600 }}>
+    <span style={{
+      background: r.color + '22', color: r.color,
+      borderRadius: 4, padding: '2px 8px', fontSize: 12, fontWeight: 600,
+    }}>
       {r.label}
     </span>
+  );
+}
+
+function parseReasons(json) {
+  try { return JSON.parse(json || '[]'); }
+  catch { return []; }
+}
+
+function ReasonPicker({ selected, onChange, allReasons }) {
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 12, color: 'var(--subtext)', marginBottom: 6 }}>
+        ASSIGNED REASON CATEGORIES *
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {allReasons.map(r => {
+          const active = selected.includes(r);
+          return (
+            <button key={r} type="button"
+              onClick={() => onChange(active ? selected.filter(x => x !== r) : [...selected, r])}
+              style={{
+                padding: '4px 10px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 600,
+                background: active ? 'var(--accent)' : 'var(--surface)',
+                color: active ? '#fff' : 'var(--subtext)',
+              }}>
+              {active ? '+ ' : ''}{r}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
 export default function AdminUsers() {
   const currentRole = getAdminRole();
   const isSuperAdmin = currentRole === 'super_admin';
+  const canCreate = ['super_admin', 'admin', 'global_db_admin'].includes(currentRole);
 
-  const [users, setUsers]         = useState([]);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState('');
-  const [blockReasons, setBlockReasons] = useState(DEFAULT_REASONS);
+  const [users, setUsers]       = useState([]);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [reasons, setReasons]   = useState(DEFAULT_REASONS);
 
-  // Add form state
-  const [showAdd, setShowAdd]     = useState(false);
-  const [addUser, setAddUser]     = useState('');
-  const [addPass, setAddPass]     = useState('');
-  const [addName, setAddName]     = useState('');
-  const [addRole, setAddRole]     = useState('');
-  const [addSelectedReasons, setAddSelectedReasons] = useState([]);
-  const [addErr, setAddErr]       = useState('');
-  const [adding, setAdding]       = useState(false);
+  // Add form
+  const [showAdd, setShowAdd]       = useState(false);
+  const [addUser, setAddUser]       = useState('');
+  const [addPass, setAddPass]       = useState('');
+  const [addName, setAddName]       = useState('');
+  const [addRole, setAddRole]       = useState('');
+  const [addReasons, setAddReasons] = useState([]);
+  const [addErr, setAddErr]         = useState('');
+  const [adding, setAdding]         = useState(false);
 
-  // Edit state
-  const [editId, setEditId]       = useState(null);
-  const [editName, setEditName]   = useState('');
-  const [editPass, setEditPass]   = useState('');
-  const [editActive, setEditActive] = useState(true);
-  const [editRole, setEditRole]   = useState('');
+  // Edit form
+  const [editId, setEditId]           = useState(null);
+  const [editName, setEditName]       = useState('');
+  const [editPass, setEditPass]       = useState('');
+  const [editActive, setEditActive]   = useState(true);
+  const [editRole, setEditRole]       = useState('');
   const [editReasons, setEditReasons] = useState([]);
-  const [editErr, setEditErr]     = useState('');
-  const [saving, setSaving]       = useState(false);
+  const [editErr, setEditErr]         = useState('');
+  const [saving, setSaving]           = useState(false);
 
-  // Popup image state
+  // Image upload
   const [imgAdminId, setImgAdminId]   = useState(null);
   const [imgPreview, setImgPreview]   = useState(null);
   const [imgData, setImgData]         = useState(null);
@@ -69,85 +113,86 @@ export default function AdminUsers() {
   const [imgMsg, setImgMsg]           = useState('');
   const imgRef = useRef(null);
 
+  // Full-screen preview
+  const [viewImg, setViewImg] = useState(null);
+
   const creatableRoles = isSuperAdmin
-    ? ['admin','support','billing','global_db_admin','global_db_user']
+    ? ['admin', 'support', 'billing', 'global_db_admin', 'global_db_user']
     : currentRole === 'admin'
-    ? ['support','billing','global_db_admin','global_db_user']
+    ? ['support', 'billing', 'global_db_admin', 'global_db_user']
     : currentRole === 'global_db_admin'
-    ? ['global_db_user'] : [];
+    ? ['global_db_user']
+    : [];
 
   const load = async () => {
     setLoading(true); setError('');
     try {
       const data = await api.get('/admin/admin-users');
       setUsers(data.users || []);
-    } catch (e) { setError(e.message||'Failed'); }
+    } catch (e) { setError(e.message || 'Failed to load admin users'); }
     finally { setLoading(false); }
   };
 
   const loadReasons = async () => {
     try {
       const s = await api.get('/admin/settings');
-      if (s.block_reasons) {
-        setBlockReasons(s.block_reasons.split('\n').map(r=>r.trim()).filter(Boolean));
+      if (s && s.block_reasons) {
+        setReasons(s.block_reasons.split('\n').map(r => r.trim()).filter(Boolean));
       }
-    } catch {}
+    } catch { /* use defaults */ }
   };
 
   useEffect(() => { load(); loadReasons(); }, []);
 
-  const toggleReason = (list, setList, reason) => {
-    setList(list.includes(reason) ? list.filter(r=>r!==reason) : [...list, reason]);
-  };
-
-  // ── Add ───────────────────────────────────────────────────────────────
   const handleAdd = async e => {
     e.preventDefault(); setAddErr('');
-    if (!addUser.trim() || !addPass.trim() || !addRole)
-      { setAddErr('Username, password and role required'); return; }
-    if (addRole === 'global_db_admin' && addSelectedReasons.length === 0)
-      { setAddErr('Select at least one reason category for this Global DB Admin'); return; }
+    if (!addUser.trim() || !addPass.trim() || !addRole) {
+      setAddErr('Username, password and role are required'); return;
+    }
+    if (addRole === 'global_db_admin' && addReasons.length === 0) {
+      setAddErr('Select at least one reason category for Global DB Admin'); return;
+    }
     setAdding(true);
     try {
-      const res = await api.post('/admin/admin-users',
-        { username:addUser.trim(), password:addPass,
-          display_name:addName.trim(), role:addRole });
-      // If global_db_admin, set assigned reasons using the returned user id
-      if (addRole === 'global_db_admin' && addSelectedReasons.length > 0 && res?.user?.id) {
+      const res = await api.post('/admin/admin-users', {
+        username: addUser.trim(), password: addPass,
+        display_name: addName.trim(), role: addRole,
+      });
+      if (addRole === 'global_db_admin' && addReasons.length > 0 && res?.user?.id) {
         await api.put(`/admin/admin-users/${res.user.id}/assigned-reasons`,
-          { reasons: addSelectedReasons });
+          { reasons: addReasons });
       }
-      setAddUser(''); setAddPass(''); setAddName(''); setAddRole('');
-      setAddSelectedReasons([]); setShowAdd(false); load();
-    } catch (e) { setAddErr(e.message||'Failed'); }
+      setAddUser(''); setAddPass(''); setAddName('');
+      setAddRole(''); setAddReasons([]); setShowAdd(false);
+      load();
+    } catch (e) { setAddErr(e.message || 'Failed to create'); }
     finally { setAdding(false); }
   };
 
-  // ── Edit ─────────────────────────────────────────────────────────────
   const startEdit = u => {
-    setEditId(u.id); setEditName(u.display_name||''); setEditPass('');
-    setEditActive(u.active); setEditRole(u.role); setEditErr('');
-    try { setEditReasons(JSON.parse(u.assigned_reasons||'[]')); } catch { setEditReasons([]); }
+    setEditId(u.id); setEditName(u.display_name || '');
+    setEditPass(''); setEditActive(u.active);
+    setEditRole(u.role); setEditReasons(parseReasons(u.assigned_reasons));
+    setEditErr('');
   };
 
   const saveEdit = async id => {
     setSaving(true); setEditErr('');
     try {
-      const body = { display_name:editName, active:editActive, role:editRole };
+      const body = { display_name: editName, active: editActive, role: editRole };
       if (editPass.trim()) body.password = editPass;
       await api.put(`/admin/admin-users/${id}`, body);
-      // Update assigned reasons for global_db_admin
       if (editRole === 'global_db_admin') {
         await api.put(`/admin/admin-users/${id}/assigned-reasons`, { reasons: editReasons });
       }
       setEditId(null); load();
-    } catch (e) { setEditErr(e.message||'Failed'); }
+    } catch (e) { setEditErr(e.message || 'Failed'); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async u => {
-    const action = isSuperAdmin ? 'permanently delete' : 'deactivate';
-    if (!confirm(`${action} "${u.username}"?`)) return;
+    const label = isSuperAdmin ? 'permanently delete' : 'deactivate';
+    if (!window.confirm(`${label} "${u.username}"?`)) return;
     try { await api.delete(`/admin/admin-users/${u.id}`); load(); }
     catch (e) { alert(e.message); }
   };
@@ -157,13 +202,11 @@ export default function AdminUsers() {
     catch (e) { alert(e.message); }
   };
 
-  // ── Popup image ───────────────────────────────────────────────────────
   const openImageUpload = u => {
-    setImgAdminId(u.id); setImgPreview(null); setImgData(null);
-    setImgMsg(''); setImgMime('');
-    if (u.popup_image_data) {
-      setImgPreview(`data:${u.popup_image_mime||'image/jpeg'};base64,${u.popup_image_data}`);
-    }
+    setImgAdminId(u.id); setImgData(null); setImgMsg('');
+    setImgPreview(u.popup_image_data
+      ? `data:${u.popup_image_mime || 'image/jpeg'};base64,${u.popup_image_data}`
+      : null);
   };
 
   const handleImagePick = e => {
@@ -172,8 +215,7 @@ export default function AdminUsers() {
     const reader = new FileReader();
     reader.onload = ev => {
       const b64 = ev.target.result.split(',')[1];
-      setImgData(b64); setImgMime(mime);
-      setImgPreview(ev.target.result);
+      setImgData(b64); setImgMime(mime); setImgPreview(ev.target.result);
     };
     reader.readAsDataURL(file);
   };
@@ -184,69 +226,130 @@ export default function AdminUsers() {
     try {
       await api.post(`/admin/admin-users/${imgAdminId}/popup-image`,
         { image_data: imgData, mime: imgMime });
-      setImgMsg('✓ Image saved');
+      setImgMsg('Image saved');
       load();
-    } catch (e) { setImgMsg('Error: ' + (e.message||'Upload failed')); }
+    } catch (e) { setImgMsg('Error: ' + (e.message || 'Upload failed')); }
     finally { setImgUploading(false); }
   };
 
   const deleteImage = async () => {
-    if (!confirm('Remove popup image?')) return;
+    if (!window.confirm('Remove popup image?')) return;
     try {
       await api.delete(`/admin/admin-users/${imgAdminId}/popup-image`);
-      setImgPreview(null); setImgData(null); setImgMsg('✓ Image removed');
+      setImgPreview(null); setImgData(null); setImgMsg('Image removed');
       load();
-    } catch (e) { setImgMsg('Error: ' + (e.message||'Failed')); }
+    } catch (e) { setImgMsg('Error: ' + (e.message || 'Failed')); }
   };
 
   const fmt = d => d ? new Date(d).toLocaleDateString('en-IN',
-    { day:'2-digit', month:'short', year:'numeric' }) : '—';
-
-  // ── Reason selector component ─────────────────────────────────────────
-  const ReasonPicker = ({ selected, setSelected }) => (
-    <div style={{ marginTop:8 }}>
-      <div style={{ fontSize:12, color:'var(--subtext)', marginBottom:6 }}>
-        ASSIGNED REASON CATEGORIES *
-      </div>
-      <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-        {blockReasons.map(r => {
-          const active = selected.includes(r);
-          return (
-            <button key={r} type="button"
-              onClick={() => toggleReason(selected, setSelected, r)}
-              style={{ padding:'4px 10px', borderRadius:20, border:'none', cursor:'pointer',
-                fontSize:12, fontWeight:600,
-                background: active ? 'var(--accent)' : 'var(--surface)',
-                color: active ? '#fff' : 'var(--subtext)',
-                transition:'all 0.15s' }}>
-              {active ? '✓ ' : ''}{r}
-            </button>
-          );
-        })}
-      </div>
-      {selected.length > 0 && (
-        <div style={{ marginTop:6, fontSize:11, color:'var(--subtext)' }}>
-          {selected.length} reason{selected.length>1?'s':''} selected
-        </div>
-      )}
-    </div>
-  );
+    { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
 
   return (
     <div className="page">
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
-        <span style={{ fontSize:28 }}>👥</span>
+
+      {/* Full-screen image preview */}
+      {viewImg && (
+        <div onClick={() => setViewImg(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000,
+        }}>
+          <div style={{ position: 'relative' }}>
+            <img src={viewImg} alt="Popup preview" style={{
+              maxWidth: '90vw', maxHeight: '85vh', borderRadius: 8, display: 'block',
+            }}/>
+            <button onClick={() => setViewImg(null)} style={{
+              position: 'absolute', top: -14, right: -14,
+              background: '#ef4444', color: '#fff', border: 'none',
+              borderRadius: '50%', width: 30, height: 30, cursor: 'pointer',
+              fontWeight: 700, fontSize: 18,
+            }}>x</button>
+          </div>
+        </div>
+      )}
+
+      {/* Image upload modal */}
+      {imgAdminId && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
+        }}>
+          <div style={{
+            background: 'var(--card)', borderRadius: 12, padding: 24,
+            width: 480, maxWidth: '95vw',
+          }}>
+            <h3 style={{ margin: '0 0 12px' }}>Popup Image for Blocked Calls</h3>
+            <p style={{ color: 'var(--subtext)', fontSize: 13, margin: '0 0 14px' }}>
+              Shown when a call is blocked via this admin's global blocklist.
+              Recommended: 1080x600px, max 2MB.
+            </p>
+            {imgPreview && (
+              <img src={imgPreview} alt="Preview" style={{
+                width: '100%', borderRadius: 8, marginBottom: 12,
+                objectFit: 'cover', maxHeight: 200, display: 'block',
+              }}/>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <label style={{
+                padding: '8px 14px', borderRadius: 6, border: 'none',
+                background: 'var(--accent)', color: '#fff',
+                cursor: 'pointer', fontSize: 13, fontWeight: 600,
+              }}>
+                Choose Image
+                <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/webp"
+                  onChange={handleImagePick} style={{ display: 'none' }}/>
+              </label>
+              {imgData && (
+                <button onClick={uploadImage} disabled={imgUploading} style={{
+                  padding: '8px 14px', borderRadius: 6, border: 'none',
+                  background: '#22c55e', color: '#fff', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 600, opacity: imgUploading ? 0.6 : 1,
+                }}>
+                  {imgUploading ? 'Saving...' : 'Save Image'}
+                </button>
+              )}
+              {imgPreview && !imgData && (
+                <button onClick={deleteImage} style={{
+                  padding: '8px 14px', borderRadius: 6, border: 'none',
+                  background: 'rgba(239,68,68,0.15)', color: '#ef4444',
+                  cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                }}>
+                  Remove
+                </button>
+              )}
+            </div>
+            {imgMsg && (
+              <p style={{
+                color: imgMsg.startsWith('Error') ? 'var(--reject)' : '#22c55e',
+                fontSize: 13, margin: '0 0 12px',
+              }}>
+                {imgMsg}
+              </p>
+            )}
+            <button onClick={() => { setImgAdminId(null); setImgMsg(''); }} style={{
+              padding: '8px 20px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontSize: 13,
+            }}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <span style={{ fontSize: 28 }}>👥</span>
         <div>
-          <h1 style={{ margin:0 }}>Admin Users</h1>
-          <p style={{ margin:0, color:'var(--subtext)', fontSize:14 }}>
+          <h1 style={{ margin: 0 }}>Admin Users</h1>
+          <p style={{ margin: 0, color: 'var(--subtext)', fontSize: 14 }}>
             Manage admin accounts, roles and permissions.
           </p>
         </div>
-        {creatableRoles.length > 0 && (
-          <button onClick={() => setShowAdd(v=>!v)}
-            style={{ marginLeft:'auto', padding:'8px 18px', borderRadius:6, border:'none',
-              background:'var(--accent)', color:'#fff', fontWeight:600, cursor:'pointer' }}>
+        {canCreate && (
+          <button onClick={() => setShowAdd(v => !v)} style={{
+            marginLeft: 'auto', padding: '8px 18px', borderRadius: 6,
+            border: 'none', background: 'var(--accent)', color: '#fff',
+            fontWeight: 600, cursor: 'pointer',
+          }}>
             {showAdd ? 'Cancel' : '+ New Admin User'}
           </button>
         )}
@@ -254,260 +357,239 @@ export default function AdminUsers() {
 
       {/* Add form */}
       {showAdd && (
-        <div className="card" style={{ marginBottom:20 }}>
-          <h3 style={{ margin:'0 0 14px' }}>Create Admin User</h3>
+        <div className="card" style={{ marginBottom: 20 }}>
+          <h3 style={{ margin: '0 0 14px' }}>Create Admin User</h3>
           <form onSubmit={handleAdd}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr auto', gap:12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 12 }}>
               <div>
-                <label style={{ fontSize:12, color:'var(--subtext)', display:'block', marginBottom:4 }}>USERNAME *</label>
-                <input value={addUser} onChange={e=>setAddUser(e.target.value)} placeholder="jsmith" style={inp}/>
+                <label style={{ fontSize: 12, color: 'var(--subtext)', display: 'block', marginBottom: 4 }}>
+                  USERNAME *
+                </label>
+                <input value={addUser} onChange={e => setAddUser(e.target.value)}
+                  placeholder="jsmith" style={inp}/>
               </div>
               <div>
-                <label style={{ fontSize:12, color:'var(--subtext)', display:'block', marginBottom:4 }}>PASSWORD *</label>
-                <input type="password" value={addPass} onChange={e=>setAddPass(e.target.value)}
+                <label style={{ fontSize: 12, color: 'var(--subtext)', display: 'block', marginBottom: 4 }}>
+                  PASSWORD *
+                </label>
+                <input type="password" value={addPass} onChange={e => setAddPass(e.target.value)}
                   placeholder="Min 8 chars" style={inp}/>
               </div>
               <div>
-                <label style={{ fontSize:12, color:'var(--subtext)', display:'block', marginBottom:4 }}>DISPLAY NAME</label>
-                <input value={addName} onChange={e=>setAddName(e.target.value)}
+                <label style={{ fontSize: 12, color: 'var(--subtext)', display: 'block', marginBottom: 4 }}>
+                  DISPLAY NAME
+                </label>
+                <input value={addName} onChange={e => setAddName(e.target.value)}
                   placeholder="John Smith" style={inp}/>
               </div>
               <div>
-                <label style={{ fontSize:12, color:'var(--subtext)', display:'block', marginBottom:4 }}>ROLE *</label>
-                <select value={addRole} onChange={e=>{setAddRole(e.target.value); setAddSelectedReasons([]);}} style={inp}>
-                  <option value="">Select role…</option>
-                  {creatableRoles.map(r=>(
-                    <option key={r} value={r}>{ROLE_LABELS[r]?.label||r}</option>
+                <label style={{ fontSize: 12, color: 'var(--subtext)', display: 'block', marginBottom: 4 }}>
+                  ROLE *
+                </label>
+                <select value={addRole}
+                  onChange={e => { setAddRole(e.target.value); setAddReasons([]); }}
+                  style={inp}>
+                  <option value="">Select role...</option>
+                  {creatableRoles.map(r => (
+                    <option key={r} value={r}>{ROLE_LABELS[r]?.label || r}</option>
                   ))}
                 </select>
               </div>
-              <div style={{ display:'flex', alignItems:'flex-end' }}>
-                <button type="submit" disabled={adding}
-                  style={{ padding:'8px 20px', borderRadius:6, border:'none',
-                    background:'var(--accent)', color:'#fff', fontWeight:600,
-                    cursor:adding?'not-allowed':'pointer', opacity:adding?0.6:1 }}>
-                  {adding?'Creating…':'Create'}
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <button type="submit" disabled={adding} style={{
+                  padding: '8px 20px', borderRadius: 6, border: 'none',
+                  background: 'var(--accent)', color: '#fff', fontWeight: 600,
+                  cursor: adding ? 'not-allowed' : 'pointer', opacity: adding ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {adding ? 'Creating...' : 'Create'}
                 </button>
               </div>
             </div>
             {addRole === 'global_db_admin' && (
-              <ReasonPicker selected={addSelectedReasons} setSelected={setAddSelectedReasons}/>
+              <ReasonPicker selected={addReasons} onChange={setAddReasons} allReasons={reasons}/>
             )}
-            {addErr && <p style={{ color:'var(--reject)', margin:'8px 0 0', fontSize:13 }}>{addErr}</p>}
+            {addErr && (
+              <p style={{ color: 'var(--reject)', margin: '8px 0 0', fontSize: 13 }}>{addErr}</p>
+            )}
           </form>
         </div>
       )}
 
-      {/* Popup image modal */}
-      {imgAdminId && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)',
-          display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div style={{ background:'var(--card)', borderRadius:12, padding:24,
-            width:480, maxWidth:'95vw' }}>
-            <h3 style={{ margin:'0 0 16px' }}>📷 Popup Image for Blocked Calls</h3>
-            <p style={{ color:'var(--subtext)', fontSize:13, margin:'0 0 16px' }}>
-              This image appears on the user's phone when a call is blocked by this admin's global blocklist.
-              Recommended: 1080 × 600px, max 2MB.
-            </p>
-            {imgPreview && (
-              <img src={imgPreview} alt="Preview"
-                style={{ width:'100%', borderRadius:8, marginBottom:12, objectFit:'cover', maxHeight:200 }}/>
-            )}
-            <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-              <label style={{ padding:'8px 16px', borderRadius:6, border:'none',
-                background:'var(--accent)', color:'#fff', cursor:'pointer', fontSize:13, fontWeight:600 }}>
-                Choose Image
-                <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/webp"
-                  onChange={handleImagePick} style={{ display:'none' }}/>
-              </label>
-              {imgData && (
-                <button onClick={uploadImage} disabled={imgUploading}
-                  style={{ padding:'8px 16px', borderRadius:6, border:'none',
-                    background:'#22c55e', color:'#fff', cursor:'pointer', fontSize:13,
-                    fontWeight:600, opacity:imgUploading?0.6:1 }}>
-                  {imgUploading ? 'Saving…' : '✓ Save Image'}
-                </button>
-              )}
-              {imgPreview && !imgData && (
-                <button onClick={deleteImage}
-                  style={{ padding:'8px 16px', borderRadius:6, border:'none',
-                    background:'rgba(239,68,68,0.15)', color:'#ef4444',
-                    cursor:'pointer', fontSize:13, fontWeight:600 }}>
-                  🗑 Remove Image
-                </button>
-              )}
-            </div>
-            {imgMsg && (
-              <p style={{ color:imgMsg.startsWith('✓')?'#22c55e':'var(--reject)',
-                fontSize:13, margin:'0 0 12px' }}>{imgMsg}</p>
-            )}
-            <button onClick={()=>{setImgAdminId(null);setImgMsg('');}}
-              style={{ padding:'8px 20px', borderRadius:6, border:'1px solid var(--border)',
-                background:'transparent', color:'var(--text)', cursor:'pointer', fontSize:13 }}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Full image preview modal */}
-      {previewImg && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)',
-          display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}
-          onClick={()=>setPreviewImg(null)}>
-          <div style={{ position:'relative', maxWidth:'90vw', maxHeight:'90vh' }}>
-            <img src={previewImg} alt="Popup preview"
-              style={{ maxWidth:'100%', maxHeight:'85vh', borderRadius:8, display:'block' }}/>
-            <button onClick={()=>setPreviewImg(null)}
-              style={{ position:'absolute', top:-12, right:-12, background:'#ef4444',
-                color:'#fff', border:'none', borderRadius:'50%', width:28, height:28,
-                cursor:'pointer', fontWeight:700, fontSize:16, lineHeight:'28px' }}>×</button>
-            <p style={{ color:'#fff', textAlign:'center', marginTop:8, fontSize:13 }}>
-              Click anywhere to close
-            </p>
-          </div>
-        </div>
-      )}
-
-      {error && <p style={{ color:'var(--reject)' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--reject)' }}>{error}</p>}
 
       {/* Table */}
-      <div className="card" style={{ padding:0, overflow:'hidden' }}>
-        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:14 }}>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
-            <tr style={{ borderBottom:'1px solid var(--border)' }}>
-              {['User','Display Name','Role','Assigned Reasons','Status','Created','Actions'].map(h=>(
-                <th key={h} style={{ padding:'12px 16px', textAlign:'left',
-                  fontWeight:600, color:'var(--subtext)', fontSize:12 }}>{h}</th>
+            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+              {['User', 'Display Name', 'Role', 'Assigned Reasons', 'Status', 'Created', 'Actions'].map(h => (
+                <th key={h} style={{
+                  padding: '12px 16px', textAlign: 'left',
+                  fontWeight: 600, color: 'var(--subtext)', fontSize: 12,
+                }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={7} style={{ padding:24, textAlign:'center', color:'var(--subtext)' }}>Loading…</td></tr>}
-            {!loading && !users.length &&
-              <tr><td colSpan={7} style={{ padding:32, textAlign:'center', color:'var(--subtext)' }}>
-                No admin users yet.
-              </td></tr>}
-            {users.map(u => editId===u.id ? (
-              <tr key={u.id} style={{ borderBottom:'1px solid var(--border)', background:'var(--surface)' }}>
-                <td style={{ padding:'10px 16px', fontFamily:'monospace', color:'var(--subtext)' }}>{u.username}</td>
-                <td style={{ padding:'10px 16px' }}>
-                  <input value={editName} onChange={e=>setEditName(e.target.value)} style={{...inp,width:130}}/>
-                </td>
-                <td style={{ padding:'10px 16px' }}>
-                  <select value={editRole} onChange={e=>setEditRole(e.target.value)} style={{...inp,width:150}}>
-                    {creatableRoles.map(r=><option key={r} value={r}>{ROLE_LABELS[r]?.label||r}</option>)}
-                  </select>
-                </td>
-                <td style={{ padding:'10px 16px' }}>
-                  {editRole === 'global_db_admin' && (
-                    <ReasonPicker selected={editReasons} setSelected={setEditReasons}/>
-                  )}
-                </td>
-                <td style={{ padding:'10px 16px' }}>
-                  <select value={String(editActive)} onChange={e=>setEditActive(e.target.value==='true')}
-                    style={{...inp,width:100}}>
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
-                  </select>
-                </td>
-                <td style={{ padding:'10px 16px' }}>
-                  <input type="password" value={editPass} onChange={e=>setEditPass(e.target.value)}
-                    placeholder="New password" style={{...inp,width:150}}/>
-                  {editErr && <div style={{ color:'var(--reject)', fontSize:11, marginTop:4 }}>{editErr}</div>}
-                </td>
-                <td style={{ padding:'10px 16px' }}>
-                  <button onClick={()=>saveEdit(u.id)} disabled={saving}
-                    style={{ padding:'5px 14px', borderRadius:4, border:'none',
-                      background:'var(--accent)', color:'#fff', cursor:'pointer', fontWeight:600,
-                      marginRight:6, fontSize:13 }}>{saving?'…':'Save'}</button>
-                  <button onClick={()=>setEditId(null)}
-                    style={{ padding:'5px 14px', borderRadius:4, border:'1px solid var(--border)',
-                      background:'transparent', color:'var(--text)', cursor:'pointer', fontSize:13 }}>Cancel</button>
+            {loading && (
+              <tr>
+                <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: 'var(--subtext)' }}>
+                  Loading...
                 </td>
               </tr>
-            ) : (
-              <tr key={u.id} style={{ borderBottom:'1px solid var(--border)', opacity:u.deleted_at?0.45:1 }}>
-                <td style={{ padding:'12px 16px', fontFamily:'monospace', fontWeight:600, color:'var(--text)' }}>
-                  {u.username}
+            )}
+            {!loading && !users.length && (
+              <tr>
+                <td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--subtext)' }}>
+                  No admin users yet.
                 </td>
-                <td style={{ padding:'12px 16px', color:'var(--text)' }}>{u.display_name||'—'}</td>
-                <td style={{ padding:'12px 16px' }}><RoleBadge role={u.role}/></td>
-                <td style={{ padding:'12px 16px' }}>
-                  {u.role === 'global_db_admin' && (() => {
-                    try {
-                      const r = JSON.parse(u.assigned_reasons||'[]');
-                      return r.length > 0
-                        ? <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                            {r.map(reason => (
-                              <span key={reason} style={{ background:'rgba(239,68,68,0.12)',
-                                color:'#ef4444', borderRadius:3, padding:'1px 6px', fontSize:11 }}>
-                                {reason}
-                              </span>
-                            ))}
-                          </div>
-                        : <span style={{ color:'var(--muted)', fontSize:12 }}>None assigned</span>;
-                    } catch { return '—'; }
-                  })()}
-                  {u.role === 'global_db_user' && (
-                    <span style={{ color:'var(--subtext)', fontSize:12 }}>Inherits from parent</span>
-                  )}
-                </td>
-                <td style={{ padding:'12px 16px' }}>
-                  {u.deleted_at
-                    ? <span style={{ color:'#ef4444', fontSize:12, fontWeight:600 }}>Deleted</span>
-                    : u.active
-                    ? <span style={{ color:'#22c55e', fontSize:12, fontWeight:600 }}>Active</span>
-                    : <span style={{ color:'#6b7280', fontSize:12, fontWeight:600 }}>Inactive</span>}
-                </td>
-                <td style={{ padding:'12px 16px', color:'var(--subtext)', fontSize:12 }}>{fmt(u.created_at)}</td>
-                <td style={{ padding:'12px 16px' }}>
-                  {u.deleted_at ? (
-                    isSuperAdmin && (
-                      <button onClick={()=>handleRestore(u.id)}
-                        style={{ padding:'4px 10px', borderRadius:4, border:'none',
-                          background:'rgba(34,197,94,0.15)', color:'#22c55e',
-                          cursor:'pointer', fontWeight:600, fontSize:12 }}>Restore</button>
-                    )
-                  ) : (
-                    <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                      <button onClick={()=>startEdit(u)}
-                        style={{ padding:'4px 10px', borderRadius:4, border:'none',
-                          background:'var(--accent)', color:'#fff', cursor:'pointer',
-                          fontWeight:600, fontSize:12 }}>Edit</button>
-                      {isSuperAdmin && u.role === 'global_db_admin' && (
-                        <>
-                          <button onClick={()=>openImageUpload(u)}
-                            style={{ padding:'4px 10px', borderRadius:4, border:'none',
-                              background: u.popup_image_data
-                                ? 'rgba(34,197,94,0.15)' : 'rgba(79,142,247,0.15)',
-                              color: u.popup_image_data ? '#22c55e' : '#4f8ef7',
-                              cursor:'pointer', fontWeight:600, fontSize:12 }}>
-                            {u.popup_image_data ? '📷 Image ✓' : '📷 Add Image'}
-                          </button>
-                          {u.popup_image_data && (
-                            <button onClick={()=>{
-                                setPreviewImg(`data:${u.popup_image_mime||'image/jpeg'};base64,${u.popup_image_data}`);
-                              }}
-                              style={{ padding:'4px 10px', borderRadius:4, border:'none',
-                                background:'rgba(107,114,128,0.15)', color:'var(--text)',
-                                cursor:'pointer', fontWeight:600, fontSize:12 }}>
-                              👁 View
-                            </button>
-                          )}
-                        </>
+              </tr>
+            )}
+            {users.map(u => {
+              const isEditing = editId === u.id;
+              const userReasons = parseReasons(u.assigned_reasons);
+
+              if (isEditing) {
+                return (
+                  <tr key={u.id} style={{
+                    borderBottom: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                  }}>
+                    <td style={{ padding: '10px 16px', fontFamily: 'monospace', color: 'var(--subtext)' }}>
+                      {u.username}
+                    </td>
+                    <td style={{ padding: '10px 16px' }}>
+                      <input value={editName} onChange={e => setEditName(e.target.value)}
+                        style={{ ...inp, width: 130 }}/>
+                    </td>
+                    <td style={{ padding: '10px 16px' }}>
+                      <select value={editRole} onChange={e => setEditRole(e.target.value)}
+                        style={{ ...inp, width: 150 }}>
+                        {creatableRoles.map(r => (
+                          <option key={r} value={r}>{ROLE_LABELS[r]?.label || r}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={{ padding: '10px 16px' }}>
+                      {editRole === 'global_db_admin' && (
+                        <ReasonPicker selected={editReasons}
+                          onChange={setEditReasons} allReasons={reasons}/>
                       )}
-                      <button onClick={()=>handleDelete(u)}
-                        style={{ padding:'4px 10px', borderRadius:4, border:'none',
-                          background:'rgba(239,68,68,0.15)', color:'#ef4444',
-                          cursor:'pointer', fontWeight:600, fontSize:12 }}>
-                        {isSuperAdmin ? 'Delete' : 'Deactivate'}
+                    </td>
+                    <td style={{ padding: '10px 16px' }}>
+                      <select value={String(editActive)}
+                        onChange={e => setEditActive(e.target.value === 'true')}
+                        style={{ ...inp, width: 100 }}>
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                      </select>
+                    </td>
+                    <td style={{ padding: '10px 16px' }}>
+                      <input type="password" value={editPass}
+                        onChange={e => setEditPass(e.target.value)}
+                        placeholder="New password" style={{ ...inp, width: 140 }}/>
+                      {editErr && (
+                        <div style={{ color: 'var(--reject)', fontSize: 11, marginTop: 4 }}>
+                          {editErr}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 16px' }}>
+                      <button onClick={() => saveEdit(u.id)} disabled={saving}
+                        style={{ ...btn('var(--accent)', '#fff', { marginRight: 6 }) }}>
+                        {saving ? '...' : 'Save'}
                       </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
+                      <button onClick={() => setEditId(null)}
+                        style={btn('transparent', 'var(--text)',
+                          { border: '1px solid var(--border)' })}>
+                        Cancel
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={u.id} style={{
+                  borderBottom: '1px solid var(--border)',
+                  opacity: u.deleted_at ? 0.45 : 1,
+                }}>
+                  <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 600 }}>
+                    {u.username}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>{u.display_name || '-'}</td>
+                  <td style={{ padding: '12px 16px' }}><RoleBadge role={u.role}/></td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {u.role === 'global_db_admin' && userReasons.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {userReasons.map(r => (
+                          <span key={r} style={{
+                            background: 'rgba(239,68,68,0.12)', color: '#ef4444',
+                            borderRadius: 3, padding: '1px 6px', fontSize: 11,
+                          }}>{r}</span>
+                        ))}
+                      </div>
+                    )}
+                    {u.role === 'global_db_admin' && userReasons.length === 0 && (
+                      <span style={{ color: 'var(--muted)', fontSize: 12 }}>None assigned</span>
+                    )}
+                    {u.role === 'global_db_user' && (
+                      <span style={{ color: 'var(--subtext)', fontSize: 12 }}>Inherits from parent</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {u.deleted_at
+                      ? <span style={{ color: '#ef4444', fontSize: 12, fontWeight: 600 }}>Deleted</span>
+                      : u.active
+                      ? <span style={{ color: '#22c55e', fontSize: 12, fontWeight: 600 }}>Active</span>
+                      : <span style={{ color: '#6b7280', fontSize: 12, fontWeight: 600 }}>Inactive</span>
+                    }
+                  </td>
+                  <td style={{ padding: '12px 16px', color: 'var(--subtext)', fontSize: 12 }}>
+                    {fmt(u.created_at)}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {u.deleted_at ? (
+                      isSuperAdmin && (
+                        <button onClick={() => handleRestore(u.id)}
+                          style={btn('rgba(34,197,94,0.15)', '#22c55e', {})}>
+                          Restore
+                        </button>
+                      )
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button onClick={() => startEdit(u)}
+                          style={btn('var(--accent)', '#fff', {})}>
+                          Edit
+                        </button>
+                        {isSuperAdmin && u.role === 'global_db_admin' && (
+                          <button onClick={() => openImageUpload(u)}
+                            style={btn(
+                              u.popup_image_data ? 'rgba(34,197,94,0.15)' : 'rgba(79,142,247,0.15)',
+                              u.popup_image_data ? '#22c55e' : '#4f8ef7',
+                              {}
+                            )}>
+                            {u.popup_image_data ? 'Image OK' : 'Add Image'}
+                          </button>
+                        )}
+                        {isSuperAdmin && u.role === 'global_db_admin' && u.popup_image_data && (
+                          <button onClick={() => setViewImg(
+                            `data:${u.popup_image_mime || 'image/jpeg'};base64,${u.popup_image_data}`
+                          )} style={btn('rgba(107,114,128,0.15)', 'var(--text)', {})}>
+                            View
+                          </button>
+                        )}
+                        <button onClick={() => handleDelete(u)}
+                          style={btn('rgba(239,68,68,0.15)', '#ef4444', {})}>
+                          {isSuperAdmin ? 'Delete' : 'Deactivate'}
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
