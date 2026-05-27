@@ -1072,33 +1072,28 @@ router.post('/admin-users/:id/popup-image', requireAdmin, async (req, res, next)
     if (target.role !== 'global_db_admin')
       return res.status(400).json({ error: 'Popup images only for global_db_admin role' });
 
-    const { image_base64 } = req.body || {};
-    if (!image_base64) return res.status(400).json({ error: 'image_base64 required' });
+    // Accept image_data (frontend) or image_base64 (legacy)
+    const imgData = req.body?.image_data || req.body?.image_base64;
+    const imgMime = req.body?.mime || 'image/jpeg';
+    if (!imgData)
+      return res.status(400).json({ error: 'image_data (base64) required' });
 
-    // Parse data URL: "data:image/jpeg;base64,/9j/..."
-    const match = image_base64.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) return res.status(400).json({ error: 'Invalid image format. Send as data URL' });
-
-    const mime   = match[1];
-    const buffer = Buffer.from(match[2], 'base64');
-
-    if (buffer.length > 5 * 1024 * 1024)
-      return res.status(400).json({ error: 'Image too large (max 5MB)' });
+    // Validate size (max 2MB decoded)
+    const buf = Buffer.from(imgData, 'base64');
+    if (buf.length > 2 * 1024 * 1024)
+      return res.status(400).json({ error: 'Image too large (max 2MB)' });
 
     await query(
       `UPDATE admin_users
-          SET popup_image = $1, popup_image_type = $2,
-              popup_image_updated_at = NOW(), updated_at = NOW()
+          SET popup_image_data = $1, popup_image_mime = $2, updated_at = NOW()
         WHERE id = $3`,
-      [buffer, mime, id]
+      [imgData, imgMime, id]
     );
-
     await audit(req.admin.username, 'popup_image_uploaded', `admin_id=${id}`);
-    res.json({ ok: true, message: 'Popup image uploaded successfully' });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
-// DELETE /admin/admin-users/:id/popup-image
 router.delete('/admin-users/:id/popup-image', requireAdmin, async (req, res, next) => {
   try {
     if (req.admin.role !== 'super_admin')

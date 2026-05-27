@@ -64,7 +64,7 @@
             android:exported="false"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:theme="@style/Theme.AppCompat.Translucent"
+            android:theme="@style/Theme.Translucent"
             android:launchMode="singleTop"
             android:excludeFromRecents="true"/>
         <activity

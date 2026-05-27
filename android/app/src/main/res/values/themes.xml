@@ -9,4 +9,14 @@
         <item name="colorOnPrimary">@color/white</item>
         <item name="android:textColor">@color/text</item>
     </style>
+
+    <!-- Translucent theme for popup overlay activities -->
+    <style name="Theme.Translucent" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="colorPrimary">@color/reject</item>
+        <item name="colorAccent">@color/accent</item>
+    </style>
 </resources>
