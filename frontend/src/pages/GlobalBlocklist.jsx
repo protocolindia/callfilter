@@ -360,6 +360,22 @@ export default function GlobalBlocklist() {
                       </span>
                     )}
                   </td>
+                  <td style={{padding:'12px 16px', textAlign:'center'}}>
+                    {entry.block_count > 0
+                      ? <span style={{background:'rgba(239,68,68,0.15)',color:'#ef4444',
+                          borderRadius:12,padding:'2px 10px',fontSize:12,fontWeight:700}}>
+                          {entry.block_count}
+                        </span>
+                      : <span style={{color:'var(--muted)',fontSize:12}}>0</span>}
+                  </td>
+                  <td style={{padding:'12px 16px', textAlign:'center'}}>
+                    {entry.user_count > 0
+                      ? <span style={{background:'rgba(79,142,247,0.15)',color:'#4f8ef7',
+                          borderRadius:12,padding:'2px 10px',fontSize:12,fontWeight:700}}>
+                          {entry.user_count}
+                        </span>
+                      : <span style={{color:'var(--muted)',fontSize:12}}>0</span>}
+                  </td>
                   <td style={{padding:'12px 16px',color:'var(--subtext)',fontSize:12,whiteSpace:'nowrap'}}>{fmt(entry.created_at)}</td>
                   <td style={{padding:'12px 16px'}}>
                     <button onClick={()=>toggleActive(entry)}

@@ -735,9 +735,19 @@ router.get('/global-blocklist', requireAdmin, async (req, res, next) => {
               g.active, g.created_at, g.updated_at, g.deleted_at,
               au.username AS added_by_username,
               au.display_name AS added_by_display,
-              au.role AS added_by_role
+              au.role AS added_by_role,
+              COALESCE(stats.block_count, 0)::int AS block_count,
+              COALESCE(stats.user_count,  0)::int AS user_count
          FROM global_blocklist g
          LEFT JOIN admin_users au ON au.id = g.added_by_admin_id
+         LEFT JOIN (
+           SELECT bc.raw_number,
+                  COUNT(*)          AS block_count,
+                  COUNT(DISTINCT bc.user_id) AS user_count
+             FROM blocked_calls bc
+            WHERE bc.rule_type = 'global_list'
+            GROUP BY bc.raw_number
+         ) stats ON stats.raw_number = g.number
          ${whereSql}
          ORDER BY g.created_at DESC
          LIMIT $${params.length-1} OFFSET $${params.length}`, params);
@@ -909,6 +919,9 @@ router.get('/admin-users', requireAdmin, async (req, res, next) => {
       rows = await many(
         `SELECT id, username, display_name, role, active, parent_id,
                 created_at, last_login_at, deleted_at,
+                assigned_reasons, popup_image_mime,
+                CASE WHEN popup_image_data IS NOT NULL THEN TRUE ELSE FALSE END AS has_popup_image,
+                popup_image_data,
                 (SELECT username FROM admin_users p WHERE p.id = au.parent_id) AS parent_username,
                 (SELECT username FROM admin_users cr WHERE cr.id = au.created_by) AS created_by_username
            FROM admin_users au
@@ -918,7 +931,10 @@ router.get('/admin-users', requireAdmin, async (req, res, next) => {
       // Only see own sub-users (global_db_user children)
       rows = await many(
         `SELECT id, username, display_name, role, active, parent_id,
-                created_at, last_login_at, deleted_at
+                created_at, last_login_at, deleted_at,
+                assigned_reasons, popup_image_mime,
+                CASE WHEN popup_image_data IS NOT NULL THEN TRUE ELSE FALSE END AS has_popup_image,
+                popup_image_data
            FROM admin_users
           WHERE parent_id = $1 AND role = 'global_db_user'
           ORDER BY created_at ASC`,
