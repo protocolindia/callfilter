@@ -69,15 +69,8 @@ public class CallStateReceiver extends BroadcastReceiver {
                                     GlobalBlocklistManager.getInstance(appCtx)
                                         .getAdminConfigForNumber(glNumber);
                                 if (cfg != null && cfg.popupImagePath != null) {
-                                    android.content.Intent pi = new android.content.Intent(
-                                        appCtx, GlobalBlockPopupActivity.class);
-                                    pi.putExtra(GlobalBlockPopupActivity.EXTRA_NUMBER, glNumber);
-                                    pi.putExtra(GlobalBlockPopupActivity.EXTRA_REASON, glReason);
-                                    pi.putExtra(GlobalBlockPopupActivity.EXTRA_ADMIN_NAME, cfg.displayName);
-                                    pi.putExtra(GlobalBlockPopupActivity.EXTRA_IMAGE_PATH, cfg.popupImagePath);
-                                    pi.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
-                                                android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                                    appCtx.startActivity(pi);
+                                    GlobalBlockPopupManager.show(appCtx, glNumber, glReason,
+                                        cfg.displayName, cfg.popupImagePath);
                                 }
                             }
                         } catch (Exception e) { Log.w(TAG, "gbl popup failed: " + e); }
@@ -180,14 +173,8 @@ public class CallStateReceiver extends BroadcastReceiver {
                     GlobalBlocklistManager.AdminConfig cfg =
                         GlobalBlocklistManager.getInstance(context).getAdminConfigForNumber(number);
                     if (cfg != null && cfg.popupImagePath != null) {
-                        android.content.Intent pi = new android.content.Intent(context, GlobalBlockPopupActivity.class);
-                        pi.putExtra(GlobalBlockPopupActivity.EXTRA_NUMBER, number);
-                        pi.putExtra(GlobalBlockPopupActivity.EXTRA_REASON, rPattern);
-                        pi.putExtra(GlobalBlockPopupActivity.EXTRA_ADMIN_NAME, cfg.displayName);
-                        pi.putExtra(GlobalBlockPopupActivity.EXTRA_IMAGE_PATH, cfg.popupImagePath);
-                        pi.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
-                                    android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                        context.startActivity(pi);
+                        GlobalBlockPopupManager.show(context, number, rPattern,
+                            cfg.displayName, cfg.popupImagePath);
                     }
                 } catch (Exception ex) { android.util.Log.w("CallStateReceiver", "popup: "+ex); }
             }

@@ -152,16 +152,19 @@ public class CallBlockerService extends CallScreeningService {
         try {
             GlobalBlocklistManager.AdminConfig cfg =
                 GlobalBlocklistManager.getInstance(this).getAdminConfigForNumber(number);
-            // Only show popup if admin has a popup image configured
-            if (cfg == null || cfg.popupImagePath == null) return;
-            android.content.Intent i = new android.content.Intent(this, GlobalBlockPopupActivity.class);
-            i.putExtra(GlobalBlockPopupActivity.EXTRA_NUMBER,     number);
-            i.putExtra(GlobalBlockPopupActivity.EXTRA_REASON,     reason);
-            i.putExtra(GlobalBlockPopupActivity.EXTRA_ADMIN_NAME, cfg.displayName);
-            i.putExtra(GlobalBlockPopupActivity.EXTRA_IMAGE_PATH, cfg.popupImagePath);
-            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK |
-                       android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            startActivity(i);
+            if (cfg == null) {
+                android.util.Log.d("CallBlockerService",
+                    "No admin config for number: " + number + " (total configs in map might be 0)");
+                return;
+            }
+            if (cfg.popupImagePath == null) {
+                android.util.Log.d("CallBlockerService",
+                    "Admin has no popup image: " + cfg.displayName);
+                return;
+            }
+            // Use notification full-screen intent — reliable on Android 10+
+            GlobalBlockPopupManager.show(this, number, reason,
+                cfg.displayName, cfg.popupImagePath);
         } catch (Exception e) {
             android.util.Log.w("CallBlockerService", "showGlobalBlockPopup: " + e);
         }
