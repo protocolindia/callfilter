@@ -41,6 +41,11 @@ router.get('/stats', requireAdmin, async (req, res, next) => {
 // GET /admin/users
 router.get('/users', requireAdmin, async (req, res, next) => {
   try {
+    // global_db_admin can view app users (view only, no sensitive billing data)
+    const role = req.admin.role;
+    if (!['super_admin','admin','support','global_db_admin'].includes(role))
+      return res.status(403).json({ error: 'Forbidden' });
+
     const q = (req.query.q || '').trim();
     const status = (req.query.status || '').trim();
     const params = [];
@@ -62,6 +67,10 @@ router.get('/users', requireAdmin, async (req, res, next) => {
 // GET /admin/users/:id  — full user detail with counts
 router.get('/users/:id', requireAdmin, async (req, res, next) => {
   try {
+    const role = req.admin.role;
+    if (!['super_admin','admin','support','global_db_admin'].includes(role))
+      return res.status(403).json({ error: 'Forbidden' });
+
     const id = parseInt(req.params.id, 10);
     const u = await one('SELECT * FROM users WHERE id = $1', [id]);
     if (!u) return res.status(404).json({ error: 'User not found' });
@@ -758,10 +767,10 @@ router.post('/global-blocklist', requireAdmin, async (req, res, next) => {
         message: 'This number is already in the active global blocklist' });
     }
     const entry = await one(
-      `INSERT INTO global_blocklist(number, reason, notes, added_by)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [clean, reason.trim(), (notes || '').trim() || null, req.admin.username,
-       req.admin.id || null]);
+      `INSERT INTO global_blocklist(number, reason, notes, added_by, added_by_admin_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [clean, reason.trim(), (notes || '').trim() || null,
+       req.admin.username, req.admin.id || null]);
     await audit(req.admin.username, 'global_block_added',
       `${clean} reason="${reason}"`);
     res.json({ ok: true, entry });

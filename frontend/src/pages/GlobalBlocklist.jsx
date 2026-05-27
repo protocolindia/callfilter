@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { api } from '../api.js';
+import { api, getAdminRole } from '../api.js';
 
 const REASONS_PRESET = [
   'Spam call','Cybercrime / fraud','Phishing',
@@ -17,6 +17,8 @@ const inp = {
 
 export default function GlobalBlocklist() {
   const [activeTab, setActiveTab] = useState('list');
+  const role = getAdminRole();
+  const isSuperAdmin = role === 'super_admin';
 
   // ── List state ────────────────────────────────────────────────────────
   const [entries, setEntries]   = useState([]);
@@ -196,7 +198,7 @@ export default function GlobalBlocklist() {
       {/* Tab bar */}
       <div style={{display:'flex',gap:8,marginBottom:20}}>
         <button style={tabStyle(activeTab==='list')}    onClick={()=>setActiveTab('list')}>📋 Numbers</button>
-        <button style={tabStyle(activeTab==='settings')} onClick={()=>setActiveTab('settings')}>⚙️ Settings</button>
+        {isSuperAdmin && <button style={tabStyle(activeTab==='settings')} onClick={()=>setActiveTab('settings')}>⚙️ Settings</button>}
       </div>
 
       {/* ── NUMBERS TAB ─────────────────────────────────────────────── */}
@@ -389,7 +391,7 @@ export default function GlobalBlocklist() {
       </>)}
 
       {/* ── SETTINGS TAB ────────────────────────────────────────────── */}
-      {activeTab === 'settings' && (
+      {activeTab === 'settings' && isSuperAdmin && (
         <div>
           <div className="card" style={{marginBottom:16}}>
             <h3 style={{margin:'0 0 6px'}}>App Display Settings</h3>
