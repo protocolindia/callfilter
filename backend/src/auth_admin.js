@@ -14,7 +14,7 @@ const jwt     = require('jsonwebtoken');
 const bcrypt  = require('bcryptjs');
 const { one, query } = require('./db.js');
 
-const SECRET = process.env.JWT_SECRET || 'changeme_secret';
+const SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
 // ── Permission sets ───────────────────────────────────────────────────
 const PERMS = {

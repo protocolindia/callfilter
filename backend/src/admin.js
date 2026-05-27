@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { query, one, many } = require('./db');
-const { sign, requireAdmin } = require('./auth');
+const { requireAdmin, requireRole, globalScopeWhere, PERMS } = require('./auth_admin.js');
 const router = express.Router();
 
 async function audit(actor, event, details) {
@@ -693,7 +693,6 @@ router.get('/global-blocklist', requireAdmin, async (req, res, next) => {
     // Check access
     if (!['super_admin','admin','support','billing',
           'global_db_admin','global_db_user'].includes(role)) {
-      const { PERMS } = require('./auth_admin.js');
       if (!PERMS[role]?.includes('*') && !PERMS[role]?.includes('global_blocklist_view'))
         return res.status(403).json({ error: 'Forbidden' });
     }
@@ -705,7 +704,6 @@ router.get('/global-blocklist', requireAdmin, async (req, res, next) => {
     const reason = (req.query.reason || '').trim();
 
     // Build scope filter
-    const { globalScopeWhere } = require('./auth_admin.js');
     const scope = await globalScopeWhere(req.admin, 0);
 
     const where = [];
@@ -815,7 +813,6 @@ router.delete('/global-blocklist/:id', requireAdmin, async (req, res, next) => {
 
     // Check scope for global_db roles
     if (['global_db_admin','global_db_user'].includes(req.admin.role)) {
-      const { globalScopeWhere } = require('./auth_admin.js');
       const scope = await globalScopeWhere(req.admin, 0);
       if (scope && scope.params && !scope.params.includes(entry.added_by_admin_id))
         return res.status(403).json({ error: 'Out of scope' });
