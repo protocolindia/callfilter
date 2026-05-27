@@ -328,15 +328,33 @@ export default function Settings() {
 
           </div>
 
-          {/* Preview */}
-          {settings.sms_api_url && (
-            <div style={{ marginTop:16, padding:12, background:'var(--surface)', borderRadius:6, fontSize:12 }}>
-              <div style={{ color:'var(--subtext)', marginBottom:4, fontWeight:600 }}>URL Preview (OTP = 123456):</div>
-              <div style={{ color:'var(--text)', wordBreak:'break-all', fontFamily:'monospace' }}>
-                {settings.sms_api_url}?userid={settings.sms_api_userid || 'USERID'}&password=***&{settings.sms_api_mobile_param || 'mobileno'}=91XXXXXXXXXX&sendername={settings.sms_api_sender_name || 'SENDER'}&{settings.sms_api_message_param || 'message'}={(settings.sms_api_message_template || '{OTP} is your OTP').replace('{OTP}', '123456')}&category={settings.sms_api_category || ''}&templateid={settings.sms_api_template_id || ''}
+          {/* Preview — built as a JS string to avoid JSX special-char issues */}
+          {settings.sms_api_url && (() => {
+            const mob    = settings.sms_api_mobile_param  || 'mobileno';
+            const msgP   = settings.sms_api_message_param || 'message';
+            const msg    = (settings.sms_api_message_template || '{OTP} is your OTP')
+                             .replace('{OTP}', '123456');
+            const parts  = [
+              settings.sms_api_url + '?',
+              'userid=' + (settings.sms_api_userid || 'USERID'),
+              'password=***',
+              mob + '=91XXXXXXXXXX',
+              'sendername=' + (settings.sms_api_sender_name || 'SENDER'),
+              msgP + '=' + encodeURIComponent(msg),
+            ];
+            if (settings.sms_api_sender_number) parts.push('sendernumber=' + settings.sms_api_sender_number);
+            if (settings.sms_api_category)      parts.push('category='     + settings.sms_api_category);
+            if (settings.sms_api_template_id)   parts.push('templateid='   + settings.sms_api_template_id);
+            const preview = parts[0] + parts.slice(1).join('&');
+            return (
+              <div style={{ marginTop:16, padding:12, background:'var(--surface)', borderRadius:6, fontSize:12 }}>
+                <div style={{ color:'var(--subtext)', marginBottom:4, fontWeight:600 }}>URL Preview (OTP = 123456):</div>
+                <div style={{ color:'var(--text)', wordBreak:'break-all', fontFamily:'monospace' }}>
+                  {preview}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Test SMS */}
           <div style={{ marginTop:20, padding:16, background:'var(--surface)', borderRadius:8 }}>
