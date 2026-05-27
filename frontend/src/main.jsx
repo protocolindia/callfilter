@@ -16,6 +16,7 @@ import UserDetail from './pages/UserDetail.jsx';
 import Terms from './pages/Terms.jsx';
 import Privacy from './pages/Privacy.jsx';
 import { AuthProvider, useAuth } from './auth.jsx';
+import { getAdminRole } from './api.js';
 import './style.css';
 
 function Protected({ children }) {

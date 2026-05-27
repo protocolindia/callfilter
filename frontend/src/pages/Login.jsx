@@ -20,6 +20,7 @@ export default function Login() {
     try {
       const r = await api.post('/admin/login', { username, password });
       login(r.token, r.username);
+      setAdminMeta(r);
       navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Login failed');

@@ -17,6 +17,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     persistToken(null);
     localStorage.removeItem('cf_username');
+    localStorage.removeItem('cf_admin');
     _setToken(null);
     setUsername('');
   }, []);
