@@ -1286,19 +1286,36 @@ module.exports = router;
 
 // HTTP GET helper using Node built-in modules (avoids fetch SSL issues on Railway)
 function httpGet(urlStr, timeoutMs) {
-  timeoutMs = timeoutMs || 15000;
+  timeoutMs = timeoutMs || 20000;
   return new Promise(function(resolve, reject) {
     try {
-      var parsed = new URL(urlStr);
-      var mod = parsed.protocol === 'https:' ? require('https') : require('http');
-      var req = mod.get(urlStr, { timeout: timeoutMs }, function(res) {
+      var parsed  = new URL(urlStr);
+      var isHttps = parsed.protocol === 'https:';
+      var mod     = require(isHttps ? 'https' : 'http');
+      var options = {
+        hostname: parsed.hostname,
+        port:     parseInt(parsed.port) || (isHttps ? 443 : 80),
+        path:     (parsed.pathname || '/') + (parsed.search || ''),
+        method:   'GET',
+        headers:  { 'User-Agent': 'Mozilla/5.0' },
+        family:   4,
+        rejectUnauthorized: false
+      };
+      var req = mod.request(options, function(res) {
         var data = '';
         res.setEncoding('utf8');
         res.on('data', function(chunk) { data += chunk; });
         res.on('end', function() { resolve({ status: res.statusCode, body: data }); });
+        res.on('error', reject);
       });
-      req.on('timeout', function() { req.destroy(new Error('SMS request timed out')); });
-      req.on('error', reject);
+      req.setTimeout(timeoutMs, function() {
+        req.destroy();
+        reject(new Error('SMS request timed out'));
+      });
+      req.on('error', function(e) {
+        reject(new Error('SMS connection error: ' + e.message));
+      });
+      req.end();
     } catch(e) { reject(e); }
   });
 }

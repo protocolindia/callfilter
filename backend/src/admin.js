@@ -4,20 +4,38 @@ const { query, one, many } = require('./db');
 const { requireAdmin, requireRole, globalScopeWhere, PERMS } = require('./auth_admin.js');
 
 // ── HTTP GET helper (uses Node built-in https/http, more reliable than fetch) ──
-function httpGet(urlStr, timeoutMs = 15000) {
-  return new Promise((resolve, reject) => {
+function httpGet(urlStr, timeoutMs) {
+  timeoutMs = timeoutMs || 20000;
+  return new Promise(function(resolve, reject) {
     try {
-      const parsed = new URL(urlStr);
-      const mod = parsed.protocol === 'https:' ? require('https') : require('http');
-      const req = mod.get(urlStr, { timeout: timeoutMs }, (res) => {
-        let data = '';
+      var parsed  = new URL(urlStr);
+      var isHttps = parsed.protocol === 'https:';
+      var mod     = require(isHttps ? 'https' : 'http');
+      var options = {
+        hostname: parsed.hostname,
+        port:     parseInt(parsed.port) || (isHttps ? 443 : 80),
+        path:     (parsed.pathname || '/') + (parsed.search || ''),
+        method:   'GET',
+        headers:  { 'User-Agent': 'Mozilla/5.0' },
+        family:   4,
+        rejectUnauthorized: false
+      };
+      var req = mod.request(options, function(res) {
+        var data = '';
         res.setEncoding('utf8');
-        res.on('data', chunk => { data += chunk; });
-        res.on('end', () => resolve({ status: res.statusCode, body: data }));
+        res.on('data', function(c) { data += c; });
+        res.on('end', function() { resolve({ status: res.statusCode, body: data }); });
+        res.on('error', reject);
       });
-      req.on('timeout', () => { req.destroy(new Error('SMS request timed out')); });
-      req.on('error', reject);
-    } catch (e) { reject(e); }
+      req.setTimeout(timeoutMs, function() {
+        req.destroy();
+        reject(new Error('SMS request timed out'));
+      });
+      req.on('error', function(e) {
+        reject(new Error('SMS connection error: ' + e.message));
+      });
+      req.end();
+    } catch(e) { reject(e); }
   });
 }
 
