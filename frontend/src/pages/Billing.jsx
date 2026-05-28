@@ -27,13 +27,13 @@ export default function Billing() {
 
 // =================== PLANS ===================
 function PlansTab() {
-  const [plans, setPlans]         = useState([]);
-  const [editing, setEditing]     = useState(null);
-  const [error, setError]         = useState('');
-  const [loading, setLoading]     = useState(true);
+  const [plans, setPlans]               = useState([]);
+  const [editing, setEditing]           = useState(null);
+  const [error, setError]               = useState('');
+  const [loading, setLoading]           = useState(true);
   const [defaultPlanId, setDefaultPlanId] = useState('');
   const [savingDefault, setSavingDefault] = useState(false);
-  const [defaultMsg, setDefaultMsg]       = useState('');
+  const [defaultMsg, setDefaultMsg]     = useState('');
 
   async function load() {
     try {
@@ -48,18 +48,8 @@ function PlansTab() {
   }
   useEffect(() => { load(); }, []);
 
-  async function saveDefault() {
-    setSavingDefault(true); setDefaultMsg('');
-    try {
-      await api.put('/admin/settings', { default_plan_id: defaultPlanId });
-      setDefaultMsg('Default plan saved');
-      setTimeout(() => setDefaultMsg(''), 3000);
-    } catch (e) { setDefaultMsg('Error: ' + e.message); }
-    finally { setSavingDefault(false); }
-  }
-
   async function setAsDefault(planId) {
-    setSavingDefault(true); setDefaultMsg('');
+    setSavingDefault(planId); setDefaultMsg('');
     try {
       await api.put('/admin/settings', { default_plan_id: String(planId) });
       setDefaultPlanId(String(planId));
@@ -69,70 +59,49 @@ function PlansTab() {
     finally { setSavingDefault(false); }
   }
 
+  async function clearDefault() {
+    setSavingDefault('clear'); setDefaultMsg('');
+    try {
+      await api.put('/admin/settings', { default_plan_id: '' });
+      setDefaultPlanId('');
+      setDefaultMsg('Default plan cleared');
+      setTimeout(() => setDefaultMsg(''), 3000);
+    } catch (e) { setDefaultMsg('Error: ' + e.message); }
+    finally { setSavingDefault(false); }
+  }
+
   if (loading) return <p className="muted">Loading...</p>;
 
-  const activePlans = plans.filter(p => p.is_active);
   const defaultPlan = plans.find(p => String(p.id) === String(defaultPlanId));
 
   return (
     <section className="card">
       {error && <div className="alert alert-error">{error}</div>}
 
-      {/* Default plan selector */}
-      <div style={{ padding: 16, borderRadius: 8, marginBottom: 20,
-        background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>Default Plan for New Signups</h3>
-        <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--subtext)' }}>
-          When a user signs up for the first time, this plan is automatically assigned to them.
-          Set to "None" to not assign any plan automatically.
-        </p>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select value={defaultPlanId}
-            onChange={e => setDefaultPlanId(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
-              background: 'var(--card)', color: 'var(--text)', fontSize: 14, minWidth: 200 }}>
-            <option value="">None (no auto-assign)</option>
-            {activePlans.map(p => (
-              <option key={p.id} value={String(p.id)}>
-                {p.name} - {formatPrice(p.offer_price, p.currency)} / {p.duration_days} days
-              </option>
-            ))}
-          </select>
-          <button onClick={saveDefault} disabled={savingDefault}
-            style={{ padding: '8px 18px', borderRadius: 6, border: 'none',
-              background: 'var(--accent)', color: '#fff', fontWeight: 600,
-              cursor: savingDefault ? 'not-allowed' : 'pointer',
-              opacity: savingDefault ? 0.6 : 1, fontSize: 13 }}>
-            {savingDefault ? 'Saving...' : 'Save Default'}
-          </button>
+      <div style={{ display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 15 }}>Plans</h3>
           {defaultMsg && (
-            <span style={{ fontSize: 13,
+            <span style={{ fontSize: 13, marginLeft: 10,
               color: defaultMsg.startsWith('Error') ? 'var(--reject)' : '#22c55e' }}>
               {defaultMsg}
             </span>
           )}
+          {defaultPlan && !defaultMsg && (
+            <span style={{ fontSize: 12, color: '#22c55e', marginLeft: 10 }}>
+              Default signup plan: <strong>{defaultPlan.name}</strong>
+            </span>
+          )}
+          {!defaultPlan && !defaultMsg && (
+            <span style={{ fontSize: 12, color: 'var(--subtext)', marginLeft: 10 }}>
+              No default plan — click "Set Default" on a plan below
+            </span>
+          )}
         </div>
-        {defaultPlan && (
-          <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, fontSize: 13,
-            background: 'rgba(34,197,94,0.1)', color: '#22c55e',
-            border: '1px solid rgba(34,197,94,0.25)' }}>
-            New signups will automatically get: <strong>{defaultPlan.name}</strong> ({defaultPlan.duration_days} days)
-          </div>
-        )}
-        {!defaultPlanId && (
-          <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, fontSize: 13,
-            background: 'rgba(107,114,128,0.1)', color: '#6b7280' }}>
-            No default plan set. New signups will have no subscription unless manually assigned.
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 12 }}>
-        <h3 style={{ margin: 0, fontSize: 15 }}>All Plans</h3>
         <button className="btn btn-primary"
-          onClick={() => setEditing({ name: '', duration_days: 30, actual_price_unit: 99,
-            offer_price_unit: 49, currency: 'INR' })}>
+          onClick={() => setEditing({ name: '', duration_days: 30,
+            actual_price_unit: 99, offer_price_unit: 49, currency: 'INR' })}>
           + New Plan
         </button>
       </div>
@@ -144,39 +113,29 @@ function PlansTab() {
       )}
 
       {plans.length === 0 ? (
-        <p className="muted" style={{ marginTop: 14 }}>No plans yet. Create one above.</p>
+        <p className="muted">No plans yet. Create one above.</p>
       ) : (
-        <table style={{ marginTop: 8 }}>
+        <table>
           <thead><tr>
             <th>Name</th><th>Duration</th><th>Actual</th><th>Offer</th>
-            <th>Default</th><th>Status</th><th>Actions</th>
+            <th>Status</th><th>Actions</th>
           </tr></thead>
           <tbody>
             {plans.map(p => {
               const isDefault = String(p.id) === String(defaultPlanId);
               return (
                 <tr key={p.id}>
-                  <td><strong>{p.name}</strong></td>
+                  <td>
+                    <strong>{p.name}</strong>
+                    {isDefault && (
+                      <span style={{ marginLeft: 8, background: 'rgba(34,197,94,0.15)',
+                        color: '#22c55e', borderRadius: 4, padding: '1px 7px',
+                        fontSize: 10, fontWeight: 700 }}>DEFAULT</span>
+                    )}
+                  </td>
                   <td>{p.duration_days} days</td>
                   <td className="muted"><s>{formatPrice(p.actual_price, p.currency)}</s></td>
                   <td><strong>{formatPrice(p.offer_price, p.currency)}</strong></td>
-                  <td>
-                    {isDefault ? (
-                      <span style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e',
-                        borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
-                        DEFAULT
-                      </span>
-                    ) : (
-                      p.is_active && (
-                        <button onClick={() => setAsDefault(p.id)}
-                          style={{ padding: '3px 8px', borderRadius: 4, border: 'none',
-                            background: 'var(--surface)', color: 'var(--subtext)',
-                            cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
-                          Set Default
-                        </button>
-                      )
-                    )}
-                  </td>
                   <td>
                     <span className={`pill pill-${p.is_active ? 'verified' : 'pending'}`}>
                       {p.is_active ? 'active' : 'inactive'}
@@ -186,14 +145,27 @@ function PlansTab() {
                     <button className="btn btn-mini btn-ghost" onClick={() => setEditing(p)}>
                       Edit
                     </button>
+                    {p.is_active && !isDefault && (
+                      <button className="btn btn-mini btn-ghost"
+                        disabled={savingDefault === p.id}
+                        onClick={() => setAsDefault(p.id)}
+                        style={{ color: '#22c55e', borderColor: '#22c55e' }}>
+                        {savingDefault === p.id ? '...' : 'Set Default'}
+                      </button>
+                    )}
+                    {isDefault && (
+                      <button className="btn btn-mini btn-ghost"
+                        onClick={clearDefault}
+                        style={{ color: '#6b7280' }}>
+                        Clear Default
+                      </button>
+                    )}
                     {p.is_active && (
                       <button className="btn btn-mini btn-danger"
                         onClick={async () => {
                           if (!confirm('Deactivate this plan?')) return;
                           await api.del(`/admin/plans/${p.id}`); load();
-                        }}>
-                        Deactivate
-                      </button>
+                        }}>Deactivate</button>
                     )}
                   </td>
                 </tr>
@@ -205,6 +177,7 @@ function PlansTab() {
     </section>
   );
 }
+
 
 function PlanForm({ plan, onSaved, onCancel }) {
   // Form holds prices in WHOLE UNITS (rupees / dollars). DB stores in

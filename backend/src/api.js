@@ -53,16 +53,8 @@ router.post('/signup', async (req, res, next) => {
       );
       await audit('android', 'user_created', `${dial_code}${mobile}`);
 
-      // Grant a free trial. Trial duration is configurable via settings.trial_days.
-      const trialDays = parseInt((await getSetting('trial_days')) || '7', 10);
-      if (trialDays > 0) {
-        await query(
-          `INSERT INTO subscriptions(user_id, status, is_trial, expires_at)
-           VALUES ($1, 'trial', TRUE, NOW() + ($2 || ' days')::interval)`,
-          [user.id, String(trialDays)]
-        );
-        await audit('system', 'trial_granted', `user_id=${user.id}, days=${trialDays}`);
-      }
+      // Auto-trial removed — plan assignment is handled by default_plan_id setting.
+      // Go to Billing > Plans > Set Default to auto-assign a plan on signup.
     }
 
     const code = await genOtp();
