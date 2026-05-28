@@ -67,7 +67,7 @@ async function migrate() {
     sms_template:         'Your verification code is {{otp}}',
     otp_length:           '6',
     otp_expiry_minutes:   '5',
-    otp_show_in_response: 'true',
+    otp_show_in_response: 'false',
     subscription_required: 'false',
     razorpay_enabled:     'false',
     razorpay_mode:        'test',     // 'test' or 'live'

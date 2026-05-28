@@ -77,9 +77,9 @@ router.post('/signup', async (req, res, next) => {
     // deliver the OTP) OR the legacy otp_show_in_response toggle is on.
     // In either case, return the OTP in the JSON response so the Android
     // app can display it on screen.
+    // sms_provider is the SOLE control: 'none' = demo, anything else = production
     const smsProvider = (await getSetting('sms_provider')) || 'none';
-    const legacyToggle = (await getSetting('otp_show_in_response')) === 'true';
-    const isDevMode = smsProvider === 'none' || legacyToggle;
+    const isDevMode   = (smsProvider === 'none' || smsProvider === '');
 
     // Build SMS URL — returned to the app so it can call from device network
     let smsUrlForApp = null;
