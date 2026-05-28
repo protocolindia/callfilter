@@ -1,413 +1,400 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../api';
+import { api } from '../api.js';
+
+const inp = {
+  padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+  background: 'var(--surface)', color: 'var(--text)',
+  fontSize: 14, width: '100%', boxSizing: 'border-box',
+};
+
+const fieldStyle = { display: 'flex', flexDirection: 'column', gap: 4 };
+const labelStyle = { fontSize: 12, fontWeight: 600, color: 'var(--subtext)' };
+const smallStyle = { fontSize: 11, color: 'var(--subtext)' };
+const grid2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 };
 
 export default function Settings() {
-  const [settings, setSettings] = useState(null);
-  const [saving, setSaving]     = useState(false);
-  const [testMobile, setTestMobile] = useState('');
-  const [testSmsMsg, setTestSmsMsg] = useState('');
-  const [testSmsSending, setTestSmsSending] = useState(false);
-  const [savedFlag, setSavedFlag] = useState(false);
-  const [error, setError] = useState('');
-
-  // Password change
-  const [pwCurrent, setPwCurrent] = useState('');
-  const [pwNew, setPwNew] = useState('');
-  const [pwMsg, setPwMsg] = useState('');
+  const [settings, setSettings]         = useState(null);
+  const [saving, setSaving]             = useState(false);
+  const [savedFlag, setSavedFlag]       = useState(false);
+  const [error, setError]               = useState('');
+  const [pwCurrent, setPwCurrent]       = useState('');
+  const [pwNew, setPwNew]               = useState('');
+  const [pwMsg, setPwMsg]               = useState('');
+  const [testMobile, setTestMobile]     = useState('');
+  const [testResult, setTestResult]     = useState('');
+  const [testSending, setTestSending]   = useState(false);
 
   useEffect(() => {
     api.get('/admin/settings')
-      .then(r => setSettings(r.settings))
-      .catch(err => setError(err.message));
+      .then(r => setSettings(r.settings || r))
+      .catch(e => setError(e.message || 'Failed to load settings'));
   }, []);
 
-  function update(k, v) {
+  function upd(k, v) {
     setSettings(s => ({ ...s, [k]: v }));
   }
 
   async function handleSave(e) {
     e.preventDefault();
-    setSaving(true);
-    setError('');
+    setSaving(true); setError('');
     try {
       await api.put('/admin/settings', settings);
       setSavedFlag(true);
       setTimeout(() => setSavedFlag(false), 3000);
-    } catch (err) { setError(err.message); }
+    } catch (e) { setError(e.message || 'Save failed'); }
     finally { setSaving(false); }
   }
 
   async function handlePassword(e) {
-    e.preventDefault();
-    setPwMsg('');
+    e.preventDefault(); setPwMsg('');
     try {
       await api.post('/admin/change-password', { current: pwCurrent, next: pwNew });
-      setPwMsg('✓ Password updated');
+      setPwMsg('Password updated');
       setPwCurrent(''); setPwNew('');
-    } catch (err) { setPwMsg(err.message); }
+    } catch (e) { setPwMsg(e.message || 'Failed'); }
   }
 
-  if (!settings) return <p className="muted">Loading…</p>;
+  async function handleTestSms() {
+    if (!testMobile.trim()) { setTestResult('Enter a mobile number'); return; }
+    setTestSending(true); setTestResult('');
+    try {
+      const r = await api.post('/admin/test-sms', { mobile: testMobile.trim() });
+      setTestResult('Sent OK  -  API response: ' + (r.response || 'OK') + ' (HTTP ' + r.status + ')');
+    } catch (e) { setTestResult('Error: ' + (e.message || 'Failed')); }
+    finally { setTestSending(false); }
+  }
+
+  function buildPreview() {
+    if (!settings || !settings.sms_api_url) return '';
+    const mob  = settings.sms_api_mobile_param  || 'mobileno';
+    const msgP = settings.sms_api_message_param || 'message';
+    const msg  = (settings.sms_api_message_template || '{OTP} is your OTP')
+                   .replace('{OTP}', '123456');
+    let url = settings.sms_api_url + '?'
+      + 'userid=' + (settings.sms_api_userid || 'USERID')
+      + '&password=***'
+      + '&' + mob + '=91XXXXXXXXXX'
+      + '&sendername=' + (settings.sms_api_sender_name || 'SENDER')
+      + '&' + msgP + '=' + encodeURIComponent(msg);
+    if (settings.sms_api_sender_number) url += '&sendernumber=' + settings.sms_api_sender_number;
+    if (settings.sms_api_category)      url += '&category='     + settings.sms_api_category;
+    if (settings.sms_api_template_id)   url += '&templateid='   + settings.sms_api_template_id;
+    return url;
+  }
+
+  if (!settings) return (
+    <div style={{ padding: 32, color: 'var(--subtext)' }}>
+      {error ? 'Error: ' + error : 'Loading settings...'}
+    </div>
+  );
+
+  const preview = buildPreview();
 
   return (
-    <>
-      <header className="page-head">
-        <h1>Settings</h1>
-        <p className="muted">Configure SMS provider, OTP rules, and admin password</p>
-      </header>
+    <div className="page">
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ margin: 0 }}>Settings</h1>
+        <p style={{ margin: 0, color: 'var(--subtext)', fontSize: 14 }}>
+          Configure SMS, OTP rules, subscriptions and admin password
+        </p>
+      </div>
 
-      {savedFlag && <div className="alert alert-success">✓ Saved successfully</div>}
-      {error && <div className="alert alert-error">{error}</div>}
+      {savedFlag && (
+        <div style={{ padding: '10px 16px', borderRadius: 6, background: 'rgba(34,197,94,0.15)',
+          color: '#22c55e', marginBottom: 16, fontSize: 14 }}>
+          Settings saved
+        </div>
+      )}
+      {error && (
+        <div style={{ padding: '10px 16px', borderRadius: 6, background: 'rgba(239,68,68,0.15)',
+          color: '#ef4444', marginBottom: 16, fontSize: 14 }}>
+          {error}
+        </div>
+      )}
 
       <form onSubmit={handleSave}>
-        <section className="card">
-          <h2>SMS Provider</h2>
-          <p className="muted" style={{ marginBottom: 12 }}>
-            Pick how OTPs are delivered. Until a provider is configured, the OTP is returned in the API
-            response and shown on the Android signup screen for testing.
-          </p>
 
-          <div className="row">
-            <div className="col">
-              <label>Provider</label>
-              <select value={settings.sms_provider} onChange={e => update('sms_provider', e.target.value)}>
-                <option value="none">None (dev mode — OTP on screen)</option>
+        {/* SMS Provider */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginTop: 0 }}>SMS Provider</h2>
+          <p style={{ color: 'var(--subtext)', fontSize: 13, marginBottom: 16 }}>
+            Legacy provider settings. Use the SMS API section below for URL-based gateways.
+          </p>
+          <div style={grid2}>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Provider</label>
+              <select value={settings.sms_provider || 'none'}
+                onChange={e => upd('sms_provider', e.target.value)} style={inp}>
+                <option value="none">None (dev mode - OTP on screen)</option>
+                <option value="custom_url">Custom URL API</option>
                 <option value="twilio">Twilio</option>
-                <option value="msg91">MSG91 (India)</option>
-                <option value="textlocal">Textlocal</option>
-                <option value="custom_http">Custom HTTP API</option>
+                <option value="msg91">MSG91</option>
               </select>
             </div>
-            <div className="col">
-              <label>Sender ID / From</label>
-              <input type="text" value={settings.sms_sender_id || ''}
-                onChange={e => update('sms_sender_id', e.target.value)} placeholder="e.g. CALFLT"/>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Sender ID</label>
+              <input value={settings.sms_sender_id || ''}
+                onChange={e => upd('sms_sender_id', e.target.value)}
+                placeholder="e.g. CALFLT" style={inp}/>
             </div>
           </div>
+        </div>
 
-          <div className="row">
-            <div className="col">
-              <label>API Key / Account SID</label>
-              <input type="text" value={settings.sms_api_key || ''}
-                onChange={e => update('sms_api_key', e.target.value)} placeholder="Provider API key"/>
-            </div>
-            <div className="col">
-              <label>API Secret / Auth Token</label>
-              <input type="password" value={settings.sms_api_secret || ''}
-                onChange={e => update('sms_api_secret', e.target.value)} placeholder="Provider API secret"/>
-            </div>
-          </div>
-
-          <label>Custom HTTP endpoint (only for "Custom HTTP API")</label>
-          <input type="text" value={settings.sms_endpoint || ''}
-            onChange={e => update('sms_endpoint', e.target.value)} placeholder="https://api.example.com/send"/>
-
-          <label>Message template (use <code>{'{{otp}}'}</code> as placeholder)</label>
-          <input type="text" value={settings.sms_template || ''}
-            onChange={e => update('sms_template', e.target.value)}/>
-        </section>
-
-        <section className="card">
-          <h2>OTP Rules</h2>
-          <div className="row">
-            <div className="col">
-              <label>Code length</label>
-              <select value={settings.otp_length} onChange={e => update('otp_length', e.target.value)}>
-                {[4, 5, 6, 8].map(n => <option key={n} value={n}>{n} digits</option>)}
+        {/* OTP Rules */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginTop: 0 }}>OTP Rules</h2>
+          <div style={grid2}>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Code Length</label>
+              <select value={settings.otp_length || '6'}
+                onChange={e => upd('otp_length', e.target.value)} style={inp}>
+                <option value="4">4 digits</option>
+                <option value="5">5 digits</option>
+                <option value="6">6 digits</option>
+                <option value="8">8 digits</option>
               </select>
             </div>
-            <div className="col">
-              <label>Expiry (minutes)</label>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Expiry (minutes)</label>
               <input type="number" min="1" max="60"
-                value={settings.otp_expiry_minutes}
-                onChange={e => update('otp_expiry_minutes', e.target.value)}/>
+                value={settings.otp_expiry_minutes || '5'}
+                onChange={e => upd('otp_expiry_minutes', e.target.value)} style={inp}/>
             </div>
           </div>
-          {settings.sms_provider === 'none' ? (
-            <div style={{
-                marginTop: 12, padding: '10px 14px', borderRadius: 8,
-                background: 'rgba(34, 197, 94, 0.1)',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                color: '#22C55E', fontSize: 13
-              }}>
-              <strong>DEV MODE active.</strong> OTPs are returned in the
-              /api/signup response and shown on the Android signup screen.
-              No SMS is sent. To switch to production, pick an SMS provider
-              above and configure its credentials.
-            </div>
-          ) : (
-            <div style={{
-                marginTop: 12, padding: '10px 14px', borderRadius: 8,
-                background: 'rgba(79, 142, 247, 0.1)',
-                border: '1px solid rgba(79, 142, 247, 0.3)',
-                color: '#4F8EF7', fontSize: 13
-              }}>
-              <strong>Production mode.</strong> OTPs are dispatched via
-              {' '}{settings.sms_provider}. The Android app will not show
-              the code on screen.
-            </div>
-          )}
-        </section>
+        </div>
 
-        <section className="card">
-          <h2>Subscription gating</h2>
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: -8 }}>
-            Controls whether the Android app shows the paywall and blocks calls
-            for users without an active subscription.
-          </p>
-          <label className="checkbox" style={{ marginTop: 12 }}>
+        {/* Subscription */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginTop: 0 }}>Subscription Gating</h2>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
             <input type="checkbox"
               checked={settings.subscription_required === 'true'}
-              onChange={e => update('subscription_required', e.target.checked ? 'true' : 'false')}/>
-            Require active subscription
+              onChange={e => upd('subscription_required', e.target.checked ? 'true' : 'false')}/>
+            <span style={{ fontSize: 14 }}>Require active subscription</span>
           </label>
           {settings.subscription_required !== 'true' && (
-            <div style={{
-                marginTop: 12, padding: '10px 14px', borderRadius: 8,
-                background: 'rgba(34, 197, 94, 0.1)',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                color: '#22C55E', fontSize: 13
-              }}>
-              <strong>Subscription gating OFF.</strong> All users have unrestricted
-              access — the Android app skips the paywall. Enable this once
-              Google Play Billing is configured and you want to enforce subscriptions.
-            </div>
+            <p style={{ margin: '8px 0 0', fontSize: 13, color: '#22c55e' }}>
+              Subscription gating OFF  -  all users have unrestricted access.
+            </p>
           )}
-        </section>
+        </div>
 
-        <section className="card">
-          <h2>Razorpay (sideload payments)</h2>
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: -8 }}>
-            For sideloaded APKs only. Google Play builds use Play Billing.
-          </p>
-
-          <label className="checkbox" style={{ marginTop: 12 }}>
+        {/* Razorpay */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginTop: 0 }}>Razorpay (sideload payments)</h2>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 16 }}>
             <input type="checkbox"
               checked={settings.razorpay_enabled === 'true'}
-              onChange={e => update('razorpay_enabled', e.target.checked ? 'true' : 'false')}/>
-            Enable Razorpay payments
+              onChange={e => upd('razorpay_enabled', e.target.checked ? 'true' : 'false')}/>
+            <span style={{ fontSize: 14 }}>Enable Razorpay</span>
           </label>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
-            <div className="field" style={{ gridColumn: '1 / -1' }}>
-              <label>Mode</label>
+          <div style={grid2}>
+            <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Mode</label>
               <select value={settings.razorpay_mode || 'test'}
-                      onChange={e => update('razorpay_mode', e.target.value)}>
-                <option value="test">Test mode (rzp_test_...)</option>
-                <option value="live">Live mode (rzp_live_...)</option>
+                onChange={e => upd('razorpay_mode', e.target.value)} style={inp}>
+                <option value="test">Test mode</option>
+                <option value="live">Live mode</option>
               </select>
             </div>
-            <div className="field">
-              <label>Test Key ID</label>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Test Key ID</label>
               <input value={settings.razorpay_key_id_test || ''}
-                onChange={e => update('razorpay_key_id_test', e.target.value)}
-                placeholder="rzp_test_..." />
+                onChange={e => upd('razorpay_key_id_test', e.target.value)}
+                placeholder="rzp_test_..." style={inp}/>
             </div>
-            <div className="field">
-              <label>Test Secret</label>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Test Secret</label>
               <input type="password" value={settings.razorpay_secret_test || ''}
-                onChange={e => update('razorpay_secret_test', e.target.value)}
-                placeholder="Test secret" />
+                onChange={e => upd('razorpay_secret_test', e.target.value)}
+                placeholder="Test secret" style={inp}/>
             </div>
-            <div className="field">
-              <label>Live Key ID</label>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Live Key ID</label>
               <input value={settings.razorpay_key_id_live || ''}
-                onChange={e => update('razorpay_key_id_live', e.target.value)}
-                placeholder="rzp_live_..." />
+                onChange={e => upd('razorpay_key_id_live', e.target.value)}
+                placeholder="rzp_live_..." style={inp}/>
             </div>
-            <div className="field">
-              <label>Live Secret</label>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Live Secret</label>
               <input type="password" value={settings.razorpay_secret_live || ''}
-                onChange={e => update('razorpay_secret_live', e.target.value)}
-                placeholder="Live secret" />
+                onChange={e => upd('razorpay_secret_live', e.target.value)}
+                placeholder="Live secret" style={inp}/>
             </div>
-            <div className="field" style={{ gridColumn: '1 / -1' }}>
-              <label>Webhook Secret</label>
+            <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Webhook Secret</label>
               <input type="password" value={settings.razorpay_webhook_secret || ''}
-                onChange={e => update('razorpay_webhook_secret', e.target.value)}
-                placeholder="Used to verify webhook callbacks from Razorpay" />
-              <small style={{ color: 'var(--muted)' }}>
-                Configure your webhook URL in Razorpay dashboard as:<br/>
-                <code>https://api.app.onephone.pro/api/razorpay/webhook</code>
-              </small>
+                onChange={e => upd('razorpay_webhook_secret', e.target.value)}
+                placeholder="Webhook verification secret" style={inp}/>
+              <span style={smallStyle}>
+                Webhook URL: https://api.app.onephone.pro/api/razorpay/webhook
+              </span>
             </div>
           </div>
+        </div>
 
-          {settings.razorpay_enabled === 'true' && (
-            <div style={{
-                marginTop: 14, padding: '10px 14px', borderRadius: 8,
-                background: settings.razorpay_mode === 'live'
-                  ? 'rgba(79, 142, 247, 0.12)' : 'rgba(245, 158, 11, 0.12)',
-                border: settings.razorpay_mode === 'live'
-                  ? '1px solid rgba(79, 142, 247, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
-                color: settings.razorpay_mode === 'live' ? '#4F8EF7' : '#F59E0B', fontSize: 13
-              }}>
-              <strong>{settings.razorpay_mode === 'live' ? 'LIVE mode' : 'TEST mode'}.</strong>
-              {' '}Sideload app users will see Razorpay checkout
-              {settings.razorpay_mode === 'live' ? ' with real money.' : ' (no real money).'}
-            </div>
-          )}
-        </section>
-
-        {/* SMS API Configuration */}
-        <section className="card">
-          <h2>📱 SMS API Configuration</h2>
-          <p style={{ color:'var(--subtext)', fontSize:14, marginBottom:16 }}>
-            Configure your SMS gateway to deliver OTPs to users.
-            Based on URL format: <code style={{ background:'var(--surface)', padding:'2px 6px', borderRadius:4, fontSize:12 }}>
-              {'https://api.example.com?userid=X&password=Y&mobileno=91XXXXXXXXXX&message=OTP...'}
-            </code>
+        {/* SMS API */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginTop: 0 }}>SMS API Configuration</h2>
+          <p style={{ color: 'var(--subtext)', fontSize: 13, marginBottom: 8 }}>
+            URL-based SMS gateway for OTP delivery.
+          </p>
+          <p style={{ color: 'var(--subtext)', fontSize: 12, marginBottom: 16,
+            fontFamily: 'monospace', background: 'var(--surface)',
+            padding: '6px 10px', borderRadius: 4, wordBreak: 'break-all' }}>
+            Example: https://sms.mudunuru.com/SendSMS.aspx?userid=X
+            {'&'}password=Y{'&'}mobileno=91XXXXXXXXXX{'&'}sendername=SENDER
+            {'&'}message=OTP...{'&'}category=2{'&'}templateid=123456
           </p>
 
-          <div className="settings-grid">
-
-            <div className="field">
-              <label>SMS API URL</label>
-              <input value={settings.sms_api_url || ''} onChange={e => update('sms_api_url', e.target.value)}
-                placeholder="https://sms.mudunuru.com/SendSMS.aspx"/>
-              <small className="muted">Base URL without parameters</small>
+          <div style={grid2}>
+            <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>SMS API Base URL</label>
+              <input value={settings.sms_api_url || ''}
+                onChange={e => upd('sms_api_url', e.target.value)}
+                placeholder="https://sms.mudunuru.com/SendSMS.aspx" style={inp}/>
+              <span style={smallStyle}>Base URL without any parameters</span>
             </div>
-
-            <div className="field">
-              <label>User ID <span className="muted">(userid param)</span></label>
-              <input value={settings.sms_api_userid || ''} onChange={e => update('sms_api_userid', e.target.value)}
-                placeholder="myerppro"/>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>User ID (userid param)</label>
+              <input value={settings.sms_api_userid || ''}
+                onChange={e => upd('sms_api_userid', e.target.value)}
+                placeholder="myerppro" style={inp}/>
             </div>
-
-            <div className="field">
-              <label>Password <span className="muted">(password param)</span></label>
-              <input type="password" value={settings.sms_api_password || ''} onChange={e => update('sms_api_password', e.target.value)}
-                placeholder="(password)"/>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Password (password param)</label>
+              <input type="password" value={settings.sms_api_password || ''}
+                onChange={e => upd('sms_api_password', e.target.value)}
+                placeholder="API password" style={inp}/>
             </div>
-
-            <div className="field">
-              <label>Sender Name <span className="muted">(sendername param)</span></label>
-              <input value={settings.sms_api_sender_name || ''} onChange={e => update('sms_api_sender_name', e.target.value)}
-                placeholder="BZIONX"/>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Sender Name (sendername param)</label>
+              <input value={settings.sms_api_sender_name || ''}
+                onChange={e => upd('sms_api_sender_name', e.target.value)}
+                placeholder="BZIONX" style={inp}/>
             </div>
-
-            <div className="field">
-              <label>Sender Number <span className="muted">(sendernumber param, optional)</span></label>
-              <input value={settings.sms_api_sender_number || ''} onChange={e => update('sms_api_sender_number', e.target.value)}
-                placeholder="9493333747"/>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Sender Number (sendernumber param)</label>
+              <input value={settings.sms_api_sender_number || ''}
+                onChange={e => upd('sms_api_sender_number', e.target.value)}
+                placeholder="9493333747" style={inp}/>
             </div>
-
-            <div className="field">
-              <label>Category <span className="muted">(category param)</span></label>
-              <input value={settings.sms_api_category || ''} onChange={e => update('sms_api_category', e.target.value)}
-                placeholder="2"/>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Category (category param)</label>
+              <input value={settings.sms_api_category || ''}
+                onChange={e => upd('sms_api_category', e.target.value)}
+                placeholder="2" style={inp}/>
             </div>
-
-            <div className="field">
-              <label>Template ID <span className="muted">(templateid param)</span></label>
-              <input value={settings.sms_api_template_id || ''} onChange={e => update('sms_api_template_id', e.target.value)}
-                placeholder="1207175299467151781"/>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Template ID (templateid param)</label>
+              <input value={settings.sms_api_template_id || ''}
+                onChange={e => upd('sms_api_template_id', e.target.value)}
+                placeholder="1207175299467151781" style={inp}/>
             </div>
-
-            <div className="field">
-              <label>Mobile Number Param Name</label>
-              <input value={settings.sms_api_mobile_param || 'mobileno'} onChange={e => update('sms_api_mobile_param', e.target.value)}
-                placeholder="mobileno"/>
-              <small className="muted">Default: mobileno</small>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Mobile Param Name</label>
+              <input value={settings.sms_api_mobile_param || 'mobileno'}
+                onChange={e => upd('sms_api_mobile_param', e.target.value)}
+                placeholder="mobileno" style={inp}/>
+              <span style={smallStyle}>Default: mobileno</span>
             </div>
-
-            <div className="field">
-              <label>Message Param Name</label>
-              <input value={settings.sms_api_message_param || 'message'} onChange={e => update('sms_api_message_param', e.target.value)}
-                placeholder="message"/>
-              <small className="muted">Default: message</small>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Message Param Name</label>
+              <input value={settings.sms_api_message_param || 'message'}
+                onChange={e => upd('sms_api_message_param', e.target.value)}
+                placeholder="message" style={inp}/>
+              <span style={smallStyle}>Default: message</span>
             </div>
-
-            <div className="field" style={{ gridColumn:'1 / -1' }}>
-              <label>OTP Message Template</label>
-              <textarea rows={3} value={settings.sms_api_message_template || ''} onChange={e => update('sms_api_message_template', e.target.value)}
-                placeholder="{OTP} is your OTP to verify your phone number at yourapp.com. Please do not share OTP with anyone. Your Team"
-                style={{ width:'100%', resize:'vertical' }}/>
-              <small className="muted">Use <strong>&#123;OTP&#125;</strong> as placeholder — it gets replaced with the actual 6-digit code</small>
+            <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>OTP Message Template</label>
+              <textarea rows={3}
+                value={settings.sms_api_message_template || ''}
+                onChange={e => upd('sms_api_message_template', e.target.value)}
+                placeholder="{OTP} is your OTP to verify your phone number. Do not share with anyone."
+                style={{ ...inp, resize: 'vertical' }}/>
+              <span style={smallStyle}>
+                Use {'{OTP}'} as the placeholder  -  replaced with the actual code when sending
+              </span>
             </div>
-
           </div>
 
-          {/* Preview — built as a JS string to avoid JSX special-char issues */}
-          {settings.sms_api_url && (() => {
-            const mob    = settings.sms_api_mobile_param  || 'mobileno';
-            const msgP   = settings.sms_api_message_param || 'message';
-            const msg    = (settings.sms_api_message_template || '{OTP} is your OTP')
-                             .replace('{OTP}', '123456');
-            const parts  = [
-              settings.sms_api_url + '?',
-              'userid=' + (settings.sms_api_userid || 'USERID'),
-              'password=***',
-              mob + '=91XXXXXXXXXX',
-              'sendername=' + (settings.sms_api_sender_name || 'SENDER'),
-              msgP + '=' + encodeURIComponent(msg),
-            ];
-            if (settings.sms_api_sender_number) parts.push('sendernumber=' + settings.sms_api_sender_number);
-            if (settings.sms_api_category)      parts.push('category='     + settings.sms_api_category);
-            if (settings.sms_api_template_id)   parts.push('templateid='   + settings.sms_api_template_id);
-            const preview = parts[0] + parts.slice(1).join('&');
-            return (
-              <div style={{ marginTop:16, padding:12, background:'var(--surface)', borderRadius:6, fontSize:12 }}>
-                <div style={{ color:'var(--subtext)', marginBottom:4, fontWeight:600 }}>URL Preview (OTP = 123456):</div>
-                <div style={{ color:'var(--text)', wordBreak:'break-all', fontFamily:'monospace' }}>
-                  {preview}
-                </div>
+          {preview !== '' && (
+            <div style={{ marginTop: 16, padding: 12, background: 'var(--surface)',
+              borderRadius: 6, fontSize: 11 }}>
+              <div style={{ color: 'var(--subtext)', fontWeight: 600, marginBottom: 6 }}>
+                URL Preview (OTP = 123456):
               </div>
-            );
-          })()}
+              <div style={{ color: 'var(--text)', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                {preview}
+              </div>
+            </div>
+          )}
 
-          {/* Test SMS */}
-          <div style={{ marginTop:20, padding:16, background:'var(--surface)', borderRadius:8 }}>
-            <div style={{ fontWeight:600, fontSize:14, marginBottom:8 }}>🧪 Test SMS</div>
-            <p style={{ color:'var(--subtext)', fontSize:13, margin:'0 0 10px' }}>
-              Save settings first, then send a test OTP (123456) to verify your SMS API works.
+          <div style={{ marginTop: 20, padding: 16, background: 'var(--surface)', borderRadius: 8 }}>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Test SMS</div>
+            <p style={{ color: 'var(--subtext)', fontSize: 13, margin: '0 0 10px' }}>
+              Save settings first, then send a test OTP (123456) to verify your SMS API.
             </p>
-            <div style={{ display:'flex', gap:8 }}>
-              <input value={testMobile} onChange={e => setTestMobile(e.target.value)}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={testMobile}
+                onChange={e => setTestMobile(e.target.value)}
                 placeholder="+919876543210 or 919876543210"
-                style={{ flex:1, padding:'8px 12px', borderRadius:6, border:'1px solid var(--border)',
-                  background:'var(--card)', color:'var(--text)', fontSize:14 }}/>
-              <button type="button" onClick={handleTestSms} disabled={testSmsSending}
-                style={{ padding:'8px 18px', borderRadius:6, border:'none',
-                  background:'#22c55e', color:'#fff', fontWeight:600,
-                  cursor:testSmsSending ? 'not-allowed' : 'pointer',
-                  opacity:testSmsSending ? 0.6 : 1, fontSize:13 }}>
-                {testSmsSending ? 'Sending…' : 'Send Test'}
+                style={{ ...inp, flex: 1 }}/>
+              <button type="button" onClick={handleTestSms} disabled={testSending}
+                style={{ padding: '8px 18px', borderRadius: 6, border: 'none',
+                  background: '#22c55e', color: '#fff', fontWeight: 600,
+                  cursor: testSending ? 'not-allowed' : 'pointer',
+                  opacity: testSending ? 0.6 : 1, fontSize: 13, whiteSpace: 'nowrap' }}>
+                {testSending ? 'Sending...' : 'Send Test'}
               </button>
             </div>
-            {testSmsMsg && (
-              <p style={{ margin:'8px 0 0', fontSize:13,
-                color: testSmsMsg.startsWith('✓') ? '#22c55e' : 'var(--reject)' }}>
-                {testSmsMsg}
+            {testResult && (
+              <p style={{ margin: '8px 0 0', fontSize: 13,
+                color: testResult.startsWith('Sent') ? '#22c55e' : '#ef4444' }}>
+                {testResult}
               </p>
             )}
           </div>
-        </section>
+        </div>
 
-        <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving ? 'Saving…' : 'Save settings'}
+        <button type="submit" disabled={saving}
+          style={{ padding: '10px 24px', borderRadius: 6, border: 'none',
+            background: 'var(--accent)', color: '#fff', fontWeight: 600,
+            cursor: saving ? 'not-allowed' : 'pointer',
+            opacity: saving ? 0.6 : 1, fontSize: 15 }}>
+          {saving ? 'Saving...' : 'Save Settings'}
         </button>
-        {savedFlag && <span className="alert alert-success" style={{marginLeft:12}}>✓ Saved</span>}
-        {error && <span className="alert alert-error" style={{marginLeft:12}}>{error}</span>}
       </form>
 
       <form onSubmit={handlePassword} style={{ marginTop: 24 }}>
-        <section className="card">
-          <h2>Change Admin Password</h2>
-          {pwMsg && <div className={`alert ${pwMsg.startsWith('✓') ? 'alert-success' : 'alert-error'}`}>{pwMsg}</div>}
-          <div className="row">
-            <div className="col">
-              <label>Current password</label>
-              <input type="password" value={pwCurrent} onChange={e => setPwCurrent(e.target.value)} required/>
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Change Admin Password</h2>
+          {pwMsg && (
+            <p style={{ fontSize: 13, color: pwMsg === 'Password updated' ? '#22c55e' : '#ef4444',
+              margin: '0 0 12px' }}>
+              {pwMsg}
+            </p>
+          )}
+          <div style={grid2}>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Current Password</label>
+              <input type="password" value={pwCurrent}
+                onChange={e => setPwCurrent(e.target.value)} required style={inp}/>
             </div>
-            <div className="col">
-              <label>New password (min 6 chars)</label>
-              <input type="password" value={pwNew} onChange={e => setPwNew(e.target.value)} required minLength={6}/>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>New Password (min 6 chars)</label>
+              <input type="password" value={pwNew}
+                onChange={e => setPwNew(e.target.value)} required minLength={6} style={inp}/>
             </div>
           </div>
-          <button type="submit" className="btn btn-secondary">Update password</button>
-        </section>
+          <button type="submit"
+            style={{ marginTop: 16, padding: '9px 20px', borderRadius: 6, border: 'none',
+              background: 'var(--surface)', color: 'var(--text)', fontWeight: 600,
+              cursor: 'pointer', fontSize: 14, border: '1px solid var(--border)' }}>
+            Update Password
+          </button>
+        </div>
       </form>
-    </>
+    </div>
   );
 }
