@@ -98,7 +98,13 @@ router.post('/signup', async (req, res, next) => {
 
         if (apiUrl && userid) {
           const message = msgTemplate.replace(/\{OTP\}/g, code);
-          const mobile  = `${user.dial_code || ''}${user.mobile}`.replace(/^\+/, '');
+          const stripCC = (await getSetting('sms_api_strip_country_code')) !== 'false';
+          let mobile = `${user.dial_code || ''}${user.mobile}`.replace(/^\+/, '');
+          if (stripCC) {
+            // Keep only last 10 digits (removes country code like 91)
+            mobile = mobile.replace(/\D/g, '');
+            if (mobile.length > 10) mobile = mobile.slice(-10);
+          }
 
           const params = new URLSearchParams({
             userid, password,

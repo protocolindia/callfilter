@@ -285,6 +285,7 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'sms_api_message_param',
       'sms_api_category',
       'sms_api_template_id',
+      'sms_api_strip_country_code',
       'sms_api_message_template',
       'sms_provider'
     ];
