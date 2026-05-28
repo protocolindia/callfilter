@@ -32,6 +32,8 @@ public class ProfileActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile);
 
+
+
         // Auto-SMS section
         autoSmsSw   = findViewById(R.id.switchAutoSms);
         etAutoSmsMsg = findViewById(R.id.etAutoSmsMessage);
@@ -284,4 +286,5 @@ public class ProfileActivity extends AppCompatActivity {
             }
         }
     }
+
 }

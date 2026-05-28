@@ -429,12 +429,11 @@
                     android:paddingStart="14dp" android:paddingEnd="14dp"
                     android:layout_marginTop="8dp" android:minWidth="0dp"/>
             </LinearLayout>
-
             <TextView
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="AI CallFilter · v1.25.218"
+                android:text="AI CallFilter · v1.25.221"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"

@@ -324,6 +324,13 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'sms_api_category',
       'sms_api_template_id',
       'sms_api_strip_country_code',
+      'twilio_account_sid',
+      'twilio_auth_token',
+      'twilio_from_number',
+      'msg91_auth_key',
+      'msg91_sender_id',
+      'msg91_route',
+      'msg91_template_id',
       'sms_api_message_template',
       'sms_provider'
     ];

@@ -7,7 +7,8 @@ const inp = {
   fontSize: 14, width: '100%', boxSizing: 'border-box',
 };
 const fld = { display: 'flex', flexDirection: 'column', gap: 4 };
-const lbl = { fontSize: 12, fontWeight: 600, color: 'var(--subtext)', textTransform: 'uppercase', letterSpacing: '0.04em' };
+const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--subtext)',
+              textTransform: 'uppercase', letterSpacing: '0.05em' };
 const sml = { fontSize: 11, color: 'var(--subtext)' };
 const g2  = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 };
 
@@ -27,6 +28,15 @@ const TABS = [
   { id: 'subscription', icon: '💳', label: 'Subscription' },
   { id: 'razorpay',     icon: '💰', label: 'Razorpay'     },
   { id: 'password',     icon: '🔒', label: 'Password'     },
+];
+
+const PROVIDERS = [
+  { id: 'custom_url', icon: '🔗', name: 'Custom URL',
+    desc: 'Any HTTP GET-based SMS gateway (mudunuru, etc.)' },
+  { id: 'twilio',     icon: '📞', name: 'Twilio',
+    desc: 'Twilio SMS - global coverage, reliable delivery' },
+  { id: 'msg91',      icon: '📨', name: 'MSG91',
+    desc: 'MSG91 - popular Indian SMS provider' },
 ];
 
 export default function Settings() {
@@ -76,13 +86,10 @@ export default function Settings() {
       setTestMsg('Sending from your browser...');
       try {
         await fetch(r.sms_url, { method: 'GET', mode: 'no-cors' });
-        setTestMsg('SMS request sent to ' + r.mobile + '. Check your phone in a few seconds.');
-      } catch (fe) {
-        setTestMsg('SMS request sent (CORS blocked response, but SMS should arrive). Check your phone.');
-      }
-    } catch (e) {
-      setTestMsg('Error: ' + (e.message || 'Failed'));
-    } finally { setTesting(false); }
+        setTestMsg('SMS request sent to ' + r.mobile + '. Check your phone.');
+      } catch { setTestMsg('SMS request sent (CORS blocked response, SMS should arrive). Check your phone.'); }
+    } catch (e) { setTestMsg('Error: ' + (e.message || 'Failed')); }
+    finally { setTesting(false); }
   }
 
   function previewUrl() {
@@ -92,10 +99,8 @@ export default function Settings() {
     const msg  = (settings.sms_api_message_template || '{OTP} is your OTP')
                    .replace('{OTP}', '123456').replace(/\r?\n/g, ' ');
     const strip = settings.sms_api_strip_country_code !== 'false';
-    const mEx  = strip ? '9876543210' : '919876543210';
     let u = settings.sms_api_url + '?userid=' + (settings.sms_api_userid || 'USERID')
-      + '&password=' + (settings.sms_api_password ? '***' : 'PASSWORD')
-      + '&' + mob + '=' + mEx
+      + '&password=***&' + mob + '=' + (strip ? '9876543210' : '919876543210')
       + '&sendername=' + (settings.sms_api_sender_name || 'SENDER');
     if (settings.sms_api_sender_number) u += '&sendernumber=' + settings.sms_api_sender_number;
     u += '&' + msgP + '=' + encodeURIComponent(msg);
@@ -110,18 +115,37 @@ export default function Settings() {
     </div>
   );
 
-  const preview    = previewUrl();
-  const smsMode    = settings.sms_provider || 'none';
-  const isCustom   = smsMode === 'custom_url';
+  const smsMode  = settings.sms_provider || 'none';
+  const isDemo   = smsMode === 'none';
+  const provider = isDemo ? null : smsMode;
+  const preview  = previewUrl();
 
-  const tabBtn = (t) => ({
-    display: 'flex', alignItems: 'center', gap: 8,
-    padding: '10px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
-    fontSize: 14, fontWeight: tab === t.id ? 700 : 500,
-    background: tab === t.id ? 'var(--accent)' : 'transparent',
-    color: tab === t.id ? '#fff' : 'var(--subtext)',
+  const tabStyle = (id) => ({
+    display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px',
+    borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14,
+    fontWeight: tab === id ? 700 : 500,
+    background: tab === id ? 'var(--accent)' : 'transparent',
+    color: tab === id ? '#fff' : 'var(--subtext)',
     transition: 'all 0.15s', whiteSpace: 'nowrap',
   });
+
+  const modeCard = (active, onClick, icon, label, desc, accentColor) => (
+    <div onClick={onClick} style={{
+      flex: 1, padding: '16px', borderRadius: 10, cursor: 'pointer',
+      border: active ? '2px solid ' + accentColor : '2px solid var(--border)',
+      background: active ? accentColor + '12' : 'var(--surface)',
+      transition: 'all 0.15s',
+    }}>
+      <div style={{ fontSize: 24, marginBottom: 6 }}>{icon}</div>
+      <div style={{ fontWeight: 700, fontSize: 14,
+        color: active ? accentColor : 'var(--text)', marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 12, color: 'var(--subtext)', lineHeight: 1.4 }}>{desc}</div>
+      {active && (
+        <div style={{ marginTop: 8, fontSize: 11, fontWeight: 700,
+          color: accentColor }}>ACTIVE</div>
+      )}
+    </div>
+  );
 
   return (
     <div className="page">
@@ -132,10 +156,11 @@ export default function Settings() {
         </p>
       </div>
 
+      {/* Tab bar */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 24,
         background: 'var(--card)', borderRadius: 10, padding: 6, overflowX: 'auto' }}>
         {TABS.map(t => (
-          <button key={t.id} style={tabBtn(t)} onClick={() => setTab(t.id)}>
+          <button key={t.id} style={tabStyle(t.id)} onClick={() => setTab(t.id)}>
             <span style={{ fontSize: 16 }}>{t.icon}</span>{t.label}
           </button>
         ))}
@@ -154,188 +179,285 @@ export default function Settings() {
         </div>
       )}
 
-      {/* -- SMS TAB ----------------------------------------------- */}
+      {/* ========== SMS TAB ========== */}
       {tab === 'sms' && (
         <form onSubmit={save}>
-          <div className="card" style={{ marginBottom: 16 }}>
-            <h2 style={{ marginTop: 0, marginBottom: 16 }}>SMS Configuration</h2>
 
-            {/* Mode selector */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={lbl}>SMS MODE</label>
-              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                {[
-                  { value: 'none',       icon: '🧪', label: 'Demo Mode',
-                    desc: 'OTP shown on signup screen - for testing' },
-                  { value: 'custom_url', icon: '📡', label: 'Custom URL SMS',
-                    desc: 'Send via your SMS gateway URL' },
-                ].map(opt => {
-                  const active = smsMode === opt.value;
-                  return (
-                    <div key={opt.value} onClick={() => set('sms_provider', opt.value)}
-                      style={{ flex: 1, padding: '14px 16px', borderRadius: 8, cursor: 'pointer',
-                        border: active ? '2px solid var(--accent)' : '2px solid var(--border)',
-                        background: active ? 'rgba(79,142,247,0.08)' : 'var(--surface)' }}>
-                      <div style={{ fontSize: 22, marginBottom: 4 }}>{opt.icon}</div>
-                      <div style={{ fontWeight: 700, fontSize: 14,
-                        color: active ? 'var(--accent)' : 'var(--text)' }}>
-                        {opt.label}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--subtext)', marginTop: 2 }}>
-                        {opt.desc}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {!isCustom && (
-                <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 6, fontSize: 13,
-                  background: 'rgba(245,158,11,0.1)', color: '#f59e0b',
-                  border: '1px solid rgba(245,158,11,0.3)' }}>
-                  Demo mode - OTP is shown on the signup screen. No SMS is sent.
-                  Switch to Custom URL to send real OTPs.
-                </div>
-              )}
-              {isCustom && (
-                <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 6, fontSize: 13,
-                  background: 'rgba(34,197,94,0.1)', color: '#22c55e',
-                  border: '1px solid rgba(34,197,94,0.3)' }}>
-                  Custom URL mode - OTPs sent via your SMS gateway below.
-                </div>
-              )}
+          {/* -- TOP: Mode selector -- */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h2 style={{ marginTop: 0, marginBottom: 4 }}>OTP Delivery Mode</h2>
+            <p style={{ color: 'var(--subtext)', fontSize: 13, margin: '0 0 16px' }}>
+              Select how OTPs are delivered to users during signup.
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {modeCard(isDemo, () => set('sms_provider', 'none'),
+                '🧪', 'Demo Mode',
+                'OTP shown on screen after signup. No SMS sent. Use for development and testing.',
+                '#f59e0b')}
+              {modeCard(!isDemo, () => {
+                if (isDemo) set('sms_provider', 'custom_url');
+              }, '📡', 'Production Mode',
+                'OTP sent via SMS to the user\'s phone. Select your SMS provider below.',
+                '#22c55e')}
             </div>
 
-            {/* SMS API fields - only shown in custom_url mode */}
-            {isCustom && (
-              <div>
-                <p style={{ color: 'var(--subtext)', fontSize: 13, margin: '0 0 16px' }}>
-                  Only <strong style={{ color: '#4f8ef7' }}>mobile number</strong> and
-                  the <strong style={{ color: '#4f8ef7' }}>{'{OTP}'} value</strong> change per message.
-                </p>
-
-                <p style={{ ...lbl, margin: '0 0 10px', color: '#6b7280' }}>
-                  Fixed credentials (same for every SMS)
-                </p>
-                <div style={{ ...g2, marginBottom: 20 }}>
-                  <Field label="API Base URL" hint="URL without any parameters" span>
-                    <input value={settings.sms_api_url || ''}
-                      onChange={e => set('sms_api_url', e.target.value)}
-                      placeholder="https://sms.mudunuru.com/SendSMS.aspx" style={inp}/>
-                  </Field>
-                  <Field label="User ID (userid)">
-                    <input value={settings.sms_api_userid || ''}
-                      onChange={e => set('sms_api_userid', e.target.value)}
-                      placeholder="myerppro" style={inp}/>
-                  </Field>
-                  <Field label="Password">
-                    <input type="password" value={settings.sms_api_password || ''}
-                      onChange={e => set('sms_api_password', e.target.value)}
-                      placeholder="myerppro_2023" style={inp}/>
-                  </Field>
-                  <Field label="Sender Name (sendername)">
-                    <input value={settings.sms_api_sender_name || ''}
-                      onChange={e => set('sms_api_sender_name', e.target.value)}
-                      placeholder="BZIONX" style={inp}/>
-                  </Field>
-                  <Field label="Sender Number (sendernumber)">
-                    <input value={settings.sms_api_sender_number || ''}
-                      onChange={e => set('sms_api_sender_number', e.target.value)}
-                      placeholder="9493333747" style={inp}/>
-                  </Field>
-                  <Field label="Category">
-                    <input value={settings.sms_api_category || ''}
-                      onChange={e => set('sms_api_category', e.target.value)}
-                      placeholder="2" style={inp}/>
-                  </Field>
-                  <Field label="Template ID">
-                    <input value={settings.sms_api_template_id || ''}
-                      onChange={e => set('sms_api_template_id', e.target.value)}
-                      placeholder="1207175299467151781" style={inp}/>
-                  </Field>
-                </div>
-
-                <div style={{ padding: 14, borderRadius: 8, marginBottom: 16,
-                  border: '1px solid rgba(79,142,247,0.3)',
-                  background: 'rgba(79,142,247,0.05)' }}>
-                  <p style={{ ...lbl, color: '#4f8ef7', margin: '0 0 12px' }}>
-                    Variable per SMS
-                  </p>
-                  <div style={g2}>
-                    <Field label="Mobile param name"
-                      hint="Parameter for phone number - default: mobileno">
-                      <input value={settings.sms_api_mobile_param || 'mobileno'}
-                        onChange={e => set('sms_api_mobile_param', e.target.value)}
-                        placeholder="mobileno" style={inp}/>
-                    </Field>
-                    <Field label="Message param name"
-                      hint="Parameter for OTP text - default: message">
-                      <input value={settings.sms_api_message_param || 'message'}
-                        onChange={e => set('sms_api_message_param', e.target.value)}
-                        placeholder="message" style={inp}/>
-                    </Field>
-                    <Field label="OTP message template"
-                      hint="Use {OTP} where the code should appear" span>
-                      <textarea rows={2}
-                        value={settings.sms_api_message_template || ''}
-                        onChange={e => set('sms_api_message_template', e.target.value)}
-                        placeholder="{OTP} is your OTP to verify your phone number. Do not share with anyone."
-                        style={{ ...inp, resize: 'vertical' }}/>
-                    </Field>
-                  </div>
-                </div>
-
-                <div style={{ padding: 12, borderRadius: 8, background: 'var(--surface)',
-                  marginBottom: 16 }}>
-                  <p style={{ ...lbl, margin: '0 0 8px' }}>Mobile number format</p>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                    <input type="checkbox"
-                      checked={settings.sms_api_strip_country_code !== 'false'}
-                      onChange={e => set('sms_api_strip_country_code', e.target.checked ? 'true' : 'false')}/>
-                    <span style={{ fontSize: 13 }}>
-                      Strip country code - send 10-digit (e.g. 9876543210 not 919876543210)
-                    </span>
-                  </label>
-                </div>
-
-                {preview && (
-                  <div style={{ padding: 12, background: 'var(--surface)', borderRadius: 6,
-                    marginBottom: 16, fontSize: 11 }}>
-                    <p style={{ ...lbl, margin: '0 0 6px' }}>URL Preview (OTP = 123456)</p>
-                    <div style={{ wordBreak: 'break-all', fontFamily: 'monospace',
-                      color: 'var(--text)', lineHeight: 1.7 }}>
-                      {preview}
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ padding: 14, background: 'var(--surface)', borderRadius: 8 }}>
-                  <p style={{ ...lbl, margin: '0 0 4px' }}>Test SMS</p>
-                  <p style={{ color: 'var(--subtext)', fontSize: 13, margin: '0 0 10px' }}>
-                    Save settings first, then send OTP 123456 to verify your gateway.
-                  </p>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input value={testNum} onChange={e => setTestNum(e.target.value)}
-                      placeholder="9876543210" style={{ ...inp, flex: 1 }}/>
-                    <button type="button" onClick={sendTest} disabled={testing}
-                      style={{ padding: '8px 18px', borderRadius: 6, border: 'none',
-                        background: '#22c55e', color: '#fff', fontWeight: 600,
-                        cursor: testing ? 'not-allowed' : 'pointer',
-                        opacity: testing ? 0.6 : 1, fontSize: 13, whiteSpace: 'nowrap' }}>
-                      {testing ? 'Sending...' : 'Send Test OTP'}
-                    </button>
-                  </div>
-                  {testMsg && (
-                    <p style={{ margin: '8px 0 0', fontSize: 13, padding: '8px 12px',
-                      borderRadius: 6,
-                      background: testMsg.startsWith('SMS request sent') ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-                      color: testMsg.startsWith('SMS request sent') ? '#22c55e' : '#ef4444' }}>
-                      {testMsg}
-                    </p>
-                  )}
-                </div>
+            {isDemo && (
+              <div style={{ marginTop: 12, padding: '10px 16px', borderRadius: 8, fontSize: 13,
+                background: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+                border: '1px solid rgba(245,158,11,0.3)' }}>
+                Demo mode is active. OTP will be shown on the signup screen. No SMS will be sent.
+              </div>
+            )}
+            {!isDemo && (
+              <div style={{ marginTop: 12, padding: '10px 16px', borderRadius: 8, fontSize: 13,
+                background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+                border: '1px solid rgba(34,197,94,0.3)' }}>
+                Production mode is active. OTPs will be sent via your configured SMS provider.
               </div>
             )}
           </div>
+
+          {/* -- PRODUCTION: Provider selector -- */}
+          {!isDemo && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <h2 style={{ marginTop: 0, marginBottom: 4 }}>SMS Provider</h2>
+              <p style={{ color: 'var(--subtext)', fontSize: 13, margin: '0 0 16px' }}>
+                Choose your SMS gateway provider.
+              </p>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+                {PROVIDERS.map(p => (
+                  <div key={p.id} onClick={() => set('sms_provider', p.id)}
+                    style={{
+                      flex: 1, padding: 14, borderRadius: 10, cursor: 'pointer',
+                      border: provider === p.id ? '2px solid var(--accent)' : '2px solid var(--border)',
+                      background: provider === p.id ? 'rgba(79,142,247,0.08)' : 'var(--surface)',
+                      transition: 'all 0.15s',
+                    }}>
+                    <div style={{ fontSize: 22, marginBottom: 4 }}>{p.icon}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13,
+                      color: provider === p.id ? 'var(--accent)' : 'var(--text)',
+                      marginBottom: 2 }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--subtext)', lineHeight: 1.4 }}>
+                      {p.desc}
+                    </div>
+                    {provider === p.id && (
+                      <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700,
+                        color: 'var(--accent)' }}>SELECTED</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Custom URL config */}
+              {provider === 'custom_url' && (
+                <div>
+                  <div style={{ ...lbl, marginBottom: 12, color: '#6b7280' }}>
+                    Fixed credentials
+                  </div>
+                  <div style={{ ...g2, marginBottom: 16 }}>
+                    <Field label="API Base URL" hint="URL without parameters" span>
+                      <input value={settings.sms_api_url || ''}
+                        onChange={e => set('sms_api_url', e.target.value)}
+                        placeholder="https://sms.mudunuru.com/SendSMS.aspx" style={inp}/>
+                    </Field>
+                    <Field label="User ID (userid)">
+                      <input value={settings.sms_api_userid || ''}
+                        onChange={e => set('sms_api_userid', e.target.value)}
+                        placeholder="myerppro" style={inp}/>
+                    </Field>
+                    <Field label="Password">
+                      <input type="password" value={settings.sms_api_password || ''}
+                        onChange={e => set('sms_api_password', e.target.value)}
+                        placeholder="password" style={inp}/>
+                    </Field>
+                    <Field label="Sender Name">
+                      <input value={settings.sms_api_sender_name || ''}
+                        onChange={e => set('sms_api_sender_name', e.target.value)}
+                        placeholder="BZIONX" style={inp}/>
+                    </Field>
+                    <Field label="Sender Number">
+                      <input value={settings.sms_api_sender_number || ''}
+                        onChange={e => set('sms_api_sender_number', e.target.value)}
+                        placeholder="9493333747" style={inp}/>
+                    </Field>
+                    <Field label="Category">
+                      <input value={settings.sms_api_category || ''}
+                        onChange={e => set('sms_api_category', e.target.value)}
+                        placeholder="2" style={inp}/>
+                    </Field>
+                    <Field label="Template ID">
+                      <input value={settings.sms_api_template_id || ''}
+                        onChange={e => set('sms_api_template_id', e.target.value)}
+                        placeholder="1207175299467151781" style={inp}/>
+                    </Field>
+                  </div>
+
+                  <div style={{ padding: 14, borderRadius: 8, marginBottom: 16,
+                    border: '1px solid rgba(79,142,247,0.3)',
+                    background: 'rgba(79,142,247,0.05)' }}>
+                    <div style={{ ...lbl, color: '#4f8ef7', marginBottom: 12 }}>
+                      Variable per SMS
+                    </div>
+                    <div style={g2}>
+                      <Field label="Mobile param name" hint="default: mobileno">
+                        <input value={settings.sms_api_mobile_param || 'mobileno'}
+                          onChange={e => set('sms_api_mobile_param', e.target.value)}
+                          placeholder="mobileno" style={inp}/>
+                      </Field>
+                      <Field label="Message param name" hint="default: message">
+                        <input value={settings.sms_api_message_param || 'message'}
+                          onChange={e => set('sms_api_message_param', e.target.value)}
+                          placeholder="message" style={inp}/>
+                      </Field>
+                      <Field label="OTP message template" hint="Use {OTP} for the code" span>
+                        <textarea rows={2}
+                          value={settings.sms_api_message_template || ''}
+                          onChange={e => set('sms_api_message_template', e.target.value)}
+                          placeholder="{OTP} is your OTP. Do not share with anyone."
+                          style={{ ...inp, resize: 'vertical' }}/>
+                      </Field>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 12, background: 'var(--surface)',
+                    borderRadius: 8, marginBottom: 16 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                      <input type="checkbox"
+                        checked={settings.sms_api_strip_country_code !== 'false'}
+                        onChange={e => set('sms_api_strip_country_code',
+                          e.target.checked ? 'true' : 'false')}/>
+                      <span style={{ fontSize: 13 }}>
+                        Strip country code (send 10-digit: 9876543210 not 919876543210)
+                      </span>
+                    </label>
+                  </div>
+
+                  {preview && (
+                    <div style={{ padding: 12, background: 'var(--surface)',
+                      borderRadius: 6, marginBottom: 16 }}>
+                      <div style={{ ...lbl, marginBottom: 6 }}>URL Preview (OTP = 123456)</div>
+                      <div style={{ wordBreak: 'break-all', fontFamily: 'monospace',
+                        fontSize: 11, color: 'var(--text)', lineHeight: 1.7 }}>
+                        {preview}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Test SMS */}
+                  <div style={{ padding: 14, background: 'var(--surface)', borderRadius: 8 }}>
+                    <div style={{ ...lbl, marginBottom: 4 }}>Test SMS</div>
+                    <p style={{ color: 'var(--subtext)', fontSize: 13, margin: '0 0 10px' }}>
+                      Save first, then send OTP 123456 to verify your gateway works.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input value={testNum} onChange={e => setTestNum(e.target.value)}
+                        placeholder="9876543210" style={{ ...inp, flex: 1 }}/>
+                      <button type="button" onClick={sendTest} disabled={testing}
+                        style={{ padding: '8px 18px', borderRadius: 6, border: 'none',
+                          background: '#22c55e', color: '#fff', fontWeight: 600,
+                          cursor: testing ? 'not-allowed' : 'pointer',
+                          opacity: testing ? 0.6 : 1, fontSize: 13, whiteSpace: 'nowrap' }}>
+                        {testing ? 'Sending...' : 'Send Test OTP'}
+                      </button>
+                    </div>
+                    {testMsg && (
+                      <p style={{ margin: '8px 0 0', fontSize: 13, padding: '8px 12px',
+                        borderRadius: 6,
+                        background: testMsg.startsWith('SMS request') ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                        color: testMsg.startsWith('SMS request') ? '#22c55e' : '#ef4444' }}>
+                        {testMsg}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Twilio config */}
+              {provider === 'twilio' && (
+                <div>
+                  <div style={{ padding: 10, borderRadius: 6, marginBottom: 16, fontSize: 12,
+                    background: 'rgba(79,142,247,0.08)', color: '#4f8ef7',
+                    border: '1px solid rgba(79,142,247,0.25)' }}>
+                    Find these in your Twilio Console at console.twilio.com
+                  </div>
+                  <div style={g2}>
+                    <Field label="Account SID">
+                      <input value={settings.twilio_account_sid || ''}
+                        onChange={e => set('twilio_account_sid', e.target.value)}
+                        placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style={inp}/>
+                    </Field>
+                    <Field label="Auth Token">
+                      <input type="password" value={settings.twilio_auth_token || ''}
+                        onChange={e => set('twilio_auth_token', e.target.value)}
+                        placeholder="Auth token from Twilio Console" style={inp}/>
+                    </Field>
+                    <Field label="From Number" hint="Twilio phone number in E.164 format" span>
+                      <input value={settings.twilio_from_number || ''}
+                        onChange={e => set('twilio_from_number', e.target.value)}
+                        placeholder="+1234567890" style={inp}/>
+                    </Field>
+                    <Field label="OTP message template" hint="Use {OTP} for the code" span>
+                      <textarea rows={2}
+                        value={settings.sms_api_message_template || ''}
+                        onChange={e => set('sms_api_message_template', e.target.value)}
+                        placeholder="{OTP} is your OTP. Do not share with anyone."
+                        style={{ ...inp, resize: 'vertical' }}/>
+                    </Field>
+                  </div>
+                  <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 6,
+                    fontSize: 13, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
+                    Twilio sends OTPs via Twilio REST API from the backend. Make sure your Railway
+                    plan allows outbound HTTPS to api.twilio.com.
+                  </div>
+                </div>
+              )}
+
+              {/* MSG91 config */}
+              {provider === 'msg91' && (
+                <div>
+                  <div style={{ padding: 10, borderRadius: 6, marginBottom: 16, fontSize: 12,
+                    background: 'rgba(79,142,247,0.08)', color: '#4f8ef7',
+                    border: '1px solid rgba(79,142,247,0.25)' }}>
+                    Find these in your MSG91 dashboard at msg91.com
+                  </div>
+                  <div style={g2}>
+                    <Field label="Auth Key">
+                      <input value={settings.msg91_auth_key || ''}
+                        onChange={e => set('msg91_auth_key', e.target.value)}
+                        placeholder="MSG91 auth key" style={inp}/>
+                    </Field>
+                    <Field label="Sender ID">
+                      <input value={settings.msg91_sender_id || ''}
+                        onChange={e => set('msg91_sender_id', e.target.value)}
+                        placeholder="CALLFT" style={inp}/>
+                    </Field>
+                    <Field label="Route" hint="4 = Transactional, 1 = Promotional">
+                      <input value={settings.msg91_route || '4'}
+                        onChange={e => set('msg91_route', e.target.value)}
+                        placeholder="4" style={inp}/>
+                    </Field>
+                    <Field label="Template ID">
+                      <input value={settings.msg91_template_id || ''}
+                        onChange={e => set('msg91_template_id', e.target.value)}
+                        placeholder="MSG91 DLT template ID" style={inp}/>
+                    </Field>
+                    <Field label="OTP message template" hint="Use {OTP} for the code" span>
+                      <textarea rows={2}
+                        value={settings.sms_api_message_template || ''}
+                        onChange={e => set('sms_api_message_template', e.target.value)}
+                        placeholder="{OTP} is your OTP. Do not share with anyone."
+                        style={{ ...inp, resize: 'vertical' }}/>
+                    </Field>
+                  </div>
+                  <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 6,
+                    fontSize: 13, background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
+                    MSG91 OTP requests are made by the Android app directly from the device
+                    (Indian IP) for reliable delivery.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <button type="submit" disabled={saving} style={{
             padding: '11px 28px', borderRadius: 6, border: 'none',
@@ -347,7 +469,7 @@ export default function Settings() {
         </form>
       )}
 
-      {/* -- OTP RULES TAB ----------------------------------------- */}
+      {/* ========== OTP RULES TAB ========== */}
       {tab === 'otp' && (
         <form onSubmit={save}>
           <div className="card" style={{ marginBottom: 16 }}>
@@ -384,7 +506,7 @@ export default function Settings() {
         </form>
       )}
 
-      {/* -- SUBSCRIPTION TAB -------------------------------------- */}
+      {/* ========== SUBSCRIPTION TAB ========== */}
       {tab === 'subscription' && (
         <form onSubmit={save}>
           <div className="card" style={{ marginBottom: 16 }}>
@@ -407,9 +529,11 @@ export default function Settings() {
               </div>
             </label>
             <div style={{ marginTop: 12, padding: '10px 16px', borderRadius: 8, fontSize: 13,
-              background: settings.subscription_required === 'true' ? 'rgba(79,142,247,0.1)' : 'rgba(34,197,94,0.1)',
+              background: settings.subscription_required === 'true'
+                ? 'rgba(79,142,247,0.1)' : 'rgba(34,197,94,0.1)',
               color: settings.subscription_required === 'true' ? '#4f8ef7' : '#22c55e',
-              border: settings.subscription_required === 'true' ? '1px solid rgba(79,142,247,0.3)' : '1px solid rgba(34,197,94,0.3)' }}>
+              border: settings.subscription_required === 'true'
+                ? '1px solid rgba(79,142,247,0.3)' : '1px solid rgba(34,197,94,0.3)' }}>
               {settings.subscription_required === 'true'
                 ? 'ON - Users must have an active subscription.'
                 : 'OFF - All users have unrestricted access (free mode).'}
@@ -425,7 +549,7 @@ export default function Settings() {
         </form>
       )}
 
-      {/* -- RAZORPAY TAB ------------------------------------------ */}
+      {/* ========== RAZORPAY TAB ========== */}
       {tab === 'razorpay' && (
         <form onSubmit={save}>
           <div className="card" style={{ marginBottom: 16 }}>
@@ -486,7 +610,7 @@ export default function Settings() {
         </form>
       )}
 
-      {/* -- PASSWORD TAB ------------------------------------------ */}
+      {/* ========== PASSWORD TAB ========== */}
       {tab === 'password' && (
         <form onSubmit={changePw}>
           <div className="card" style={{ marginBottom: 16 }}>

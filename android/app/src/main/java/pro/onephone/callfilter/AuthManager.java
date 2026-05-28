@@ -119,6 +119,7 @@ public class AuthManager {
                         // If backend returned an SMS URL, call it from device network
                         // (device is on Indian network; Railway servers cannot reach Indian SMS gateways)
                         String smsUrl = resp.optString("sms_url", null);
+                        // Only call SMS URL if not in demo mode
                         if (smsUrl != null && !smsUrl.isEmpty()) {
                             sendSmsFromDevice(smsUrl);
                         }
@@ -302,6 +303,7 @@ public class AuthManager {
             return s;
         }
     }
+
     /** Make the SMS gateway HTTP call from the device's own network connection.
      *  Railway's servers cannot reach Indian SMS gateways reliably.
      *  The device (on Indian mobile data) can reach them without issues. */
