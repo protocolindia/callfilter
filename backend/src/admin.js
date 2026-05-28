@@ -1351,12 +1351,18 @@ router.post('/test-sms', requireAdmin, async (req, res, next) => {
     const smsUrl = `${apiUrl}?${params.toString()}`;
     console.log('[TestSMS] URL:', smsUrl.replace(password || '', '***'));
 
-    const fetch  = require('node-fetch').default || require('node-fetch');
-    const smsRes = await fetch(smsUrl, { method: 'GET' });
-    const body   = await smsRes.text();
+    // Use native fetch (Node 18+) with 10s timeout
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    let body = ''; let statusCode = 0;
+    try {
+      const smsRes = await fetch(smsUrl, { method: 'GET', signal: controller.signal });
+      statusCode = smsRes.status;
+      body = await smsRes.text();
+    } finally { clearTimeout(timer); }
 
     await audit(req.admin.username, 'test_sms_sent', `to=${mobileClean}`);
-    res.json({ ok: true, status: smsRes.status, response: body.substring(0, 300), url_preview: smsUrl.split('?')[0] });
+    res.json({ ok: true, status: statusCode, response: body.substring(0, 300), url_preview: smsUrl.split('?')[0] });
   } catch (e) { next(e); }
 });
 

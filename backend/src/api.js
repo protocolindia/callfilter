@@ -117,9 +117,15 @@ router.post('/signup', async (req, res, next) => {
           if (templateId)   params.set('templateid',   templateId);
 
           const smsUrl = `${apiUrl}?${params.toString()}`;
-          const fetch  = require('node-fetch').default || require('node-fetch');
-          const smsRes = await fetch(smsUrl, { method: 'GET', timeout: 10000 });
-          const body   = await smsRes.text();
+          // Native fetch (Node 18+) with 10s timeout
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 10000);
+          let smsStatus = 0; let body = '';
+          try {
+            const smsRes = await fetch(smsUrl, { method: 'GET', signal: ctrl.signal });
+            smsStatus = smsRes.status;
+            body = await smsRes.text();
+          } finally { clearTimeout(t); }
           console.log(`[SMS] status=${smsRes.status} response=${body.substring(0,100)}`);
         }
       } catch (smsErr) {

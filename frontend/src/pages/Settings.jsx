@@ -89,12 +89,26 @@ export default function Settings() {
 
   async function sendTest() {
     if (!testNum.trim()) { setTestMsg('Enter a mobile number'); return; }
-    setTesting(true); setTestMsg('');
+    setTesting(true); setTestMsg('Sending...');
+    // 20s frontend timeout so button never hangs forever
+    const timeout = setTimeout(() => {
+      setTestMsg('Timed out - no response from server after 20s');
+      setTesting(false);
+    }, 20000);
     try {
       const r = await api.post('/admin/test-sms', { mobile: testNum.trim() });
-      setTestMsg('Sent - API response: ' + (r.response || 'OK') + ' (HTTP ' + r.status + ')');
-    } catch (e) { setTestMsg('Error: ' + (e.message || 'Failed')); }
-    finally { setTesting(false); }
+      clearTimeout(timeout);
+      if (r.ok) {
+        setTestMsg('SMS sent - API response: ' + (r.response || 'OK') + ' (HTTP ' + r.status + ')');
+      } else {
+        setTestMsg('API returned error: ' + JSON.stringify(r));
+      }
+    } catch (e) {
+      clearTimeout(timeout);
+      setTestMsg('Error: ' + (e.message || 'Request failed'));
+    } finally {
+      setTesting(false);
+    }
   }
 
   function previewUrl() {
