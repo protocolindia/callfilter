@@ -68,6 +68,8 @@ async function migrate() {
     otp_length:           '6',
     otp_expiry_minutes:   '5',
     otp_show_in_response: 'false',
+    trial_days: '0',
+    default_plan_id: '',
     subscription_required: 'false',
     razorpay_enabled:     'false',
     razorpay_mode:        'test',     // 'test' or 'live'

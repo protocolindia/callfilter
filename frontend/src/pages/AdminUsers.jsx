@@ -116,6 +116,14 @@ export default function AdminUsers() {
   // Full-screen preview
   const [viewImg, setViewImg] = useState(null);
 
+  // Reset password modal
+  const [resetId, setResetId]       = useState(null);
+  const [resetUser, setResetUser]   = useState('');
+  const [resetPw, setResetPw]       = useState('');
+  const [resetPw2, setResetPw2]     = useState('');
+  const [resetMsg, setResetMsg]     = useState('');
+  const [resetting, setResetting]   = useState(false);
+
   const creatableRoles = isSuperAdmin
     ? ['admin', 'support', 'billing', 'global_db_admin', 'global_db_user']
     : currentRole === 'admin'
@@ -200,6 +208,19 @@ export default function AdminUsers() {
   const handleRestore = async id => {
     try { await api.post(`/admin/admin-users/${id}/restore`); load(); }
     catch (e) { alert(e.message); }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPw.trim()) { setResetMsg('Enter a new password'); return; }
+    if (resetPw.length < 6) { setResetMsg('Password must be at least 6 characters'); return; }
+    if (resetPw !== resetPw2) { setResetMsg('Passwords do not match'); return; }
+    setResetting(true); setResetMsg('');
+    try {
+      await api.put(`/admin/admin-users/${resetId}`, { password: resetPw });
+      setResetMsg('ok');
+      setTimeout(() => { setResetId(null); setResetPw(''); setResetPw2(''); setResetMsg(''); }, 1500);
+    } catch (e) { setResetMsg(e.message || 'Failed'); }
+    finally { setResetting(false); }
   };
 
   const openImageUpload = u => {
@@ -331,6 +352,83 @@ export default function AdminUsers() {
             }}>
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reset password modal */}
+      {resetId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+          <div style={{ background: 'var(--card)', borderRadius: 12, padding: 28,
+            width: 420, maxWidth: '95vw' }}>
+            <h3 style={{ margin: '0 0 6px' }}>Reset Password</h3>
+            <p style={{ color: 'var(--subtext)', fontSize: 13, margin: '0 0 20px' }}>
+              Set a new password for <strong style={{ color: 'var(--text)' }}>{resetUser}</strong>
+            </p>
+
+            {resetMsg === 'ok' ? (
+              <div style={{ padding: '12px 16px', borderRadius: 8,
+                background: 'rgba(34,197,94,0.15)', color: '#22c55e',
+                fontSize: 14, marginBottom: 16 }}>
+                Password updated successfully
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--subtext)',
+                      textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                      New Password
+                    </label>
+                    <input type="password" value={resetPw}
+                      onChange={e => setResetPw(e.target.value)}
+                      placeholder="Min 6 characters"
+                      autoFocus
+                      style={{ padding: '9px 12px', borderRadius: 6, width: '100%',
+                        border: '1px solid var(--border)', background: 'var(--surface)',
+                        color: 'var(--text)', fontSize: 14, boxSizing: 'border-box' }}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--subtext)',
+                      textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                      Confirm Password
+                    </label>
+                    <input type="password" value={resetPw2}
+                      onChange={e => setResetPw2(e.target.value)}
+                      placeholder="Repeat new password"
+                      onKeyDown={e => e.key === 'Enter' && handleResetPassword()}
+                      style={{ padding: '9px 12px', borderRadius: 6, width: '100%',
+                        border: '1px solid var(--border)', background: 'var(--surface)',
+                        color: 'var(--text)', fontSize: 14, boxSizing: 'border-box' }}/>
+                  </div>
+                </div>
+
+                {resetMsg && (
+                  <p style={{ color: 'var(--reject)', fontSize: 13,
+                    margin: '0 0 12px', padding: '8px 12px', borderRadius: 6,
+                    background: 'rgba(239,68,68,0.1)' }}>
+                    {resetMsg}
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={handleResetPassword} disabled={resetting}
+                    style={{ flex: 1, padding: '10px', borderRadius: 6, border: 'none',
+                      background: 'var(--accent)', color: '#fff', fontWeight: 700,
+                      cursor: resetting ? 'not-allowed' : 'pointer',
+                      opacity: resetting ? 0.6 : 1, fontSize: 14 }}>
+                    {resetting ? 'Saving...' : 'Reset Password'}
+                  </button>
+                  <button onClick={() => { setResetId(null); setResetPw(''); setResetPw2(''); setResetMsg(''); }}
+                    style={{ padding: '10px 20px', borderRadius: 6,
+                      border: '1px solid var(--border)', background: 'transparent',
+                      color: 'var(--text)', cursor: 'pointer', fontSize: 14 }}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -562,6 +660,14 @@ export default function AdminUsers() {
                         <button onClick={() => startEdit(u)}
                           style={btn('var(--accent)', '#fff', {})}>
                           Edit
+                        </button>
+                        <button onClick={() => {
+                            setResetId(u.id);
+                            setResetUser(u.username);
+                            setResetPw(''); setResetPw2(''); setResetMsg('');
+                          }}
+                          style={btn('rgba(245,158,11,0.15)', '#f59e0b', {})}>
+                          Reset PW
                         </button>
                         {isSuperAdmin && u.role === 'global_db_admin' && (
                           <button onClick={() => openImageUpload(u)}

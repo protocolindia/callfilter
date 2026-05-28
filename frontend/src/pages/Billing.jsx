@@ -15,72 +15,190 @@ export default function Billing() {
         <button className={`tab-btn ${tab === 'coupons' ? 'tab-active' : ''}`}       onClick={() => setTab('coupons')}>Coupons</button>
         <button className={`tab-btn ${tab === 'subscriptions' ? 'tab-active' : ''}`} onClick={() => setTab('subscriptions')}>Subscriptions</button>
         <button className={`tab-btn ${tab === 'payments' ? 'tab-active' : ''}`}      onClick={() => setTab('payments')}>Payments</button>
-        <button className={`tab-btn ${tab === 'general' ? 'tab-active' : ''}`}       onClick={() => setTab('general')}>General</button>
       </div>
 
       {tab === 'plans'         && <PlansTab />}
       {tab === 'coupons'       && <CouponsTab />}
       {tab === 'subscriptions' && <SubscriptionsTab />}
       {tab === 'payments'      && <PaymentsTab />}
-      {tab === 'general'       && <GeneralTab />}
     </>
   );
 }
 
 // =================== PLANS ===================
 function PlansTab() {
-  const [plans, setPlans] = useState([]);
-  const [editing, setEditing] = useState(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [plans, setPlans]         = useState([]);
+  const [editing, setEditing]     = useState(null);
+  const [error, setError]         = useState('');
+  const [loading, setLoading]     = useState(true);
+  const [defaultPlanId, setDefaultPlanId] = useState('');
+  const [savingDefault, setSavingDefault] = useState(false);
+  const [defaultMsg, setDefaultMsg]       = useState('');
 
   async function load() {
     try {
-      const r = await api.get('/admin/plans');
+      const [r, s] = await Promise.all([
+        api.get('/admin/plans'),
+        api.get('/admin/settings'),
+      ]);
       setPlans(r.plans);
+      setDefaultPlanId(String(s.settings?.default_plan_id || ''));
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   }
   useEffect(() => { load(); }, []);
 
-  if (loading) return <p className="muted">Loading…</p>;
+  async function saveDefault() {
+    setSavingDefault(true); setDefaultMsg('');
+    try {
+      await api.put('/admin/settings', { default_plan_id: defaultPlanId });
+      setDefaultMsg('Default plan saved');
+      setTimeout(() => setDefaultMsg(''), 3000);
+    } catch (e) { setDefaultMsg('Error: ' + e.message); }
+    finally { setSavingDefault(false); }
+  }
+
+  async function setAsDefault(planId) {
+    setSavingDefault(true); setDefaultMsg('');
+    try {
+      await api.put('/admin/settings', { default_plan_id: String(planId) });
+      setDefaultPlanId(String(planId));
+      setDefaultMsg('Default plan updated');
+      setTimeout(() => setDefaultMsg(''), 3000);
+    } catch (e) { setDefaultMsg('Error: ' + e.message); }
+    finally { setSavingDefault(false); }
+  }
+
+  if (loading) return <p className="muted">Loading...</p>;
+
+  const activePlans = plans.filter(p => p.is_active);
+  const defaultPlan = plans.find(p => String(p.id) === String(defaultPlanId));
+
   return (
     <section className="card">
       {error && <div className="alert alert-error">{error}</div>}
 
-      <button className="btn btn-primary" onClick={() => setEditing({ name: '', duration_days: 30, actual_price_unit: 99, offer_price_unit: 49, currency: 'INR' })}>
-        + New plan
-      </button>
+      {/* Default plan selector */}
+      <div style={{ padding: 16, borderRadius: 8, marginBottom: 20,
+        background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>Default Plan for New Signups</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--subtext)' }}>
+          When a user signs up for the first time, this plan is automatically assigned to them.
+          Set to "None" to not assign any plan automatically.
+        </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select value={defaultPlanId}
+            onChange={e => setDefaultPlanId(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--card)', color: 'var(--text)', fontSize: 14, minWidth: 200 }}>
+            <option value="">None (no auto-assign)</option>
+            {activePlans.map(p => (
+              <option key={p.id} value={String(p.id)}>
+                {p.name} - {formatPrice(p.offer_price, p.currency)} / {p.duration_days} days
+              </option>
+            ))}
+          </select>
+          <button onClick={saveDefault} disabled={savingDefault}
+            style={{ padding: '8px 18px', borderRadius: 6, border: 'none',
+              background: 'var(--accent)', color: '#fff', fontWeight: 600,
+              cursor: savingDefault ? 'not-allowed' : 'pointer',
+              opacity: savingDefault ? 0.6 : 1, fontSize: 13 }}>
+            {savingDefault ? 'Saving...' : 'Save Default'}
+          </button>
+          {defaultMsg && (
+            <span style={{ fontSize: 13,
+              color: defaultMsg.startsWith('Error') ? 'var(--reject)' : '#22c55e' }}>
+              {defaultMsg}
+            </span>
+          )}
+        </div>
+        {defaultPlan && (
+          <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, fontSize: 13,
+            background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+            border: '1px solid rgba(34,197,94,0.25)' }}>
+            New signups will automatically get: <strong>{defaultPlan.name}</strong> ({defaultPlan.duration_days} days)
+          </div>
+        )}
+        {!defaultPlanId && (
+          <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, fontSize: 13,
+            background: 'rgba(107,114,128,0.1)', color: '#6b7280' }}>
+            No default plan set. New signups will have no subscription unless manually assigned.
+          </div>
+        )}
+      </div>
 
-      {editing && <PlanForm plan={editing} onSaved={() => { setEditing(null); load(); }} onCancel={() => setEditing(null)} />}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 15 }}>All Plans</h3>
+        <button className="btn btn-primary"
+          onClick={() => setEditing({ name: '', duration_days: 30, actual_price_unit: 99,
+            offer_price_unit: 49, currency: 'INR' })}>
+          + New Plan
+        </button>
+      </div>
 
-      {plans.length === 0 ? <p className="muted" style={{ marginTop: 14 }}>No plans yet. Create one above.</p> : (
-        <table style={{ marginTop: 16 }}>
+      {editing && (
+        <PlanForm plan={editing}
+          onSaved={() => { setEditing(null); load(); }}
+          onCancel={() => setEditing(null)}/>
+      )}
+
+      {plans.length === 0 ? (
+        <p className="muted" style={{ marginTop: 14 }}>No plans yet. Create one above.</p>
+      ) : (
+        <table style={{ marginTop: 8 }}>
           <thead><tr>
-            <th>Name</th><th>Duration</th><th>Actual</th><th>Offer</th><th>Status</th><th>Actions</th>
+            <th>Name</th><th>Duration</th><th>Actual</th><th>Offer</th>
+            <th>Default</th><th>Status</th><th>Actions</th>
           </tr></thead>
           <tbody>
-            {plans.map(p => (
-              <tr key={p.id}>
-                <td><strong>{p.name}</strong></td>
-                <td>{p.duration_days} days</td>
-                <td className="muted"><s>{formatPrice(p.actual_price, p.currency)}</s></td>
-                <td><strong>{formatPrice(p.offer_price, p.currency)}</strong></td>
-                <td><span className={`pill pill-${p.is_active ? 'verified' : 'pending'}`}>
-                  {p.is_active ? 'active' : 'inactive'}
-                </span></td>
-                <td className="actions">
-                  <button className="btn btn-mini btn-ghost" onClick={() => setEditing(p)}>Edit</button>
-                  {p.is_active && (
-                    <button className="btn btn-mini btn-danger"
-                      onClick={async () => {
-                        if (!confirm('Deactivate this plan?')) return;
-                        await api.del(`/admin/plans/${p.id}`); load();
-                      }}>Deactivate</button>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {plans.map(p => {
+              const isDefault = String(p.id) === String(defaultPlanId);
+              return (
+                <tr key={p.id}>
+                  <td><strong>{p.name}</strong></td>
+                  <td>{p.duration_days} days</td>
+                  <td className="muted"><s>{formatPrice(p.actual_price, p.currency)}</s></td>
+                  <td><strong>{formatPrice(p.offer_price, p.currency)}</strong></td>
+                  <td>
+                    {isDefault ? (
+                      <span style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e',
+                        borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                        DEFAULT
+                      </span>
+                    ) : (
+                      p.is_active && (
+                        <button onClick={() => setAsDefault(p.id)}
+                          style={{ padding: '3px 8px', borderRadius: 4, border: 'none',
+                            background: 'var(--surface)', color: 'var(--subtext)',
+                            cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                          Set Default
+                        </button>
+                      )
+                    )}
+                  </td>
+                  <td>
+                    <span className={`pill pill-${p.is_active ? 'verified' : 'pending'}`}>
+                      {p.is_active ? 'active' : 'inactive'}
+                    </span>
+                  </td>
+                  <td className="actions">
+                    <button className="btn btn-mini btn-ghost" onClick={() => setEditing(p)}>
+                      Edit
+                    </button>
+                    {p.is_active && (
+                      <button className="btn btn-mini btn-danger"
+                        onClick={async () => {
+                          if (!confirm('Deactivate this plan?')) return;
+                          await api.del(`/admin/plans/${p.id}`); load();
+                        }}>
+                        Deactivate
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -451,87 +569,7 @@ function PaymentsTab() {
 }
 
 // =================== GENERAL ===================
-function GeneralTab() {
-  const [trialDays, setTrialDays] = useState('');
-  const [razorpayMode, setRazorpayMode] = useState('test');
-  const [keyId, setKeyId]         = useState('');
-  const [keySecret, setKeySecret] = useState('');
-  const [webhookSec, setWebhookSec] = useState('');
-  const [savedFlag, setSavedFlag] = useState(false);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    api.get('/admin/settings').then(r => {
-      setTrialDays(r.settings.trial_days || '7');
-      setRazorpayMode(r.settings.razorpay_mode || 'test');
-      setKeyId(r.settings.razorpay_key_id || '');
-      setKeySecret(r.settings.razorpay_key_secret || '');
-      setWebhookSec(r.settings.razorpay_webhook_secret || '');
-    }).catch(e => setError(e.message));
-  }, []);
-
-  async function save() {
-    setError('');
-    try {
-      await api.put('/admin/settings', {
-        trial_days: trialDays,
-        razorpay_mode: razorpayMode,
-        razorpay_key_id: keyId,
-        razorpay_key_secret: keySecret,
-        razorpay_webhook_secret: webhookSec
-      });
-      setSavedFlag(true);
-      setTimeout(() => setSavedFlag(false), 3000);
-    } catch (e) { setError(e.message); }
-  }
-
-  return (
-    <>
-      {savedFlag && <div className="alert alert-success">✓ Saved</div>}
-      {error && <div className="alert alert-error">{error}</div>}
-
-      <section className="card">
-        <h2>Free trial</h2>
-        <p className="muted" style={{ marginBottom: 12 }}>
-          Number of days a brand-new signup gets free. Set to 0 to disable trials.
-        </p>
-        <label>Trial days</label>
-        <input type="number" min="0" max="365" value={trialDays}
-          onChange={e => setTrialDays(e.target.value)} style={{ maxWidth: 200 }}/>
-      </section>
-
-      <section className="card">
-        <h2>Razorpay credentials</h2>
-        <p className="muted" style={{ marginBottom: 12 }}>
-          Get these from your Razorpay dashboard → Settings → API Keys.
-          Webhook secret comes from Razorpay → Settings → Webhooks.
-          The Android app calls these via the backend — credentials never leave the server.
-        </p>
-        <div className="row">
-          <div className="col">
-            <label>Mode</label>
-            <select value={razorpayMode} onChange={e => setRazorpayMode(e.target.value)}>
-              <option value="test">Test</option>
-              <option value="live">Live</option>
-            </select>
-          </div>
-          <div className="col">
-            <label>Key ID</label>
-            <input type="text" value={keyId} onChange={e => setKeyId(e.target.value)} placeholder="rzp_test_… or rzp_live_…"/>
-          </div>
-        </div>
-        <label>Key Secret</label>
-        <input type="password" value={keySecret} onChange={e => setKeySecret(e.target.value)}/>
-        <label>Webhook secret</label>
-        <input type="password" value={webhookSec} onChange={e => setWebhookSec(e.target.value)}/>
-      </section>
-
-      <button className="btn btn-primary" onClick={save}>Save</button>
-    </>
-  );
-}
-
-// =================== HELPERS ===================
 function SimplePagination({ data, onPage }) {
   if (data.total_pages <= 1) return null;
   return (

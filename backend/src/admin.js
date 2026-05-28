@@ -332,7 +332,9 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'msg91_route',
       'msg91_template_id',
       'sms_api_message_template',
-      'sms_provider'
+      'sms_provider',
+      'trial_days',
+      'default_plan_id'
     ];
     const incoming = req.body || {};
     for (const k of allowed) {
