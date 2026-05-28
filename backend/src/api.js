@@ -98,7 +98,9 @@ router.post('/signup', async (req, res, next) => {
                               || '{OTP} is your OTP. Do not share with anyone.';
 
         if (apiUrl && userid) {
-          const message = msgTemplate.replace(/\{OTP\}/g, code);
+          // Replace OTP placeholder and clean up whitespace
+          const message = msgTemplate.replace(/\{OTP\}/g, code)
+                           .replace(/\r?\n/g, ' ').trim();
           const stripCC = (await getSetting('sms_api_strip_country_code')) !== 'false';
           let mobile = `${user.dial_code || ''}${user.mobile}`.replace(/^\+/, '');
           if (stripCC) {
@@ -118,18 +120,12 @@ router.post('/signup', async (req, res, next) => {
           if (templateId)   params.set('templateid',   templateId);
 
           const smsUrl = `${apiUrl}?${params.toString()}`;
-          // Send via SMS API (native fetch, 15s timeout)
-          const ctrl = new AbortController();
-          const t = setTimeout(() => ctrl.abort(), 15000);
+          // Send via built-in https/http (avoids Railway fetch SSL issues)
           try {
-            const smsRes = await fetch(smsUrl, { method: 'GET', signal: ctrl.signal });
-            clearTimeout(t);
-            const smsBody = await smsRes.text();
-            console.log(`[SMS] status=${smsRes.status} resp=${smsBody.substring(0,80)}`);
+            const { status: smsStatus, body: smsBody } = await httpGet(smsUrl, 15000);
+            console.log('[SMS] status=' + smsStatus + ' resp=' + smsBody.substring(0, 80));
           } catch (fetchErr) {
-            clearTimeout(t);
-            console.warn('[SMS] send failed:', fetchErr.message);
-            // Non-fatal - OTP already saved to DB
+            console.warn('[SMS] send failed (non-fatal):', fetchErr.message);
           }
         }
       } catch (smsErr) {
@@ -1287,3 +1283,23 @@ router.get('/global-blocklist/user-config', async (req, res, next) => {
 });
 
 module.exports = router;
+
+// HTTP GET helper using Node built-in modules (avoids fetch SSL issues on Railway)
+function httpGet(urlStr, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
+  return new Promise(function(resolve, reject) {
+    try {
+      var parsed = new URL(urlStr);
+      var mod = parsed.protocol === 'https:' ? require('https') : require('http');
+      var req = mod.get(urlStr, { timeout: timeoutMs }, function(res) {
+        var data = '';
+        res.setEncoding('utf8');
+        res.on('data', function(chunk) { data += chunk; });
+        res.on('end', function() { resolve({ status: res.statusCode, body: data }); });
+      });
+      req.on('timeout', function() { req.destroy(new Error('SMS request timed out')); });
+      req.on('error', reject);
+    } catch(e) { reject(e); }
+  });
+}
+

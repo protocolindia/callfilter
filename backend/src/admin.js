@@ -2,6 +2,26 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { query, one, many } = require('./db');
 const { requireAdmin, requireRole, globalScopeWhere, PERMS } = require('./auth_admin.js');
+
+// ── HTTP GET helper (uses Node built-in https/http, more reliable than fetch) ──
+function httpGet(urlStr, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    try {
+      const parsed = new URL(urlStr);
+      const mod = parsed.protocol === 'https:' ? require('https') : require('http');
+      const req = mod.get(urlStr, { timeout: timeoutMs }, (res) => {
+        let data = '';
+        res.setEncoding('utf8');
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => resolve({ status: res.statusCode, body: data }));
+      });
+      req.on('timeout', () => { req.destroy(new Error('SMS request timed out')); });
+      req.on('error', reject);
+    } catch (e) { reject(e); }
+  });
+}
+
+
 const router = express.Router();
 
 async function audit(actor, event, details) {
@@ -1339,7 +1359,8 @@ router.post('/test-sms', requireAdmin, async (req, res, next) => {
       return res.status(400).json({ error: 'SMS API URL and userid are required. Configure in settings.' });
 
     const testOtp = '123456';
-    const message = msgTemplate.replace(/\{OTP\}/g, testOtp);
+    const message = msgTemplate.replace(/\{OTP\}/g, testOtp)
+                      .replace(/\r?\n/g, ' ').trim();
     const mobileClean = mobile.replace(/^\+/, '');
 
     const params = new URLSearchParams({ userid, password: password || '', [mobileParam]: mobileClean, [messageParam]: message });
@@ -1351,19 +1372,9 @@ router.post('/test-sms', requireAdmin, async (req, res, next) => {
     const smsUrl = `${apiUrl}?${params.toString()}`;
     console.log('[TestSMS] URL:', smsUrl.replace(password || '', '***'));
 
-    // Native fetch with 15s timeout
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    let body = ''; let statusCode = 0;
-    try {
-      const smsRes = await fetch(smsUrl, { method: 'GET', signal: controller.signal });
-      clearTimeout(timer);
-      statusCode = smsRes.status;
-      body = await smsRes.text();
-    } catch (fetchErr) {
-      clearTimeout(timer);
-      throw new Error('SMS gateway error: ' + fetchErr.message);
-    }
+    // Send via built-in https/http module (more reliable than native fetch on Railway)
+    const { status: statusCode, body } = await httpGet(smsUrl, 15000)
+      .catch(e => { throw new Error('SMS gateway error: ' + e.message); });
 
     await audit(req.admin.username, 'test_sms_sent', `to=${mobileClean}`);
     res.json({ ok: true, status: statusCode, response: body.substring(0, 300), url_preview: smsUrl.split('?')[0] });
