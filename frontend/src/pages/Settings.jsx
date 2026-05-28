@@ -169,15 +169,51 @@ export default function Settings() {
       {tab === 'sms' && (
         <form onSubmit={save}>
           <div className="card" style={{ marginBottom: 16 }}>
-            <h2 style={{ marginTop: 0, marginBottom: 6 }}>SMS API Configuration</h2>
-            <p style={{ color: 'var(--subtext)', fontSize: 13, marginBottom: 20 }}>
-              URL-based SMS gateway for OTP delivery.
-              Only <strong style={{ color: '#4f8ef7' }}>mobile number</strong> and
-              the <strong style={{ color: '#4f8ef7' }}>{'{OTP}'} value</strong> change per message.
-            </p>
+            <h2 style={{ marginTop: 0, marginBottom: 16 }}>SMS API Configuration</h2>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={lbl}>SMS MODE</label>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              {[
+                { value: 'none',       icon: '🧪', label: 'Demo Mode',  desc: 'OTP shown on screen - for testing only' },
+                { value: 'custom_url', icon: '📡', label: 'Custom URL', desc: 'Send via your SMS gateway URL' },
+              ].map(function(opt) {
+                var active = (settings.sms_provider || 'none') === opt.value;
+                return (
+                  <div key={opt.value} onClick={function() { set('sms_provider', opt.value); }}
+                    style={{
+                      flex: 1, padding: '14px 16px', borderRadius: 8, cursor: 'pointer',
+                      border: active ? '2px solid var(--accent)' : '2px solid var(--border)',
+                      background: active ? 'rgba(79,142,247,0.08)' : 'var(--surface)',
+                    }}>
+                    <div style={{ fontSize: 20, marginBottom: 4 }}>{opt.icon}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14,
+                      color: active ? 'var(--accent)' : 'var(--text)' }}>{opt.label}</div>
+                    <div style={{ fontSize: 12, color: 'var(--subtext)', marginTop: 2 }}>{opt.desc}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {(settings.sms_provider || 'none') === 'none' && (
+              <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 6, fontSize: 13,
+                background: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+                border: '1px solid rgba(245,158,11,0.3)' }}>
+                Demo mode: OTP shown on signup screen. No SMS sent.
+              </div>
+            )}
+            {(settings.sms_provider || 'none') === 'custom_url' && (
+              <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 6, fontSize: 13,
+                background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+                border: '1px solid rgba(34,197,94,0.3)' }}>
+                Custom URL mode: OTPs sent via your SMS gateway below.
+              </div>
+            )}
+          </div>
 
             {/* Fixed fields */}
-            <p style={{ ...lbl, marginBottom: 10, color: '#6b7280' }}>Fixed credentials (same for every SMS)</p>
+                      {(settings.sms_provider || 'none') === 'custom_url' && (
+          <>
+<p style={{ ...lbl, marginBottom: 10, color: '#6b7280' }}>Fixed credentials (same for every SMS)</p>
             <div style={{ ...g2, marginBottom: 20 }}>
               <Field label="API Base URL" hint="URL without any parameters" span>
                 <input value={settings.sms_api_url || ''}
@@ -295,7 +331,10 @@ export default function Settings() {
                   {testMsg}
                 </p>
               )}
-            </div>
+            
+          </>
+          )}
+</div>
           </div>
 
           <button type="submit" disabled={saving} style={{
