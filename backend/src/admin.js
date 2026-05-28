@@ -1374,28 +1374,31 @@ router.post('/test-sms', requireAdmin, async (req, res, next) => {
                          || '{OTP} is your OTP. Do not share with anyone.';
 
     if (!apiUrl || !userid)
-      return res.status(400).json({ error: 'SMS API URL and userid are required. Configure in settings.' });
+      return res.status(400).json({ error: 'SMS API URL and userid are required.' });
 
     const testOtp = '123456';
-    const message = msgTemplate.replace(/\{OTP\}/g, testOtp)
-                      .replace(/\r?\n/g, ' ').trim();
-    const mobileClean = mobile.replace(/^\+/, '');
+    const message = msgTemplate.replace(/\{OTP\}/g, testOtp).replace(/\r?\n/g, ' ').trim();
+    const mobileClean = mobile.replace(/^\+/, '').replace(/\D/g, '');
+    const stripCC = (await getSetting('sms_api_strip_country_code')) !== 'false';
+    const mobileFinal = (stripCC && mobileClean.length > 10)
+      ? mobileClean.slice(-10) : mobileClean;
 
-    const params = new URLSearchParams({ userid, password: password || '', [mobileParam]: mobileClean, [messageParam]: message });
+    const params = new URLSearchParams({
+      userid, password: password || '',
+      [mobileParam]: mobileFinal,
+      [messageParam]: message
+    });
     if (senderName)   params.set('sendername',   senderName);
     if (senderNumber) params.set('sendernumber', senderNumber);
     if (category)     params.set('category',     category);
     if (templateId)   params.set('templateid',   templateId);
 
-    const smsUrl = `${apiUrl}?${params.toString()}`;
-    console.log('[TestSMS] URL:', smsUrl.replace(password || '', '***'));
+    const smsUrl = apiUrl + '?' + params.toString();
 
-    // Send via built-in https/http module (more reliable than native fetch on Railway)
-    const { status: statusCode, body } = await httpGet(smsUrl, 15000)
-      .catch(e => { throw new Error('SMS gateway error: ' + e.message); });
+    await audit(req.admin.username, 'test_sms_built', 'to=' + mobileFinal);
 
-    await audit(req.admin.username, 'test_sms_sent', `to=${mobileClean}`);
-    res.json({ ok: true, status: statusCode, response: body.substring(0, 300), url_preview: smsUrl.split('?')[0] });
+    // Return URL to frontend — browser makes the actual call (avoids Railway network block)
+    res.json({ ok: true, sms_url: smsUrl, mobile: mobileFinal });
   } catch (e) { next(e); }
 });
 

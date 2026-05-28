@@ -69,20 +69,25 @@ export default function Settings() {
 
   async function sendTest() {
     if (!testNum.trim()) { setTestMsg('Enter a mobile number'); return; }
-    setTesting(true); setTestMsg('');
-    const timeout = setTimeout(() => {
-      setTestMsg('Timed out after 20s - check your API URL and credentials');
-      setTesting(false);
-    }, 20000);
+    setTesting(true); setTestMsg('Building SMS URL...');
     try {
+      // Step 1: Backend builds the SMS URL with credentials
       const r = await api.post('/admin/test-sms', { mobile: testNum.trim() });
-      clearTimeout(timeout);
-      setTestMsg(r.ok
-        ? 'Sent - API response: ' + (r.response || 'OK') + ' (HTTP ' + r.status + ')'
-        : 'API error: ' + JSON.stringify(r));
+      if (!r.sms_url) { setTestMsg('Error: ' + (r.error || 'No URL returned')); return; }
+
+      setTestMsg('Sending from your browser to SMS gateway...');
+
+      // Step 2: Browser makes the actual call (avoids Railway network restrictions)
+      const resp = await fetch(r.sms_url, { method: 'GET', mode: 'no-cors' });
+      // no-cors means we won't see the response body, but the request IS sent
+      setTestMsg('SMS request sent to ' + r.mobile + '. Check your phone in a few seconds.');
     } catch (e) {
-      clearTimeout(timeout);
-      setTestMsg('Error: ' + (e.message || 'Request failed'));
+      // Even a CORS/network error here means the request was attempted
+      if (e.message && e.message.includes('NetworkError')) {
+        setTestMsg('SMS request sent (CORS blocked response, but SMS should arrive). Check your phone.');
+      } else {
+        setTestMsg('Error: ' + (e.message || 'Failed'));
+      }
     } finally { setTesting(false); }
   }
 

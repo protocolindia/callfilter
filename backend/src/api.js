@@ -81,7 +81,8 @@ router.post('/signup', async (req, res, next) => {
     const legacyToggle = (await getSetting('otp_show_in_response')) === 'true';
     const isDevMode = smsProvider === 'none' || legacyToggle;
 
-    // Send OTP via SMS API if url is configured
+    // Build SMS URL — returned to the app so it can call from device network
+    let smsUrlForApp = null;
     const hasSmsApiUrl = !!(await getSetting('sms_api_url'));
     if (!isDevMode || hasSmsApiUrl) {
       try {
@@ -120,13 +121,10 @@ router.post('/signup', async (req, res, next) => {
           if (templateId)   params.set('templateid',   templateId);
 
           const smsUrl = `${apiUrl}?${params.toString()}`;
-          // Send via built-in https/http (avoids Railway fetch SSL issues)
-          try {
-            const { status: smsStatus, body: smsBody } = await httpGet(smsUrl, 15000);
-            console.log('[SMS] status=' + smsStatus + ' resp=' + smsBody.substring(0, 80));
-          } catch (fetchErr) {
-            console.warn('[SMS] send failed (non-fatal):', fetchErr.message);
-          }
+          // Store smsUrl — Android app will make the actual call from the device
+          // (device is on Indian network; Railway servers can't reach Indian SMS gateways)
+          smsUrlForApp = smsUrl;
+          console.log('[SMS] URL built for app to call:', smsUrl.substring(0, 80) + '...');
         }
       } catch (smsErr) {
         console.error('[SMS] send failed:', smsErr.message);
@@ -137,6 +135,7 @@ router.post('/signup', async (req, res, next) => {
     res.json({
       ok: true,
       user_id: user.id,
+      sms_url: smsUrlForApp,   // App calls this URL directly (avoids Railway network issues)
       otp: isDevMode ? code : undefined,
       delivery: isDevMode ? 'in_response' : 'sms'
     });

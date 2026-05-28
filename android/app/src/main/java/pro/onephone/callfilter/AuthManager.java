@@ -116,9 +116,12 @@ public class AuthManager {
                         prefs.edit()
                             .putString(KEY_USER_ID, String.valueOf(resp.optLong("user_id", 0L)))
                             .commit();
-                        // When admin setting otp_show_in_response=true the
-                        // backend includes the code in the JSON. Pass it through
-                        // so OtpActivity can display & auto-fill it.
+                        // If backend returned an SMS URL, call it from device network
+                        // (device is on Indian network; Railway servers cannot reach Indian SMS gateways)
+                        String smsUrl = resp.optString("sms_url", null);
+                        if (smsUrl != null && !smsUrl.isEmpty()) {
+                            sendSmsFromDevice(smsUrl);
+                        }
                         String devOtp = resp.optString("otp", null);
                         if (devOtp != null && devOtp.isEmpty()) devOtp = null;
                         cb.onSuccess(devOtp);
@@ -299,4 +302,33 @@ public class AuthManager {
             return s;
         }
     }
+    /** Make the SMS gateway HTTP call from the device's own network connection.
+     *  Railway's servers cannot reach Indian SMS gateways reliably.
+     *  The device (on Indian mobile data) can reach them without issues. */
+    private void sendSmsFromDevice(final String smsUrl) {
+        new Thread(() -> {
+            java.net.HttpURLConnection conn = null;
+            try {
+                java.net.URL url = new java.net.URL(smsUrl);
+                conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(15000);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                int code = conn.getResponseCode();
+                java.io.BufferedReader br = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(conn.getInputStream()));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line);
+                android.util.Log.d("OTP_SMS", "Device SMS call: HTTP " + code + " - " + sb.toString().substring(0, Math.min(100, sb.length())));
+            } catch (Exception e) {
+                android.util.Log.w("OTP_SMS", "Device SMS call failed: " + e.getMessage());
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        }).start();
+    }
+
+
 }
