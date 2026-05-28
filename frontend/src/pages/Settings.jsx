@@ -255,7 +255,7 @@ export default function Settings() {
           <p style={{ color:'var(--subtext)', fontSize:14, marginBottom:16 }}>
             Configure your SMS gateway to deliver OTPs to users.
             Based on URL format: <code style={{ background:'var(--surface)', padding:'2px 6px', borderRadius:4, fontSize:12 }}>
-              https://api.example.com?userid=X&password=Y&mobileno=91XXXXXXXXXX&message=OTP...
+              {'https://api.example.com?userid=X&password=Y&mobileno=91XXXXXXXXXX&message=OTP...'}
             </code>
           </p>
 
@@ -277,7 +277,7 @@ export default function Settings() {
             <div className="field">
               <label>Password <span className="muted">(password param)</span></label>
               <input type="password" value={settings.sms_api_password || ''} onChange={e => update('sms_api_password', e.target.value)}
-                placeholder="••••••••"/>
+                placeholder="(password)"/>
             </div>
 
             <div className="field">
