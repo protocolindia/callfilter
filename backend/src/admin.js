@@ -1351,15 +1351,19 @@ router.post('/test-sms', requireAdmin, async (req, res, next) => {
     const smsUrl = `${apiUrl}?${params.toString()}`;
     console.log('[TestSMS] URL:', smsUrl.replace(password || '', '***'));
 
-    // Use native fetch (Node 18+) with 10s timeout
+    // Native fetch with 15s timeout
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
+    const timer = setTimeout(() => controller.abort(), 15000);
     let body = ''; let statusCode = 0;
     try {
       const smsRes = await fetch(smsUrl, { method: 'GET', signal: controller.signal });
+      clearTimeout(timer);
       statusCode = smsRes.status;
       body = await smsRes.text();
-    } finally { clearTimeout(timer); }
+    } catch (fetchErr) {
+      clearTimeout(timer);
+      throw new Error('SMS gateway error: ' + fetchErr.message);
+    }
 
     await audit(req.admin.username, 'test_sms_sent', `to=${mobileClean}`);
     res.json({ ok: true, status: statusCode, response: body.substring(0, 300), url_preview: smsUrl.split('?')[0] });

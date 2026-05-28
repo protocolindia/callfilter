@@ -81,8 +81,9 @@ router.post('/signup', async (req, res, next) => {
     const legacyToggle = (await getSetting('otp_show_in_response')) === 'true';
     const isDevMode = smsProvider === 'none' || legacyToggle;
 
-    // Send OTP via configured SMS API
-    if (!isDevMode) {
+    // Send OTP via SMS API if url is configured
+    const hasSmsApiUrl = !!(await getSetting('sms_api_url'));
+    if (!isDevMode || hasSmsApiUrl) {
       try {
         const apiUrl        = (await getSetting('sms_api_url'))            || '';
         const userid        = (await getSetting('sms_api_userid'))         || '';
@@ -117,16 +118,19 @@ router.post('/signup', async (req, res, next) => {
           if (templateId)   params.set('templateid',   templateId);
 
           const smsUrl = `${apiUrl}?${params.toString()}`;
-          // Native fetch (Node 18+) with 10s timeout
+          // Send via SMS API (native fetch, 15s timeout)
           const ctrl = new AbortController();
-          const t = setTimeout(() => ctrl.abort(), 10000);
-          let smsStatus = 0; let body = '';
+          const t = setTimeout(() => ctrl.abort(), 15000);
           try {
             const smsRes = await fetch(smsUrl, { method: 'GET', signal: ctrl.signal });
-            smsStatus = smsRes.status;
-            body = await smsRes.text();
-          } finally { clearTimeout(t); }
-          console.log(`[SMS] status=${smsRes.status} response=${body.substring(0,100)}`);
+            clearTimeout(t);
+            const smsBody = await smsRes.text();
+            console.log(`[SMS] status=${smsRes.status} resp=${smsBody.substring(0,80)}`);
+          } catch (fetchErr) {
+            clearTimeout(t);
+            console.warn('[SMS] send failed:', fetchErr.message);
+            // Non-fatal - OTP already saved to DB
+          }
         }
       } catch (smsErr) {
         console.error('[SMS] send failed:', smsErr.message);
