@@ -74,13 +74,22 @@
                         android:textColor="@color/muted"
                         android:letterSpacing="0.1"/>
                     <TextView
+                        android:id="@+id/profileNameLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"
+                        android:layout_marginTop="2dp"
+                        android:visibility="gone"/>
+                    <TextView
                         android:id="@+id/profileMobileLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="+91..."
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text"
+                        android:textSize="15sp"
+                        android:textColor="@color/subtext"
                         android:layout_marginTop="2dp"/>
                 </LinearLayout>
             </LinearLayout>
@@ -385,7 +394,7 @@
                     android:textColor="@color/reject"/>
             </LinearLayout>
 
-            <!-- Auto-SMS Reply Card -->
+            <!-- Auto-Reply SMS Templates Card -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -398,42 +407,39 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="10dp">
-                    <LinearLayout android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_height="wrap_content" android:orientation="vertical">
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Auto-reply SMS when call is blocked"
-                            android:textSize="14sp" android:textStyle="bold" android:textColor="@color/text"/>
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Sends SMS automatically to blocked callers"
-                            android:textSize="12sp" android:textColor="@color/subtext" android:layout_marginTop="2dp"/>
-                    </LinearLayout>
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/switchAutoSms"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                    android:layout_marginBottom="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="💬" android:textSize="20sp" android:layout_marginEnd="8dp"/>
+                    <TextView android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:text="Auto-Reply SMS Templates"
+                        android:textSize="15sp" android:textStyle="bold" android:textColor="@color/text"/>
                 </LinearLayout>
-                <EditText
-                    android:id="@+id/etAutoSmsMessage"
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:hint="SMS message to send to blocked callers..."
-                    android:textSize="13sp" android:textColor="@color/text"
-                    android:textColorHint="@color/muted"
-                    android:background="@drawable/btn_type_inactive"
-                    android:padding="10dp" android:minLines="2" android:maxLines="4"
-                    android:inputType="textMultiLine" android:gravity="top"/>
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Saved messages you can pick from when you start a Block All Now session. The chosen template is auto-sent to blocked callers."
+                    android:textSize="12sp" android:textColor="@color/subtext"
+                    android:layout_marginBottom="12dp"/>
+
+                <!-- Templates list rendered programmatically -->
+                <LinearLayout
+                    android:id="@+id/smsTemplatesContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"/>
+
                 <Button
-                    android:id="@+id/btnSaveSmsMessage"
-                    android:layout_width="wrap_content" android:layout_height="36dp"
-                    android:text="Save message" android:textSize="12sp" android:textColor="#fff"
+                    android:id="@+id/btnAddSmsTemplate"
+                    android:layout_width="wrap_content" android:layout_height="40dp"
+                    android:text="+ Add template" android:textSize="13sp" android:textColor="#fff"
                     android:background="@drawable/btn_accent"
-                    android:paddingStart="14dp" android:paddingEnd="14dp"
+                    android:paddingStart="16dp" android:paddingEnd="16dp"
                     android:layout_marginTop="8dp" android:minWidth="0dp"/>
             </LinearLayout>
             <TextView
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="AI CallFilter · v1.25.228"
+                android:text="AI CallFilter · v1.25.229"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"

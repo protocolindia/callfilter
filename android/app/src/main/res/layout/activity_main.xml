@@ -44,14 +44,17 @@
             android:paddingStart="2dp"
             android:paddingEnd="6dp"
             android:visibility="gone"/>
-        <ImageButton
+        <TextView
             android:id="@+id/btnTopMenu"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_more"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:tint="@color/text"
-            android:contentDescription="Menu"/>
+            android:text="👤"
+            android:textSize="22sp"
+            android:gravity="center"
+            android:background="@drawable/badge_accent"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Account menu"/>
     </LinearLayout>
 
     <!-- Disabled account banner -->

@@ -323,7 +323,8 @@ public class MainActivity extends AppCompatActivity {
         SubscriptionManager sub = SubscriptionManager.getInstance(this);
         // Reload rules in case cloud pull happened in the background
         rulesManager.reload();
-        topBarUserInfo.setText("Signed in: " + auth.getFullNumber() + "  \u00B7  " + sub.getStatusLabel());
+        String who = !auth.getName().isEmpty() ? auth.getName() : auth.getFullNumber();
+        topBarUserInfo.setText("Signed in: " + who);
 
         List<Rule> rules = rulesManager.getRules();
         int acc = 0, rej = 0;

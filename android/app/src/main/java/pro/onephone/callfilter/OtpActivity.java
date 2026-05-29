@@ -119,7 +119,7 @@ public class OtpActivity extends AppCompatActivity {
     private void handleVerify() {
         final String code = otpInput.getText().toString().trim();
         if (code.length() < 4) {
-            Toast.makeText(this, "Enter the 4-digit code", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Enter the verification code", Toast.LENGTH_SHORT).show();
             return;
         }
         btnVerifyOtp.setEnabled(false);

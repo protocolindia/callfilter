@@ -36,30 +36,28 @@ public class BlockAllNowDialog {
     }
 
     public void show() {
-        final String[] labels = {
-            "Block everything (no exceptions)",
-            "Block everyone except my contacts",
-            "Block everyone except specific contacts I pick"
-        };
-        final String[] modes = {
-            BlockAllManager.MODE_EVERYTHING,
-            BlockAllManager.MODE_EXCEPT_CONTACTS,
-            BlockAllManager.MODE_EXCEPT_CUSTOM
-        };
-        new AlertDialog.Builder(activity)
-            .setTitle("🛑  Block All Now — choose mode")
-            .setItems(labels, (d, which) -> {
-                String mode = modes[which];
-                if (BlockAllManager.MODE_EXCEPT_CUSTOM.equals(mode)) {
-                    pendingMode = mode;
-                    Intent i = new Intent(activity, ContactPickerActivity.class);
-                    activity.startActivityForResult(i, REQ_PICK_CONTACTS_FOR_BLOCK_ALL);
-                } else {
-                    askDuration(mode, new ArrayList<>(), new ArrayList<>());
-                }
-            })
+        View view = LayoutInflater.from(activity).inflate(R.layout.dialog_block_mode, null);
+        final AlertDialog dlg = new AlertDialog.Builder(activity)
+            .setView(view)
             .setNegativeButton("Cancel", null)
-            .show();
+            .create();
+
+        view.findViewById(R.id.optEverything).setOnClickListener(v -> {
+            dlg.dismiss();
+            askDuration(BlockAllManager.MODE_EVERYTHING, new ArrayList<>(), new ArrayList<>());
+        });
+        view.findViewById(R.id.optExceptContacts).setOnClickListener(v -> {
+            dlg.dismiss();
+            askDuration(BlockAllManager.MODE_EXCEPT_CONTACTS, new ArrayList<>(), new ArrayList<>());
+        });
+        view.findViewById(R.id.optExceptCustom).setOnClickListener(v -> {
+            dlg.dismiss();
+            pendingMode = BlockAllManager.MODE_EXCEPT_CUSTOM;
+            Intent i = new Intent(activity, ContactPickerActivity.class);
+            activity.startActivityForResult(i, REQ_PICK_CONTACTS_FOR_BLOCK_ALL);
+        });
+
+        dlg.show();
     }
 
     /** Called by the host Activity from its onActivityResult for the contact picker. */
@@ -152,15 +150,56 @@ public class BlockAllNowDialog {
             .show();
     }
 
-    private void activate(String mode, int durationMin,
-                          ArrayList<String> allowNumbers, ArrayList<String> allowNames) {
+    private void activate(final String mode, final int durationMin,
+                          final ArrayList<String> allowNumbers, final ArrayList<String> allowNames) {
+        // Step 3 — ask which auto-reply SMS template to use (or none)
+        askSmsTemplate(mode, durationMin, allowNumbers, allowNames);
+    }
+
+    private void askSmsTemplate(final String mode, final int durationMin,
+                                final ArrayList<String> allowNumbers,
+                                final ArrayList<String> allowNames) {
+        final SmsAutoResponder sms = SmsAutoResponder.getInstance(activity);
+        final java.util.List<String> templates = sms.getTemplates();
+
+        // Build options: "No SMS reply" + each template (truncated for display)
+        final String[] options = new String[templates.size() + 1];
+        options[0] = "✕  No SMS reply";
+        for (int i = 0; i < templates.size(); i++) {
+            String t = templates.get(i);
+            options[i + 1] = "✉  " + (t.length() > 50 ? t.substring(0, 50) + "..." : t);
+        }
+
+        new AlertDialog.Builder(activity)
+            .setTitle("Auto-reply SMS to blocked callers?")
+            .setItems(options, (d, which) -> {
+                if (which == 0) {
+                    sms.setEnabled(false);   // no SMS for this session
+                } else {
+                    sms.setMessage(templates.get(which - 1));
+                    sms.setEnabled(true);
+                    // Ensure SEND_SMS permission
+                    if (activity.checkSelfPermission(android.Manifest.permission.SEND_SMS)
+                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        activity.requestPermissions(
+                            new String[]{ android.Manifest.permission.SEND_SMS }, 201);
+                    }
+                }
+                doActivate(mode, durationMin, allowNumbers, allowNames);
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void doActivate(String mode, int durationMin,
+                            ArrayList<String> allowNumbers, ArrayList<String> allowNames) {
         long expiresAt = (durationMin == 0)
             ? 0L
             : System.currentTimeMillis() + (long) durationMin * 60_000L;
         BlockAllManager.getInstance(activity).activate(mode, expiresAt, allowNumbers, allowNames);
 
         String summary;
-        if (durationMin == 0) summary = "Block All Now active — until you turn it off";
+        if (durationMin == 0) summary = "Block All Now active - until you turn it off";
         else if (durationMin < 60) summary = "Block All Now active for " + durationMin + " min";
         else if (durationMin % 60 == 0) summary = "Block All Now active for " + (durationMin / 60) + "h";
         else summary = "Block All Now active for " + (durationMin / 60) + "h " + (durationMin % 60) + "m";
