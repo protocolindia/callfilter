@@ -1411,4 +1411,47 @@ router.post('/test-sms', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+
+// POST /admin/users/:id/reset-subscriptions
+// Cancels all existing subscriptions for a user (for testing/cleanup)
+router.post('/users/:id/reset-subscriptions', requireAdmin, async (req, res, next) => {
+  try {
+    if (req.admin.role !== 'super_admin' && req.admin.role !== 'admin')
+      return res.status(403).json({ error: 'Admin or super_admin only' });
+
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ error: 'invalid user id' });
+
+    const result = await query(
+      `DELETE FROM subscriptions WHERE user_id = $1 RETURNING id`,
+      [userId]
+    );
+    const deletedCount = result.rowCount || 0;
+
+    // Optionally auto-assign the default plan immediately
+    const defaultPlanId = await one('SELECT value FROM settings WHERE key = $1',
+      ['default_plan_id']);
+    let newPlan = null;
+    if (defaultPlanId?.value && parseInt(defaultPlanId.value, 10) > 0) {
+      const plan = await one('SELECT * FROM plans WHERE id = $1 AND is_active = TRUE',
+        [parseInt(defaultPlanId.value, 10)]);
+      if (plan) {
+        const now = new Date();
+        const expires = new Date(now.getTime() + plan.duration_days * 86400000);
+        await query(
+          `INSERT INTO subscriptions(user_id, plan_id, plan_name, duration_days,
+             amount_paid, currency, starts_at, expires_at, is_trial, status)
+           VALUES ($1,$2,$3,$4,0,'INR',$5,$6,false,'active')`,
+          [userId, plan.id, plan.name, plan.duration_days, now, expires]
+        );
+        newPlan = plan.name;
+      }
+    }
+
+    await audit(req.admin.username, 'subscriptions_reset',
+      `user_id=${userId}, deleted=${deletedCount}, reassigned=${newPlan || 'none'}`);
+    res.json({ ok: true, deleted: deletedCount, reassigned: newPlan });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

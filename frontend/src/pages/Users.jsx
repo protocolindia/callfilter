@@ -42,6 +42,16 @@ export default function Users() {
     } catch (err) { alert(err.message); }
   }
 
+  async function handleResetSubs(id) {
+    if (!confirm('Delete ALL subscriptions for this user, then re-assign the default plan?\n\nUse this to fix stale test data.')) return;
+    try {
+      const r = await api.post(`/admin/users/${id}/reset-subscriptions`);
+      alert('Done. Deleted ' + r.deleted + ' subscription(s).' +
+        (r.reassigned ? ' Re-assigned default plan: ' + r.reassigned : ' No default plan to assign.'));
+      load();
+    } catch (e) { alert('Error: ' + e.message); }
+  }
+
   async function handleSetActive(id, active) {
     const label = active ? 'activate' : 'deactivate';
     if (!confirm(`Are you sure you want to ${label} this user?`)) return;
@@ -102,7 +112,9 @@ export default function Users() {
                     ) : (
                       <button className="btn btn-mini btn-ghost" onClick={() => handleSetActive(u.id, false)}>Deactivate</button>
                     )}
-                    <button className="btn btn-mini btn-ghost" onClick={() => handleReset(u.id)}>Reset</button>
+                    <button className="btn btn-mini btn-ghost" onClick={() => handleReset(u.id)}>Reset PIN</button>
+                    <button className="btn btn-mini btn-ghost" onClick={() => handleResetSubs(u.id)}
+                      style={{ color: '#f59e0b', borderColor: '#f59e0b' }}>Reset Sub</button>
                     <button className="btn btn-mini btn-danger" onClick={() => handleDelete(u.id)}>Delete</button>
                   </td>
                 </tr>

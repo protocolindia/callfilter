@@ -124,24 +124,34 @@ router.post('/signup', async (req, res, next) => {
       }
     }
 
-    // Auto-assign default plan if configured
+    // Auto-assign default plan ONLY on true first-time signup
+    // (avoids duplicate subscriptions on re-signup / re-install)
     try {
-      const defaultPlanId = (await getSetting('default_plan_id')) || '';
-      if (defaultPlanId && parseInt(defaultPlanId, 10) > 0) {
-        const plan = await one('SELECT * FROM plans WHERE id = $1 AND is_active = TRUE',
-          [parseInt(defaultPlanId, 10)]);
-        if (plan) {
-          const now = new Date();
-          const expires = new Date(now.getTime() + plan.duration_days * 86400000);
-          await query(
-            `INSERT INTO subscriptions(user_id, plan_id, plan_name, duration_days,
-               amount_paid, currency, starts_at, expires_at, is_trial, status)
-             VALUES ($1,$2,$3,$4,0,'INR',$5,$6,false,'active')
-             ON CONFLICT DO NOTHING`,
-            [user.id, plan.id, plan.name, plan.duration_days, now, expires]
-          );
-          console.log('[Signup] Auto-assigned plan', plan.name, 'to user', user.id);
+      const existing = await one(
+        'SELECT id FROM subscriptions WHERE user_id = $1 LIMIT 1',
+        [user.id]
+      );
+      if (!existing) {
+        const defaultPlanId = (await getSetting('default_plan_id')) || '';
+        if (defaultPlanId && parseInt(defaultPlanId, 10) > 0) {
+          const plan = await one('SELECT * FROM plans WHERE id = $1 AND is_active = TRUE',
+            [parseInt(defaultPlanId, 10)]);
+          if (plan) {
+            const now = new Date();
+            const expires = new Date(now.getTime() + plan.duration_days * 86400000);
+            await query(
+              `INSERT INTO subscriptions(user_id, plan_id, plan_name, duration_days,
+                 amount_paid, currency, starts_at, expires_at, is_trial, status)
+               VALUES ($1,$2,$3,$4,0,'INR',$5,$6,false,'active')`,
+              [user.id, plan.id, plan.name, plan.duration_days, now, expires]
+            );
+            console.log('[Signup] Auto-assigned default plan', plan.name, 'to user', user.id);
+          } else {
+            console.warn('[Signup] default_plan_id=' + defaultPlanId + ' not found or inactive');
+          }
         }
+      } else {
+        console.log('[Signup] User', user.id, 'has existing subscription, skipping auto-assign');
       }
     } catch (planErr) {
       console.warn('[Signup] Auto-plan assign failed (non-fatal):', planErr.message);
