@@ -140,10 +140,10 @@ router.post('/signup', async (req, res, next) => {
             const now = new Date();
             const expires = new Date(now.getTime() + plan.duration_days * 86400000);
             await query(
-              `INSERT INTO subscriptions(user_id, plan_id, plan_name, duration_days,
-                 amount_paid, currency, starts_at, expires_at, is_trial, status)
-               VALUES ($1,$2,$3,$4,0,'INR',$5,$6,false,'active')`,
-              [user.id, plan.id, plan.name, plan.duration_days, now, expires]
+              `INSERT INTO subscriptions(user_id, plan_id, amount_paid,
+                 starts_at, expires_at, is_trial, status, provider)
+               VALUES ($1,$2,0,$3,$4,false,'active','play')`,
+              [user.id, plan.id, now, expires]
             );
             console.log('[Signup] Auto-assigned default plan', plan.name, 'to user', user.id);
           } else {
