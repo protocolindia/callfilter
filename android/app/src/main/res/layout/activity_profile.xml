@@ -439,7 +439,7 @@
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="AI CallFilter · v1.25.229"
+                android:text="AI CallFilter · v1.25.230"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"
