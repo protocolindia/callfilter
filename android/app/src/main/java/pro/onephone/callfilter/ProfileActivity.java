@@ -151,25 +151,7 @@ public class ProfileActivity extends AppCompatActivity {
             autoSum.setText(checked ? "Locks after 5 minutes in background" : "Off");
         });
 
-        // ----- Sign out (full logout) — wipes everything -----
-        findViewById(R.id.rowLogout).setOnClickListener(v -> {
-            new AlertDialog.Builder(this)
-                .setTitle("Sign out completely?")
-                .setMessage("This SIGNS YOU OUT and clears your local data on this "
-                    + "device. You'll need to enter your mobile and verify via OTP "
-                    + "to sign in again. Your cloud data is preserved.")
-                .setPositiveButton("Sign out", (d, w) -> {
-                    AuthManager.getInstance(ProfileActivity.this).logout();
-                    Intent i = new Intent(ProfileActivity.this, LoginActivity.class);
-                    // NEW_TASK + CLEAR_TASK wipes the entire back stack so the user
-                    // can't swipe-back from Login to Profile after signing out.
-                    i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                    startActivity(i);
-                    finishAffinity();
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-        });
+        
     }
 
     @Override

@@ -35,9 +35,81 @@ public class BlockAllNowDialog {
         this.onActivated = onActivated;
     }
 
+
+    /** Build a dark, card-style single-choice picker. */
+    private AlertDialog buildCardPicker(String title, String[] labels,
+                                        String[] sublabels, final OnPick onPick) {
+        float dp = activity.getResources().getDisplayMetrics().density;
+        android.widget.ScrollView scroll = new android.widget.ScrollView(activity);
+        android.widget.LinearLayout col = new android.widget.LinearLayout(activity);
+        col.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int pad = (int)(20 * dp);
+        col.setPadding(pad, pad, pad, (int)(8*dp));
+
+        android.widget.TextView head = new android.widget.TextView(activity);
+        head.setText(title);
+        head.setTextColor(0xFFFFFFFF);
+        head.setTextSize(18f);
+        head.setTypeface(null, android.graphics.Typeface.BOLD);
+        head.setPadding(0, 0, 0, (int)(14*dp));
+        col.addView(head);
+
+        final AlertDialog[] holder = new AlertDialog[1];
+
+        for (int i = 0; i < labels.length; i++) {
+            final int pos = i;
+            android.widget.LinearLayout row = new android.widget.LinearLayout(activity);
+            row.setOrientation(android.widget.LinearLayout.VERTICAL);
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setColor(0xFF22232A);
+            bg.setCornerRadius(10 * dp);
+            bg.setStroke((int)(1*dp), 0xFF2D2E36);
+            row.setBackground(bg);
+            row.setPadding((int)(16*dp), (int)(14*dp), (int)(16*dp), (int)(14*dp));
+            android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = (int)(10*dp);
+            row.setLayoutParams(lp);
+            row.setClickable(true);
+            row.setFocusable(true);
+
+            android.widget.TextView lbl = new android.widget.TextView(activity);
+            lbl.setText(labels[pos]);
+            lbl.setTextColor(0xFFFFFFFF);
+            lbl.setTextSize(16f);
+            lbl.setTypeface(null, android.graphics.Typeface.BOLD);
+            row.addView(lbl);
+
+            if (sublabels != null && sublabels[pos] != null) {
+                android.widget.TextView sub = new android.widget.TextView(activity);
+                sub.setText(sublabels[pos]);
+                sub.setTextColor(0xFFA1A1AA);
+                sub.setTextSize(12f);
+                row.addView(sub);
+            }
+
+            row.setOnClickListener(v -> {
+                if (holder[0] != null) holder[0].dismiss();
+                onPick.pick(pos);
+            });
+            col.addView(row);
+        }
+
+        scroll.addView(col);
+        AlertDialog dlg = new AlertDialog.Builder(activity, R.style.DarkDialog)
+            .setView(scroll)
+            .setNegativeButton("Cancel", null)
+            .create();
+        holder[0] = dlg;
+        return dlg;
+    }
+
+    private interface OnPick { void pick(int index); }
+
     public void show() {
         View view = LayoutInflater.from(activity).inflate(R.layout.dialog_block_mode, null);
-        final AlertDialog dlg = new AlertDialog.Builder(activity)
+        final AlertDialog dlg = new AlertDialog.Builder(activity, R.style.DarkDialog)
             .setView(view)
             .setNegativeButton("Cancel", null)
             .create();
@@ -81,18 +153,14 @@ public class BlockAllNowDialog {
         final int[] mins = { 15, 30, 60, 120, 240, -1, 0 };
         // -1 = custom, 0 = indefinite
 
-        new AlertDialog.Builder(activity)
-            .setTitle("Activate for how long?")
-            .setItems(labels, (d, which) -> {
-                int chosen = mins[which];
-                if (chosen == -1) {
-                    askCustomDuration(mode, allowNumbers, allowNames);
-                } else {
-                    activate(mode, chosen, allowNumbers, allowNames);
-                }
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
+        buildCardPicker("Activate for how long?", labels, null, (which) -> {
+            int chosen = mins[which];
+            if (chosen == -1) {
+                askCustomDuration(mode, allowNumbers, allowNames);
+            } else {
+                activate(mode, chosen, allowNumbers, allowNames);
+            }
+        }).show();
     }
 
     private void askCustomDuration(final String mode,
@@ -133,7 +201,7 @@ public class BlockAllNowDialog {
         container.addView(hCol);
         container.addView(mCol);
 
-        new AlertDialog.Builder(activity)
+        new AlertDialog.Builder(activity, R.style.DarkDialog)
             .setTitle("Custom duration")
             .setView(container)
             .setPositiveButton("Activate", (d, w) -> {
@@ -162,33 +230,29 @@ public class BlockAllNowDialog {
         final SmsAutoResponder sms = SmsAutoResponder.getInstance(activity);
         final java.util.List<String> templates = sms.getTemplates();
 
-        // Build options: "No SMS reply" + each template (truncated for display)
-        final String[] options = new String[templates.size() + 1];
-        options[0] = "✕  No SMS reply";
+        final String[] labels    = new String[templates.size() + 1];
+        final String[] sublabels = new String[templates.size() + 1];
+        labels[0]    = "✕  No SMS reply";
+        sublabels[0] = "Block silently without texting back";
         for (int i = 0; i < templates.size(); i++) {
-            String t = templates.get(i);
-            options[i + 1] = "✉  " + (t.length() > 50 ? t.substring(0, 50) + "..." : t);
+            labels[i + 1]    = "✉  Template " + (i + 1);
+            sublabels[i + 1] = templates.get(i);
         }
 
-        new AlertDialog.Builder(activity)
-            .setTitle("Auto-reply SMS to blocked callers?")
-            .setItems(options, (d, which) -> {
-                if (which == 0) {
-                    sms.setEnabled(false);   // no SMS for this session
-                } else {
-                    sms.setMessage(templates.get(which - 1));
-                    sms.setEnabled(true);
-                    // Ensure SEND_SMS permission
-                    if (activity.checkSelfPermission(android.Manifest.permission.SEND_SMS)
-                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        activity.requestPermissions(
-                            new String[]{ android.Manifest.permission.SEND_SMS }, 201);
-                    }
+        buildCardPicker("Auto-reply SMS to blocked callers?", labels, sublabels, (which) -> {
+            if (which == 0) {
+                sms.setEnabled(false);
+            } else {
+                sms.setMessage(templates.get(which - 1));
+                sms.setEnabled(true);
+                if (activity.checkSelfPermission(android.Manifest.permission.SEND_SMS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    activity.requestPermissions(
+                        new String[]{ android.Manifest.permission.SEND_SMS }, 201);
                 }
-                doActivate(mode, durationMin, allowNumbers, allowNames);
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
+            }
+            doActivate(mode, durationMin, allowNumbers, allowNames);
+        }).show();
     }
 
     private void doActivate(String mode, int durationMin,
