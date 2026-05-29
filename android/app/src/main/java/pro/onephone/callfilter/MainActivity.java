@@ -36,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
         }
     };
     private TextView blockedCallsCount, schedulesSummary, schedulesBadge;
-    private TextView btnTopMenu;
+    private ImageView btnTopMenu;
     private SwitchCompat contactsOnlySwitch;
 
     // Add rule form

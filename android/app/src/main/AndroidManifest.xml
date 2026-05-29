@@ -90,5 +90,6 @@
                 <action android:name="pro.onephone.callfilter.BLOCK_FROM_NOTIF"/>
             </intent-filter>
         </receiver>
+            <activity android:name=".SmsTemplatesActivity" android:exported="false" />
     </application>
 </manifest>

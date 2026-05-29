@@ -3,7 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/bg">
+    android:background="@color/bg"
+    android:fitsSystemWindows="true">
 
     <!-- Toolbar -->
     <LinearLayout
@@ -52,13 +53,13 @@
                 android:background="@drawable/card_bg"
                 android:padding="20dp">
 
-                <TextView
+                <ImageView
                     android:layout_width="56dp"
                     android:layout_height="56dp"
-                    android:text="👤"
-                    android:textSize="28sp"
-                    android:gravity="center"
+                    android:src="@drawable/ic_person"
+                    android:padding="12dp"
                     android:background="@drawable/badge_accent"
+                    android:scaleType="fitCenter"
                     android:layout_marginEnd="14dp"/>
 
                 <LinearLayout
@@ -394,52 +395,50 @@
                     android:textColor="@color/reject"/>
             </LinearLayout>
 
-            <!-- Auto-Reply SMS Templates Card -->
+            <!-- Auto-Reply SMS Templates - navigates to separate page -->
             <LinearLayout
+                android:id="@+id/rowSmsTemplates"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:background="@drawable/card_bg"
                 android:padding="16dp"
-                android:layout_marginBottom="12dp">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="4dp">
+                android:layout_marginBottom="12dp"
+                android:clickable="true"
+                android:focusable="true">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="💬" android:textSize="22sp" android:layout_marginEnd="12dp"/>
+                <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                    android:layout_height="wrap_content" android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="💬" android:textSize="20sp" android:layout_marginEnd="8dp"/>
-                    <TextView android:layout_width="0dp" android:layout_weight="1"
-                        android:layout_height="wrap_content"
                         android:text="Auto-Reply SMS Templates"
                         android:textSize="15sp" android:textStyle="bold" android:textColor="@color/text"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Manage messages sent to blocked callers"
+                        android:textSize="12sp" android:textColor="@color/subtext"
+                        android:layout_marginTop="2dp"/>
                 </LinearLayout>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="Saved messages you can pick from when you start a Block All Now session. The chosen template is auto-sent to blocked callers."
-                    android:textSize="12sp" android:textColor="@color/subtext"
-                    android:layout_marginBottom="12dp"/>
-
-                <!-- Templates list rendered programmatically -->
-                <LinearLayout
-                    android:id="@+id/smsTemplatesContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"/>
-
-                <Button
-                    android:id="@+id/btnAddSmsTemplate"
-                    android:layout_width="wrap_content" android:layout_height="40dp"
-                    android:text="+ Add template" android:textSize="13sp" android:textColor="#fff"
-                    android:background="@drawable/btn_accent"
-                    android:paddingStart="16dp" android:paddingEnd="16dp"
-                    android:layout_marginTop="8dp" android:minWidth="0dp"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="›" android:textSize="22sp" android:textColor="@color/subtext"/>
             </LinearLayout>
+
+            <!-- Logout button at the bottom -->
+            <Button
+                android:id="@+id/btnLogout"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:text="Sign out"
+                android:textSize="15sp"
+                android:textColor="#ef4444"
+                android:textStyle="bold"
+                android:background="@drawable/card_bg"
+                android:layout_marginTop="8dp"/>
             <TextView
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="AI CallFilter · v1.25.230"
+                android:text="AI CallFilter · v1.25.231"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"

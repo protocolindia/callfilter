@@ -618,11 +618,15 @@ router.get('/subscription/:user_id', async (req, res, next) => {
     const userId = parseInt(req.params.user_id, 10);
     if (!userId) return res.status(400).json({ error: 'user_id required' });
 
+    const subUser = await one('SELECT name FROM users WHERE id = $1', [userId]);
+    const userName = (subUser && subUser.name) || '';
+
     // Dev/internal mode: subscription gating disabled by admin
     const subRequired = (await getSetting('subscription_required')) !== 'false';
     if (!subRequired) {
       return res.json({
         ok: true,
+        name: userName,
         has_subscription: true,
         active: true,
         seconds_remaining: 31536000,  // 1 year
@@ -671,6 +675,7 @@ router.get('/subscription/:user_id', async (req, res, next) => {
 
     res.json({
       ok: true,
+      name: userName,
       has_subscription: !!sub,
       active,
       seconds_remaining: secondsRemaining,
@@ -776,11 +781,11 @@ router.post('/check-account', async (req, res, next) => {
     // user_id) to ask "does this number have an account?"
     let u;
     if (user_id) {
-      u = await one('SELECT id, dial_code, mobile, status, pin_set_at FROM users WHERE id = $1',
+      u = await one('SELECT id, dial_code, mobile, status, pin_set_at, name FROM users WHERE id = $1',
                     [user_id]);
     } else if (dial_code && mobile) {
       u = await one(
-        'SELECT id, dial_code, mobile, status, pin_set_at FROM users WHERE dial_code = $1 AND mobile = $2',
+        'SELECT id, dial_code, mobile, status, pin_set_at, name FROM users WHERE dial_code = $1 AND mobile = $2',
         [dial_code, mobile]);
     } else {
       return res.status(400).json({ error: 'user_id or (dial_code+mobile) required' });
@@ -817,6 +822,7 @@ router.post('/check-account', async (req, res, next) => {
     res.json({
       exists: true,
       user_id: u.id,
+      name: u.name || '',
       number_matches: numberMatches,
       status: u.status,
       pin_set: !!u.pin_set_at,

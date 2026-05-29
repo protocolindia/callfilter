@@ -31,11 +31,30 @@ public class ProfileActivity extends AppCompatActivity {
 
 
 
-        // Auto-Reply SMS Templates manager
-        renderSmsTemplates();
-        android.widget.Button btnAddTpl = findViewById(R.id.btnAddSmsTemplate);
-        if (btnAddTpl != null) {
-            btnAddTpl.setOnClickListener(v -> showTemplateEditor(-1, ""));
+        // Auto-Reply SMS Templates - navigate to separate screen
+        View rowTpl = findViewById(R.id.rowSmsTemplates);
+        if (rowTpl != null) {
+            rowTpl.setOnClickListener(v ->
+                startActivity(new android.content.Intent(this, SmsTemplatesActivity.class)));
+        }
+
+        // Sign out
+        View btnLogout = findViewById(R.id.btnLogout);
+        if (btnLogout != null) {
+            btnLogout.setOnClickListener(v ->
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Sign out")
+                    .setMessage("You'll need to sign in again with OTP. Continue?")
+                    .setPositiveButton("Sign out", (d, w) -> {
+                        AuthManager.getInstance(this).logout();
+                        android.content.Intent i = new android.content.Intent(this, LoginActivity.class);
+                        i.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                            | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(i);
+                        finish();
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show());
         }
 
         // Set version dynamically so it always matches the actual build
@@ -254,95 +273,6 @@ public class ProfileActivity extends AppCompatActivity {
         }
     }
 
-    private void renderSmsTemplates() {
-        android.widget.LinearLayout container = findViewById(R.id.smsTemplatesContainer);
-        if (container == null) return;
-        container.removeAllViews();
-        SmsAutoResponder smsR = SmsAutoResponder.getInstance(this);
-        java.util.List<String> templates = smsR.getTemplates();
-        float dp = getResources().getDisplayMetrics().density;
 
-        for (int i = 0; i < templates.size(); i++) {
-            final int idx = i;
-            final String tpl = templates.get(i);
-
-            android.widget.LinearLayout row = new android.widget.LinearLayout(this);
-            row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-            bg.setColor(0xFF1E1E26);
-            bg.setCornerRadius(8 * dp);
-            row.setBackground(bg);
-            row.setPadding((int)(12*dp), (int)(10*dp), (int)(8*dp), (int)(10*dp));
-            android.widget.LinearLayout.LayoutParams rlp = new android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
-            rlp.bottomMargin = (int)(8*dp);
-            row.setLayoutParams(rlp);
-
-            android.widget.TextView txt = new android.widget.TextView(this);
-            txt.setText(tpl);
-            txt.setTextColor(0xFFFFFFFF);
-            txt.setTextSize(13f);
-            txt.setMaxLines(2);
-            txt.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            android.widget.LinearLayout.LayoutParams tlp = new android.widget.LinearLayout.LayoutParams(
-                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-            txt.setLayoutParams(tlp);
-            row.addView(txt);
-
-            android.widget.TextView edit = new android.widget.TextView(this);
-            edit.setText("✎");
-            edit.setTextSize(16f);
-            edit.setPadding((int)(10*dp), 0, (int)(10*dp), 0);
-            edit.setOnClickListener(v -> showTemplateEditor(idx, tpl));
-            row.addView(edit);
-
-            android.widget.TextView del = new android.widget.TextView(this);
-            del.setText("✕");
-            del.setTextColor(0xFFef4444);
-            del.setTextSize(16f);
-            del.setPadding((int)(6*dp), 0, (int)(6*dp), 0);
-            del.setOnClickListener(v -> {
-                new androidx.appcompat.app.AlertDialog.Builder(ProfileActivity.this)
-                    .setTitle("Delete template?")
-                    .setMessage(tpl)
-                    .setPositiveButton("Delete", (d, w) -> {
-                        SmsAutoResponder.getInstance(ProfileActivity.this).removeTemplate(idx);
-                        renderSmsTemplates();
-                    })
-                    .setNegativeButton("Cancel", null)
-                    .show();
-            });
-            row.addView(del);
-
-            container.addView(row);
-        }
-    }
-
-    private void showTemplateEditor(final int index, String current) {
-        final android.widget.EditText input = new android.widget.EditText(this);
-        input.setText(current);
-        input.setHint("SMS message to send to blocked callers...");
-        input.setMinLines(3);
-        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-            | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        int pad = (int)(16 * getResources().getDisplayMetrics().density);
-        input.setPadding(pad, pad, pad, pad);
-
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(index < 0 ? "Add SMS template" : "Edit SMS template")
-            .setView(input)
-            .setPositiveButton("Save", (d, w) -> {
-                String txt = input.getText().toString().trim();
-                if (txt.isEmpty()) return;
-                SmsAutoResponder smsR = SmsAutoResponder.getInstance(this);
-                if (index < 0) smsR.addTemplate(txt);
-                else           smsR.updateTemplate(index, txt);
-                renderSmsTemplates();
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
-    }
 
 }

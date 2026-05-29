@@ -102,6 +102,10 @@ public class SubscriptionManager {
             public void onResult(boolean ok, JSONObject resp, String error) {
                 if (ok && resp != null) {
                     updateFromJson(resp.optJSONObject("subscription"));
+                    String nm = resp.optString("name", "");
+                    if (nm != null && !nm.isEmpty()) {
+                        AuthManager.getInstance(appCtx).setName(nm);
+                    }
                 } else {
                     Log.e(TAG, "refresh failed: " + error);
                 }
