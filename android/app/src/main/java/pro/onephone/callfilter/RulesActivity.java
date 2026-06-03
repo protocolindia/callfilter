@@ -1,7 +1,9 @@
 package pro.onephone.callfilter;
 
 import androidx.appcompat.app.AlertDialog;
+import android.database.Cursor;
 import android.os.Bundle;
+import android.provider.CallLog;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
@@ -11,12 +13,14 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Full list of active block/accept rules.
- * Shows the matched contact name (if the number is in the phone book)
- * and supports live search by number or name.
+ * Shows the matched contact name (phone book first, then recent-call cached
+ * names) and supports live search by number or name.
  */
 public class RulesActivity extends AppCompatActivity {
 
@@ -24,6 +28,9 @@ public class RulesActivity extends AppCompatActivity {
     private TextView countLabel, emptyView;
     private EditText searchField;
     private String filter = "";
+
+    // normalized number -> name, harvested from the call log (matches Recent Calls)
+    private final Map<String, String> callLogNames = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,20 +56,49 @@ public class RulesActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        loadCallLogNames();
         refresh();
+    }
+
+    /** Harvest cached names from the call log so Rules matches Recent Calls. */
+    private void loadCallLogNames() {
+        callLogNames.clear();
+        try {
+            String[] proj = { CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME };
+            try (Cursor c = getContentResolver().query(CallLog.Calls.CONTENT_URI, proj,
+                    null, null, CallLog.Calls.DATE + " DESC")) {
+                if (c != null) {
+                    int max = 500;
+                    while (c.moveToNext() && max-- > 0) {
+                        String num  = c.getString(0);
+                        String name = c.getString(1);
+                        if (num == null || name == null || name.isEmpty()) continue;
+                        String key = ContactsCacheManager.normalize(num);
+                        if (!callLogNames.containsKey(key)) callLogNames.put(key, name);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /** Contacts first, then call-log cached name. */
+    private String resolveName(String number) {
+        ContactsCacheManager contacts = ContactsCacheManager.getInstance(this);
+        String n = contacts.getName(number);
+        if (n != null && !n.isEmpty()) return n;
+        return callLogNames.get(ContactsCacheManager.normalize(number));
     }
 
     private void refresh() {
         RulesManager rm = RulesManager.getInstance(this);
         rm.reload();
         List<Rule> all = rm.getRules();
-        ContactsCacheManager contacts = ContactsCacheManager.getInstance(this);
 
         List<Rule> rules = new ArrayList<>();
         for (Rule r : all) {
             if (filter.isEmpty()) { rules.add(r); continue; }
             String pat = r.getPattern() == null ? "" : r.getPattern().toLowerCase();
-            String nm  = contacts.getName(r.getPattern());
+            String nm  = resolveName(r.getPattern());
             String nml = nm == null ? "" : nm.toLowerCase();
             if (pat.contains(filter) || nml.contains(filter)) rules.add(r);
         }
@@ -91,7 +127,7 @@ public class RulesActivity extends AppCompatActivity {
             typeBadge.setText(prettyType(r.getType()));
             patternView.setText(r.getPattern());
 
-            String contactName = contacts.getName(r.getPattern());
+            String contactName = resolveName(r.getPattern());
             if (contactName != null && !contactName.isEmpty()) {
                 nameView.setText(contactName);
                 nameView.setVisibility(View.VISIBLE);

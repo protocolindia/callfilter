@@ -579,6 +579,10 @@ public class MainActivity extends AppCompatActivity {
         SyncManager.getInstance(this).syncGlobalBlocklistAsync();
         // Pull per-user enabled reasons (restores settings after logout/reinstall)
         GlobalBlocklistManager.getInstance(this).pullEnabledReasonsAsync();
+        // Pull blocked-call history from cloud (restores after reinstall/new version)
+        SyncManager.getInstance(this).pullBlockedCallsFromCloud();
+        // Pull SMS auto-reply templates from cloud
+        SmsAutoResponder.getInstance(this).pullFromCloudAsync();
         // Refresh the UI after merge completes (HTTP async)
         banner_handler.postDelayed(() -> refreshUI(), 1_500L);
         refreshBlockAllUI();

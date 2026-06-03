@@ -112,7 +112,28 @@ public class SyncManager {
             Log.e(TAG, "syncBlockedCallsAsync failed", e);
         }
     }
-    public void pullBlockedCallsFromCloudIfEmpty() { /* no-op */ }
+    /** Pull the blocked-call history from the cloud and merge locally.
+     *  Called on login/startup so history survives reinstall & new versions. */
+    public void pullBlockedCallsFromCloud() {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        String url = AuthManager.BACKEND_URL + "/api/blocked-calls/list?user_id="
+            + auth.getUserId() + "&limit=500";
+        BackendClient.get(url, new BackendClient.Callback() {
+            public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                if (ok && resp != null) {
+                    org.json.JSONArray calls = resp.optJSONArray("calls");
+                    int added = BlockedCallsManager.getInstance(appCtx).mergeFromCloud(calls);
+                    Log.d(TAG, "Pulled blocked calls from cloud, merged " + added);
+                } else {
+                    Log.w(TAG, "Blocked-calls pull failed: " + err);
+                }
+            }
+        });
+    }
+
+    /** Backwards-compatible alias. */
+    public void pullBlockedCallsFromCloudIfEmpty() { pullBlockedCallsFromCloud(); }
 
     // ===== Rules sync (v25.8 — differential) =====
 

@@ -229,7 +229,7 @@ public class RecentCallsActivity extends AppCompatActivity {
         String label = (g.name != null && !g.name.isEmpty())
             ? g.name + " (" + g.number + ")"
             : g.number;
-        new AlertDialog.Builder(this)
+        new AlertDialog.Builder(this, R.style.DarkDialog)
             .setTitle("Block this number?")
             .setMessage("Add a REJECT rule for " + label + "?\n\n"
                 + "Future calls from this number will be silently rejected.")

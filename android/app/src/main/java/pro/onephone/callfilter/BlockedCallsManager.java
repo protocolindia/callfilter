@@ -107,6 +107,42 @@ public class BlockedCallsManager {
         if (changed) save();
     }
 
+
+    /** Merge entries pulled from the cloud (dedup by clientId). Cloud rows are
+     *  marked synced=true since they already exist server-side. */
+    public synchronized int mergeFromCloud(JSONArray cloud) {
+        if (cloud == null) return 0;
+        java.util.Set<String> existing = new java.util.HashSet<>();
+        for (Entry e : entries) existing.add(e.clientId);
+
+        int added = 0;
+        for (int i = 0; i < cloud.length(); i++) {
+            JSONObject o = cloud.optJSONObject(i);
+            if (o == null) continue;
+            String cid = o.optString("client_id", "");
+            if (cid.isEmpty() || existing.contains(cid)) continue;
+            Entry e = new Entry();
+            e.clientId    = cid;
+            e.number      = o.optString("number", "");
+            e.ruleType    = o.optString("rule_type", "");
+            e.rulePattern = o.optString("rule_pattern", "");
+            e.ruleAction  = o.optString("rule_action", "reject");
+            e.reason      = o.optString("reason", null);
+            if ("null".equals(e.reason)) e.reason = null;
+            e.blockedAtMs = o.optLong("blocked_at_ms", System.currentTimeMillis());
+            e.synced      = true;
+            entries.add(e);
+            existing.add(cid);
+            added++;
+        }
+        if (added > 0) {
+            // Keep newest first, cap at MAX_ENTRIES
+            java.util.Collections.sort(entries, (a, b) -> Long.compare(b.blockedAtMs, a.blockedAtMs));
+            while (entries.size() > MAX_ENTRIES) entries.remove(entries.size() - 1);
+            save();
+        }
+        return added;
+    }
     /** Set the reason on the MOST-RECENT blocked-call entry for this number.
      *  Used by the post-call popup follow-up dialog. Marks unsynced. */
     public synchronized boolean setReasonForMostRecent(String number, String reason) {

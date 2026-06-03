@@ -492,6 +492,43 @@ router.get('/rules/list', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ============================================================
+// SMS auto-reply templates — per-user, stored as JSON array.
+// ============================================================
+
+// GET /api/sms-templates?user_id=N — fetch the user's saved templates
+router.get('/sms-templates', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.query.user_id, 10);
+    if (!userId) return res.status(400).json({ error: 'user_id required' });
+    const row = await one('SELECT sms_templates FROM users WHERE id = $1', [userId]);
+    let templates = [];
+    if (row && row.sms_templates) {
+      try { templates = JSON.parse(row.sms_templates); } catch (_) { templates = []; }
+    }
+    if (!Array.isArray(templates)) templates = [];
+    res.json({ ok: true, templates });
+  } catch (e) { next(e); }
+});
+
+// POST /api/sms-templates — save the user's templates
+// Body: { user_id, templates: ["msg1", "msg2", ...] }
+router.post('/sms-templates', async (req, res, next) => {
+  try {
+    const { user_id, templates } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    if (!Array.isArray(templates)) return res.status(400).json({ error: 'templates must be an array' });
+    const clean = templates
+      .filter(t => typeof t === 'string' && t.trim().length > 0)
+      .map(t => t.trim().slice(0, 500))
+      .slice(0, 50);
+    await query('UPDATE users SET sms_templates = $2 WHERE id = $1',
+      [user_id, JSON.stringify(clean)]);
+    await audit('android', 'sms_templates_saved', `user_id=${user_id}, count=${clean.length}`);
+    res.json({ ok: true, count: clean.length });
+  } catch (e) { next(e); }
+});
+
 // GET /api/blocked-calls/list?user_id=N&limit=200 — pull blocked-call log
 router.get('/blocked-calls/list', async (req, res, next) => {
   try {

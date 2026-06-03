@@ -26,7 +26,9 @@ public class SmsAutoResponder {
         "Sorry, I'm currently unavailable and your call has been filtered. Please send a message.";
 
     private final SharedPreferences prefs;
+    private final Context appCtx;
     private static SmsAutoResponder instance;
+    private boolean pulledFromCloud = false;
 
     public static synchronized SmsAutoResponder getInstance(Context ctx) {
         if (instance == null) instance = new SmsAutoResponder(ctx.getApplicationContext());
@@ -34,14 +36,16 @@ public class SmsAutoResponder {
     }
 
     private SmsAutoResponder(Context ctx) {
+        appCtx = ctx.getApplicationContext();
         prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        // Seed a default template list on first run
+        // Seed a default template list on first run (LOCAL ONLY - never push,
+        // so we don't clobber the user's real cloud templates before pull runs).
         if (!prefs.contains(KEY_TEMPLATES)) {
-            List<String> seed = new ArrayList<>();
-            seed.add(DEFAULT_MESSAGE);
-            seed.add("I can't take your call right now. Please text me instead.");
-            seed.add("This number is screening calls at the moment. Kindly send an SMS.");
-            saveTemplates(seed);
+            JSONArray seed = new JSONArray();
+            seed.put(DEFAULT_MESSAGE);
+            seed.put("I can't take your call right now. Please text me instead.");
+            seed.put("This number is screening calls at the moment. Kindly send an SMS.");
+            prefs.edit().putString(KEY_TEMPLATES, seed.toString()).commit();
         }
     }
 
@@ -87,6 +91,64 @@ public class SmsAutoResponder {
             if (t != null && !t.trim().isEmpty()) arr.put(t.trim());
         }
         prefs.edit().putString(KEY_TEMPLATES, arr.toString()).commit();
+        pushToCloudAsync();
+    }
+
+    // ---- Cloud sync ----
+
+    /** Push the current templates to the backend (fire-and-forget). */
+    public void pushToCloudAsync() {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        try {
+            JSONArray arr = new JSONArray();
+            for (String t : getTemplates()) arr.put(t);
+            org.json.JSONObject body = new org.json.JSONObject();
+            body.put("user_id", Long.parseLong(auth.getUserId()));
+            body.put("templates", arr);
+            BackendClient.post(AuthManager.BACKEND_URL + "/api/sms-templates", body,
+                new BackendClient.Callback() {
+                    public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                        if (!ok) Log.w(TAG, "Template push failed: " + err);
+                    }
+                });
+        } catch (Exception e) { Log.w(TAG, "pushToCloud error: " + e.getMessage()); }
+    }
+
+    /** Pull templates from the backend and replace local copy.
+     *  Runs once per app session; restores templates after reinstall/new version. */
+    public void pullFromCloudAsync() {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        if (pulledFromCloud) return;
+        pulledFromCloud = true;
+        String url = AuthManager.BACKEND_URL + "/api/sms-templates?user_id=" + auth.getUserId();
+        BackendClient.get(url, new BackendClient.Callback() {
+            public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                if (ok && resp != null) {
+                    JSONArray arr = resp.optJSONArray("templates");
+                    if (arr != null && arr.length() > 0) {
+                        List<String> cloud = new ArrayList<>();
+                        for (int i = 0; i < arr.length(); i++) {
+                            String t = arr.optString(i, "").trim();
+                            if (!t.isEmpty()) cloud.add(t);
+                        }
+                        if (!cloud.isEmpty()) {
+                            // Save locally WITHOUT re-pushing (avoid loop)
+                            JSONArray out = new JSONArray();
+                            for (String t : cloud) out.put(t);
+                            prefs.edit().putString(KEY_TEMPLATES, out.toString()).commit();
+                            Log.d(TAG, "Pulled " + cloud.size() + " templates from cloud");
+                        }
+                    } else {
+                        // No cloud templates yet - push our local defaults up
+                        pushToCloudAsync();
+                    }
+                } else {
+                    Log.w(TAG, "Template pull failed: " + err);
+                }
+            }
+        });
     }
 
     public void addTemplate(String t) {
