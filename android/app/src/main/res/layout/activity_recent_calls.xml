@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="16dp">
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_revert"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:tint="@color/text"/>
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="📞  Recent Calls"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Sort toggle -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+                <TextView
+                    android:id="@+id/sortFrequent"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="40dp"
+                    android:text="MOST FREQUENT"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/white"
+                    android:background="@drawable/btn_type_active"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    android:layout_marginEnd="4dp"/>
+                <TextView
+                    android:id="@+id/sortRecent"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="40dp"
+                    android:text="MOST RECENT"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/subtext"
+                    android:background="@drawable/btn_type_inactive"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    android:layout_marginStart="4dp"/>
+            </LinearLayout>
+            <TextView
+                android:id="@+id/sortHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Highest call count first. Tap BLOCK to add a REJECT rule."
+                android:textSize="12sp"
+                android:textColor="@color/subtext"
+                android:layout_marginBottom="12dp"/>
+
+            <TextView
+                android:id="@+id/recentCallsEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="No recent calls."
+                android:textColor="@color/subtext"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:padding="40dp"
+                android:visibility="gone"/>
+
+            <LinearLayout
+                android:id="@+id/recentCallsList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

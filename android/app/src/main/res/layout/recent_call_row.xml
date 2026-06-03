@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/card_bg"
+    android:padding="14dp"
+    android:layout_marginBottom="10dp">
+
+    <TextView
+        android:id="@+id/recentCallCount"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:text="0×"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="@color/white"
+        android:background="@drawable/badge_accent"
+        android:gravity="center"
+        android:layout_marginEnd="12dp"/>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <TextView
+            android:id="@+id/recentCallName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Unknown"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/text"
+            android:maxLines="1"
+            android:ellipsize="end"/>
+        <TextView
+            android:id="@+id/recentCallNumber"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="12sp"
+            android:textColor="@color/subtext"
+            android:layout_marginTop="1dp"
+            android:visibility="gone"/>
+        <TextView
+            android:id="@+id/recentCallMeta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="11sp"
+            android:textColor="@color/muted"
+            android:layout_marginTop="2dp"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/btnBlockThis"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:text="✗ BLOCK"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="@color/white"
+        android:background="@drawable/btn_reject_active"
+        android:gravity="center"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?android:attr/selectableItemBackground"
+        android:minWidth="0dp"/>
+</LinearLayout>

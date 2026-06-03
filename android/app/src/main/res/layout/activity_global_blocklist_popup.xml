@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg"
+    android:gravity="center">
+
+    <!-- Banner image -->
+    <ImageView
+        android:id="@+id/popupBanner"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scaleType="centerCrop"
+        android:contentDescription="Block notification image"
+        android:background="@color/card"/>
+
+    <!-- Info card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/card"
+        android:padding="28dp"
+        android:gravity="center">
+
+        <!-- Globe icon -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="&#x1F6AB;"
+            android:textSize="48sp"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Block reason -->
+        <TextView
+            android:id="@+id/popupReason"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Blocked: Spam call"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/reject"
+            android:gravity="center"
+            android:layout_marginBottom="8dp"/>
+
+        <!-- Admin name -->
+        <TextView
+            android:id="@+id/popupAdminName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="By: Global Safety Team"
+            android:textSize="14sp"
+            android:textColor="@color/subtext"
+            android:gravity="center"
+            android:layout_marginBottom="28dp"/>
+
+        <!-- Dismiss button -->
+        <Button
+            android:id="@+id/popupDismiss"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="Dismiss"
+            android:textSize="16sp"
+            android:textColor="#fff"
+            android:textStyle="bold"
+            android:background="@drawable/btn_accent"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"/>
+
+    </LinearLayout>
+</LinearLayout>

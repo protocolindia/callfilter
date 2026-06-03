@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_revert"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:tint="@color/text"
+            android:layout_gravity="start"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✨"
+            android:textSize="48sp"
+            android:layout_gravity="center"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView android:id="@+id/paywallTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Choose your plan"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/text"
+            android:gravity="center"/>
+
+        <TextView android:id="@+id/paywallSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="13sp"
+            android:textColor="@color/subtext"
+            android:gravity="center"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="10dp"/>
+
+        <!-- Current subscription banner (shown when sub.active) -->
+        <LinearLayout android:id="@+id/currentSubBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/banner_block_all"
+            android:padding="14dp"
+            android:layout_marginBottom="14dp"
+            android:visibility="gone">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="✅"
+                android:textSize="22sp"
+                android:layout_marginEnd="12dp"/>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Currently subscribed"
+                    android:textSize="12sp"
+                    android:textColor="@color/white"
+                    android:textStyle="bold"/>
+                <TextView android:id="@+id/currentSubText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="13sp"
+                    android:textColor="@color/white"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/planList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"/>
+
+        <TextView android:id="@+id/paywallMsg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="12sp"
+            android:textColor="@color/muted"
+            android:gravity="center"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="10dp"/>
+
+        <Button android:id="@+id/btnRestore"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="Restore purchase"
+            android:textSize="13sp"
+            android:textColor="@color/accent"
+            android:background="@android:color/transparent"
+            android:layout_marginTop="14dp"
+            android:visibility="gone"/>
+
+        <Button android:id="@+id/btnLogout"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="Sign out"
+            android:textSize="13sp"
+            android:textColor="@color/subtext"
+            android:background="@android:color/transparent"/>
+    </LinearLayout>
+</ScrollView>
