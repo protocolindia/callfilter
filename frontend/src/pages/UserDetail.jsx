@@ -451,6 +451,24 @@ function InfoTab({ user }) {
         </tbody>
       </table>
 
+      <h2 style={{ marginTop: 24 }}>💬 SMS Auto-Reply Templates</h2>
+      {(() => {
+        let templates = [];
+        if (user.sms_templates) {
+          try { templates = JSON.parse(user.sms_templates); } catch (_) { templates = []; }
+        }
+        if (!Array.isArray(templates) || templates.length === 0) {
+          return <p className="muted">No templates synced yet.</p>;
+        }
+        return (
+          <ol style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+            {templates.map((t, i) => (
+              <li key={i} style={{ marginBottom: 6, color: 'var(--text)' }}>{t}</li>
+            ))}
+          </ol>
+        );
+      })()}
+
       <h2 style={{ marginTop: 24 }}>💳 Subscription</h2>
       {loadingSub ? <p className="muted">Loading…</p>
        : !sub ? <p className="muted">No subscription record.</p>

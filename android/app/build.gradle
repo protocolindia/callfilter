@@ -10,8 +10,8 @@ android {
         applicationId "pro.onephone.callfilter"
         minSdk 26
         targetSdk 34
-        versionCode 79
-        versionName "1.25.236"
+        versionCode 80
+        versionName "1.26.1"
 
         buildConfigField "String", "BACKEND_URL", "\"https://api.app.onephone.pro\""
     }
@@ -78,4 +78,6 @@ dependencies {
     implementation 'com.android.billingclient:billing:7.1.1'
     // Razorpay Checkout SDK — only in sideload flavor
     sideloadImplementation 'com.razorpay:checkout:1.6.41'
+    // SMS User Consent API — auto-reads the incoming OTP with a one-tap popup
+    implementation 'com.google.android.gms:play-services-auth-api-phone:18.1.0'
 }
