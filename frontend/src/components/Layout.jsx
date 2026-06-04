@@ -29,7 +29,7 @@ export default function Layout({ children }) {
         <div className="brand">
           <div className="logo">🛡️</div>
           <div>
-            <div className="brand-name">AI CallFilter</div>
+            <div className="brand-name">CyberGuard AI</div>
             <div className="brand-sub">Admin</div>
           </div>
         </div>

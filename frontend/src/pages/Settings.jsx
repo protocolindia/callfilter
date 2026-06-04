@@ -152,7 +152,7 @@ export default function Settings() {
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ margin: 0 }}>Settings</h1>
         <p style={{ margin: '4px 0 0', color: 'var(--subtext)', fontSize: 14 }}>
-          Configure your AI CallFilter platform
+          Configure your CyberGuard AI platform
         </p>
       </div>
 

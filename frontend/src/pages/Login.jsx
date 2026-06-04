@@ -33,7 +33,7 @@ export default function Login() {
     <div className="login-wrap">
       <div className="login-card">
         <div className="login-logo">🛡️</div>
-        <h1>CallFilter Admin</h1>
+        <h1>CyberGuard AI Admin</h1>
         <p className="muted">Sign in to manage users and SMS providers</p>
         {expired && (
           <div style={{

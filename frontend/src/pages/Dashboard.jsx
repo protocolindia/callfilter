@@ -45,7 +45,7 @@ function AdminDashboard() {
     <>
       <header className="page-head">
         <h1>Dashboard</h1>
-        <p className="muted">Overview of AI CallFilter platform</p>
+        <p className="muted">Overview of CyberGuard AI platform</p>
       </header>
 
       <div className="stat-grid">

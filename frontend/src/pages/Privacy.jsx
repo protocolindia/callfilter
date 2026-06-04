@@ -12,7 +12,7 @@ export default function Privacy() {
         <section>
           <h2>1. What we collect</h2>
           <p>
-            CallFilter collects the minimum information needed to operate the
+            CyberGuard AI collects the minimum information needed to operate the
             service: your mobile number (used as your account identifier), the
             blocking rules you create, and a log of calls blocked or attempted
             on your device. You may optionally upload your contacts so they are
@@ -91,7 +91,7 @@ export default function Privacy() {
         </section>
 
         <footer className="terms-foot muted">
-          © 2026 OnePhone. By using CallFilter you consent to this Privacy Policy.
+          © 2026 OnePhone. By using CyberGuard AI you consent to this Privacy Policy.
         </footer>
       </div>
     </div>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.CallFilter" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:windowBackground">@color/bg</item>
+    <style name="Theme.CallFilter" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@drawable/bg_gradient</item>
         <item name="android:statusBarColor">@color/bg</item>
         <item name="android:navigationBarColor">@color/bg</item>
         <item name="android:windowLightStatusBar">false</item>
@@ -21,7 +21,7 @@
     </style>
 
     <!-- Dark themed AlertDialog matching the app -->
-    <style name="DarkDialog" parent="Theme.Material3.DayNight.Dialog.Alert">
+    <style name="DarkDialog" parent="Theme.Material3.Dark.Dialog.Alert">
         <item name="android:background">@color/card</item>
         <item name="android:textColorPrimary">@color/text</item>
         <item name="android:textColorSecondary">@color/subtext</item>

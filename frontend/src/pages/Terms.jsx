@@ -12,7 +12,7 @@ export default function Terms() {
         <section>
           <h2>1. Acceptance of Terms</h2>
           <p>
-            By creating an account in the Call Filter app and using the related services
+            By creating an account in the CyberGuard AI app and using the related services
             (collectively, the "Service"), you agree to be bound by these Terms &amp;
             Conditions. If you do not agree, please do not use the Service.
           </p>
@@ -21,7 +21,7 @@ export default function Terms() {
         <section>
           <h2>2. The Service</h2>
           <p>
-            Call Filter is an Android application that lets you block or allow phone
+            CyberGuard AI is an Android application that lets you block or allow phone
             calls based on rules you define (prefix, suffix, number range, contacts-only
             mode). The app communicates with our cloud backend at
             <code> api.app.onephone.pro </code> for account management, OTP verification,
