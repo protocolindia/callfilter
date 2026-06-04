@@ -144,6 +144,9 @@ export default function UserDetail() {
         <button className={`tab-btn ${tab === 'info' ? 'tab-active' : ''}`} onClick={() => setTab('info')}>
           Info
         </button>
+        <button className={`tab-btn ${tab === 'otp' ? 'tab-active' : ''}`} onClick={() => setTab('otp')}>
+          🔑 OTP Mode
+        </button>
         <button className={`tab-btn ${tab === 'contacts' ? 'tab-active' : ''}`} onClick={() => setTab('contacts')}>
           📇 Contacts ({user.contacts_count || 0})
         </button>
@@ -165,6 +168,8 @@ export default function UserDetail() {
       </div>
 
       {tab === 'info' && <InfoTab user={user} />}
+
+      {tab === 'otp' && <OtpModeTab user={user} />}
 
       {tab === 'contacts' && (
         <section className="card">
@@ -400,6 +405,80 @@ export default function UserDetail() {
         </section>
       )}
     </>
+  );
+}
+
+function OtpModeTab({ user }) {
+  const [mode, setMode] = useState(user.otp_mode || 'global');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  async function save(newMode) {
+    setSaving(true); setMsg('');
+    try {
+      await api.put(`/admin/users/${user.id}/otp-mode`, { otp_mode: newMode });
+      setMode(newMode);
+      setMsg('Saved — this user will use "' + newMode + '" OTP mode.');
+      setTimeout(() => setMsg(''), 4000);
+    } catch (e) {
+      setMsg('Error: ' + e.message);
+    } finally { setSaving(false); }
+  }
+
+  const options = [
+    { id: 'global',     title: 'Follow global setting',
+      desc: 'Use whatever the global SMS provider is configured to (default).' },
+    { id: 'demo',       title: 'Demo mode (always)',
+      desc: 'OTP is returned in the response and shown on screen. No real SMS. Good for testing.' },
+    { id: 'production', title: 'Production mode (always)',
+      desc: 'Always send a real SMS via the configured gateway. Requires a working SMS provider.' },
+  ];
+
+  return (
+    <section className="card">
+      <h2>🔑 OTP Delivery Mode</h2>
+      <p className="muted" style={{ marginBottom: 16 }}>
+        Override how this specific user receives their OTP. Useful for keeping
+        a test account in demo mode while everyone else uses real SMS.
+      </p>
+
+      {msg && (
+        <div style={{ marginBottom: 14, padding: 10, borderRadius: 8,
+          background: msg.startsWith('Error') ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)',
+          color: msg.startsWith('Error') ? 'var(--reject)' : '#22c55e', fontSize: 14 }}>
+          {msg}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {options.map(o => {
+          const active = mode === o.id;
+          return (
+            <div key={o.id}
+              onClick={() => !saving && save(o.id)}
+              style={{
+                padding: 16, borderRadius: 10, cursor: saving ? 'wait' : 'pointer',
+                background: 'var(--surface)',
+                border: active ? '2px solid var(--accent)' : '1px solid var(--border)',
+              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{
+                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                  border: active ? '5px solid var(--accent)' : '2px solid var(--subtext)',
+                }} />
+                <strong style={{ color: 'var(--text)' }}>{o.title}</strong>
+                {active && (
+                  <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700,
+                    color: '#22c55e', background: 'rgba(34,197,94,0.15)',
+                    borderRadius: 4, padding: '2px 8px' }}>ACTIVE</span>
+                )}
+              </div>
+              <p className="muted" style={{ margin: '6px 0 0 28px', fontSize: 13 }}>{o.desc}</p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

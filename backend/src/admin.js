@@ -116,6 +116,27 @@ router.get('/users/:id', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// PUT /admin/users/:id/otp-mode — override OTP delivery mode for one user
+// Body: { otp_mode: 'global' | 'demo' | 'production' }
+router.put('/users/:id/otp-mode', requireAdmin, async (req, res, next) => {
+  try {
+    if (!['super_admin','admin'].includes(req.admin.role))
+      return res.status(403).json({ error: 'Admin or super_admin only' });
+
+    const id = parseInt(req.params.id, 10);
+    const { otp_mode } = req.body || {};
+    if (!['global','demo','production'].includes(otp_mode))
+      return res.status(400).json({ error: "otp_mode must be global, demo or production" });
+
+    const u = await one('UPDATE users SET otp_mode = $2 WHERE id = $1 RETURNING id, otp_mode',
+      [id, otp_mode]);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+
+    await audit(req.admin.username, 'user_otp_mode_set', `user_id=${id}, mode=${otp_mode}`);
+    res.json({ ok: true, otp_mode: u.otp_mode });
+  } catch (e) { next(e); }
+});
+
 // GET /admin/users/:id/contacts  — synced contacts with pagination
 router.get('/users/:id/contacts', requireAdmin, async (req, res, next) => {
   try {

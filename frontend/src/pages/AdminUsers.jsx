@@ -125,7 +125,7 @@ export default function AdminUsers() {
   const [resetting, setResetting]   = useState(false);
 
   const creatableRoles = isSuperAdmin
-    ? ['admin', 'support', 'billing', 'global_db_admin', 'global_db_user']
+    ? ['super_admin', 'admin', 'support', 'billing', 'global_db_admin', 'global_db_user']
     : currentRole === 'admin'
     ? ['support', 'billing', 'global_db_admin', 'global_db_user']
     : currentRole === 'global_db_admin'
