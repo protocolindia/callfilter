@@ -38,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView blockedCallsCount, schedulesSummary, schedulesBadge;
     private ImageView btnTopMenu;
     private SwitchCompat contactsOnlySwitch;
+    private ScoreRingView scoreRing;
+    private TextView scoreNumber, scoreTag, scoreStatusLine;
 
     // Add rule form
     private Spinner countryDial;
@@ -124,6 +126,34 @@ public class MainActivity extends AppCompatActivity {
         globalBlocklistBadge   = findViewById(R.id.globalBlocklistBadge);
         schedulesSummary = findViewById(R.id.schedulesSummary);
         schedulesBadge   = findViewById(R.id.schedulesActiveBadge);
+
+        scoreRing       = findViewById(R.id.scoreRing);
+        scoreNumber     = findViewById(R.id.scoreNumber);
+        scoreTag        = findViewById(R.id.scoreTag);
+        scoreStatusLine = findViewById(R.id.scoreStatusLine);
+
+        // Bottom navigation
+        com.google.android.material.bottomnavigation.BottomNavigationView bottomNav =
+            findViewById(R.id.bottomNav);
+        if (bottomNav != null) {
+            bottomNav.setSelectedItemId(R.id.nav_home);
+            bottomNav.setOnItemSelectedListener(item -> {
+                int id = item.getItemId();
+                if (id == R.id.nav_home) {
+                    return true;
+                } else if (id == R.id.nav_activity) {
+                    startActivity(new Intent(this, RecentCallsActivity.class));
+                    return true;
+                } else if (id == R.id.nav_rules) {
+                    startActivity(new Intent(this, RulesActivity.class));
+                    return true;
+                } else if (id == R.id.nav_profile) {
+                    startActivity(new Intent(this, ProfileActivity.class));
+                    return true;
+                }
+                return false;
+            });
+        }
     }
 
     private void setupCountrySpinner() {
@@ -313,6 +343,51 @@ public class MainActivity extends AppCompatActivity {
         SyncManager.getInstance(this).syncRulesAsync();
     }
 
+    /** Compute a 0-100 protection score from current settings and animate the ring. */
+    private void updateProtectionScore(int ruleCount) {
+        if (scoreRing == null) return;
+        int score = 0;
+        boolean loggedIn = AuthManager.getInstance(this).isLoggedIn();
+        if (loggedIn) score += 35;
+        if (ruleCount > 0 || rulesManager.isContactsOnlyMode()) score += 20;
+
+        // Global blocklist active when at least one reason is enabled
+        try {
+            GlobalBlocklistManager g = GlobalBlocklistManager.getInstance(this);
+            if (!g.getEnabledReasons().isEmpty()) score += 25;
+        } catch (Exception ignored) {}
+
+        // Active subscription
+        try {
+            if (SubscriptionManager.getInstance(this).isActive()) score += 20;
+        } catch (Exception ignored) {}
+
+        if (score > 100) score = 100;
+        final int finalScore = score;
+
+        scoreRing.setScore(finalScore);
+
+        // Animate the number to match the ring
+        android.animation.ValueAnimator na = android.animation.ValueAnimator.ofInt(0, finalScore);
+        na.setDuration(1400);
+        na.addUpdateListener(a -> scoreNumber.setText(String.valueOf(a.getAnimatedValue())));
+        na.start();
+
+        if (finalScore >= 80) {
+            scoreTag.setText("PROTECTED");
+            scoreTag.setTextColor(getResources().getColor(R.color.accept, null));
+            scoreStatusLine.setText("Your device is well protected");
+        } else if (finalScore >= 50) {
+            scoreTag.setText("PARTIAL");
+            scoreTag.setTextColor(0xFFF59E0B);
+            scoreStatusLine.setText("Enable more protections to raise your score");
+        } else {
+            scoreTag.setText("AT RISK");
+            scoreTag.setTextColor(getResources().getColor(R.color.reject, null));
+            scoreStatusLine.setText("Turn on blocking to protect your device");
+        }
+    }
+
     private void refreshUI() {
         AuthManager auth = AuthManager.getInstance(this);
         android.view.View dBanner = findViewById(R.id.disabledBanner);
@@ -335,6 +410,8 @@ public class MainActivity extends AppCompatActivity {
         statAccept.setText(String.valueOf(acc));
         statReject.setText(String.valueOf(rej));
         statTotal.setText(String.valueOf(rules.size()));
+
+        updateProtectionScore(rules.size());
 
         contactsOnlySwitch.setOnCheckedChangeListener(null);
         contactsOnlySwitch.setChecked(rulesManager.isContactsOnlyMode());
@@ -538,6 +615,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Keep Home highlighted when returning from another tab
+        com.google.android.material.bottomnavigation.BottomNavigationView bn = findViewById(R.id.bottomNav);
+        if (bn != null && bn.getSelectedItemId() != R.id.nav_home) {
+            bn.getMenu().findItem(R.id.nav_home).setChecked(true);
+        }
         // Auto-lock check — if enabled and we were in background > 5 min, lock now
         android.content.SharedPreferences uiPrefs = getSharedPreferences("ui_prefs", MODE_PRIVATE);
         if (uiPrefs.getBoolean("auto_lock", false)) {
