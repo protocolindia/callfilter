@@ -199,7 +199,7 @@ export default function AdminUsers() {
   };
 
   const handleDelete = async u => {
-    const label = isSuperAdmin ? 'permanently delete' : 'deactivate';
+    const label = isSuperAdmin ? 'permanently delete' : 'remove';
     if (!window.confirm(`${label} "${u.username}"?`)) return;
     try { await api.delete(`/admin/admin-users/${u.id}`); load(); }
     catch (e) { alert(e.message); }
@@ -208,6 +208,15 @@ export default function AdminUsers() {
   const handleRestore = async id => {
     try { await api.post(`/admin/admin-users/${id}/restore`); load(); }
     catch (e) { alert(e.message); }
+  };
+
+  const toggleActive = async u => {
+    const action = u.active ? 'deactivate' : 'activate';
+    if (!window.confirm(`${action} "${u.username}"?`)) return;
+    try {
+      await api.put(`/admin/admin-users/${u.id}`, { active: !u.active });
+      load();
+    } catch (e) { alert(e.message); }
   };
 
   const handleResetPassword = async () => {
@@ -669,6 +678,14 @@ export default function AdminUsers() {
                           style={btn('rgba(245,158,11,0.15)', '#f59e0b', {})}>
                           Reset PW
                         </button>
+                        <button onClick={() => toggleActive(u)}
+                          style={btn(
+                            u.active ? 'rgba(107,114,128,0.15)' : 'rgba(34,197,94,0.15)',
+                            u.active ? '#9ca3af' : '#22c55e',
+                            {}
+                          )}>
+                          {u.active ? 'Deactivate' : 'Activate'}
+                        </button>
                         {isSuperAdmin && u.role === 'global_db_admin' && (
                           <button onClick={() => openImageUpload(u)}
                             style={btn(
@@ -688,7 +705,7 @@ export default function AdminUsers() {
                         )}
                         <button onClick={() => handleDelete(u)}
                           style={btn('rgba(239,68,68,0.15)', '#ef4444', {})}>
-                          {isSuperAdmin ? 'Delete' : 'Deactivate'}
+                          {isSuperAdmin ? 'Delete' : 'Remove'}
                         </button>
                       </div>
                     )}
