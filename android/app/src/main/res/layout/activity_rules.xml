@@ -66,6 +66,276 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <!-- Add new rule card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginTop="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="\u2795"
+                        android:textSize="14sp"
+                        android:textColor="@color/accent"
+                        android:layout_marginEnd="6dp"/>
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:text="ADD NEW RULE"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"
+                        android:letterSpacing="0.1"/>
+                </LinearLayout>
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Match by pattern, then accept or reject"
+                    android:textSize="12sp"
+                    android:textColor="@color/subtext"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="14dp"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="1. PATTERN TYPE"
+                    android:textSize="11sp"
+                    android:textColor="@color/muted"
+                    android:letterSpacing="0.08"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+                    <TextView
+                        android:id="@+id/btnTypePrefix"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="44dp"
+                        android:text="PREFIX"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/white"
+                        android:background="@drawable/btn_type_active"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?android:attr/selectableItemBackground"
+                        android:layout_marginEnd="4dp"/>
+                    <TextView
+                        android:id="@+id/btnTypeSuffix"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="44dp"
+                        android:text="SUFFIX"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/subtext"
+                        android:background="@drawable/btn_type_inactive"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?android:attr/selectableItemBackground"
+                        android:layout_marginStart="2dp"
+                        android:layout_marginEnd="2dp"/>
+                    <TextView
+                        android:id="@+id/btnTypeRange"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="44dp"
+                        android:text="RANGE"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/subtext"
+                        android:background="@drawable/btn_type_inactive"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?android:attr/selectableItemBackground"
+                        android:layout_marginStart="4dp"/>
+                </LinearLayout>
+
+                <!-- Range inputs row — visible ONLY when RANGE selected -->
+                <LinearLayout
+                    android:id="@+id/rangeInputsRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="10dp"
+                    android:visibility="gone">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="BLOCK BEFORE"
+                            android:textSize="10sp"
+                            android:textColor="@color/muted"
+                            android:letterSpacing="0.08"/>
+                        <EditText
+                            android:id="@+id/rangeBeforeInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:hint="0"
+                            android:text="5"
+                            android:textColor="@color/text"
+                            android:textColorHint="@color/muted"
+                            android:background="@drawable/input_bg"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:inputType="number"
+                            android:maxLength="4"
+                            android:gravity="center"
+                            android:layout_marginTop="4dp"/>
+                    </LinearLayout>
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginStart="8dp">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="BLOCK AFTER"
+                            android:textSize="10sp"
+                            android:textColor="@color/muted"
+                            android:letterSpacing="0.08"/>
+                        <EditText
+                            android:id="@+id/rangeAfterInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:hint="0"
+                            android:text="5"
+                            android:textColor="@color/text"
+                            android:textColorHint="@color/muted"
+                            android:background="@drawable/input_bg"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:inputType="number"
+                            android:maxLength="4"
+                            android:gravity="center"
+                            android:layout_marginTop="4dp"/>
+                    </LinearLayout>
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/rangeSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textSize="11sp"
+                    android:textColor="@color/subtext"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="2. PATTERN"
+                    android:textSize="11sp"
+                    android:textColor="@color/muted"
+                    android:letterSpacing="0.08"
+                    android:layout_marginTop="14dp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+                    <Spinner
+                        android:id="@+id/countryDialSpinner"
+                        android:layout_width="100dp"
+                        android:layout_height="48dp"
+                        android:background="@drawable/input_bg"/>
+                    <EditText
+                        android:id="@+id/patternInput"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="48dp"
+                        android:hint="e.g. 9494"
+                        android:textColor="@color/text"
+                        android:textColorHint="@color/muted"
+                        android:background="@drawable/input_bg"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:inputType="phone"
+                        android:layout_marginStart="8dp"/>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="3. TAP TO ADD"
+                    android:textSize="11sp"
+                    android:textColor="@color/muted"
+                    android:letterSpacing="0.08"
+                    android:layout_marginTop="14dp"/>
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Tap ACCEPT to whitelist or REJECT to block this pattern"
+                    android:textSize="11sp"
+                    android:textColor="@color/subtext"
+                    android:layout_marginTop="4dp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="10dp">
+                    <TextView
+                        android:id="@+id/btnAccept"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="56dp"
+                        android:text="\u2713 ACCEPT"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/white"
+                        android:background="@drawable/btn_accept_active"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?android:attr/selectableItemBackground"
+                        android:layout_marginEnd="4dp"/>
+                    <TextView
+                        android:id="@+id/btnReject"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="56dp"
+                        android:text="\u2717 REJECT"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/white"
+                        android:background="@drawable/btn_reject_active"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?android:attr/selectableItemBackground"
+                        android:layout_marginStart="4dp"/>
+                </LinearLayout>
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/rulesScreenEmpty"
                 android:layout_width="match_parent"

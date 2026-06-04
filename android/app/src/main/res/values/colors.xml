@@ -2,9 +2,9 @@
 <resources>
     <color name="bg">#0B1020</color>
     <color name="bg_bottom">#05070D</color>
-    <color name="card">#161A28</color>
-    <color name="surface">#22263A</color>
-    <color name="border">#2D3C5F</color>
+    <color name="card">#16203A</color>
+    <color name="surface">#1E2A48</color>
+    <color name="border">#2B3F66</color>
     <color name="text">#FFFFFF</color>
     <color name="subtext">#8B92A7</color>
     <color name="muted">#6B7280</color>

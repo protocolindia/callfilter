@@ -1,12 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Base navy linear gradient -->
     <item>
         <shape android:shape="rectangle">
             <gradient
                 android:type="linear"
                 android:angle="270"
-                android:startColor="@color/bg"
-                android:endColor="@color/bg_bottom"/>
+                android:startColor="#0E1730"
+                android:centerColor="#0A1124"
+                android:endColor="#05070F"/>
+        </shape>
+    </item>
+    <!-- Blue glow at the top -->
+    <item android:gravity="top" android:height="360dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="420dp"
+                android:centerX="0.5"
+                android:centerY="0.0"
+                android:startColor="#334F8EF7"
+                android:endColor="#00000000"/>
         </shape>
     </item>
 </layer-list>
