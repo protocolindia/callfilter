@@ -42,11 +42,13 @@ function httpGet(urlStr, timeoutMs) {
 
 const router = express.Router();
 
-async function audit(actor, event, details) {
-  await query(
+function audit(actor, event, details) {
+  // Fire-and-forget: never block the response on the audit-log write.
+  query(
     'INSERT INTO audit_log(actor, event, details) VALUES ($1, $2, $3)',
     [actor, event, details || '']
-  );
+  ).catch(err => console.error('audit log failed:', err.message));
+  return Promise.resolve();
 }
 
 // POST /admin/login

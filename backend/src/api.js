@@ -7,11 +7,13 @@ async function getSetting(key) {
   return r ? r.value : null;
 }
 
-async function audit(actor, event, details) {
-  await query(
+function audit(actor, event, details) {
+  // Fire-and-forget: never block the response on the audit-log write.
+  query(
     'INSERT INTO audit_log(actor, event, details) VALUES ($1, $2, $3)',
     [actor, event, details || '']
-  );
+  ).catch(err => console.error('audit log failed:', err.message));
+  return Promise.resolve();
 }
 
 async function genOtp() {
