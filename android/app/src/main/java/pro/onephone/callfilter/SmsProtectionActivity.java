@@ -56,7 +56,31 @@ public class SmsProtectionActivity extends AppCompatActivity {
         findViewById(R.id.rowFlaggedMessages).setOnClickListener(v ->
             startActivity(new Intent(this, FlaggedSmsActivity.class)));
 
+        findViewById(R.id.btnTestDetection).setOnClickListener(v -> runTestDetection());
+
         refreshModeUI();
+    }
+
+    /** Runs the detector on a sample phishing message to prove the pipeline
+     *  (detection + notification + flagged history) works on this device. */
+    private void runTestDetection() {
+        if (!detector.isEnabled()) {
+            detector.setEnabled(true);
+            masterSwitch.setChecked(true);
+        }
+        requestSmsPermissionIfNeeded();
+        String sample = "KYC update required. Your account will be suspended. "
+            + "Verify your account now: http://bit.ly/verify-now";
+        SmsThreatDetector.Result r = detector.analyze(sample);
+        if (!r.flagged) {
+            // Force-flag for the test so the user always sees the result
+            r.flagged = true;
+            if (r.reasons.isEmpty()) r.reasons.add("Test message");
+        }
+        FlaggedSmsStore.getInstance(this).record("TEST-SENDER", sample, r);
+        SmsReceiver.showWarning(this, "TEST-SENDER", sample, r);
+        Toast.makeText(this, "Test alert sent (score " + r.score + "/100). "
+            + "Check your notifications and Flagged Messages.", Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -140,11 +164,19 @@ public class SmsProtectionActivity extends AppCompatActivity {
 
     private void requestSmsPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            java.util.List<String> need = new java.util.ArrayList<>();
             if (checkSelfPermission(android.Manifest.permission.RECEIVE_SMS)
                     != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{
-                    android.Manifest.permission.RECEIVE_SMS,
-                    android.Manifest.permission.READ_SMS}, 5502);
+                need.add(android.Manifest.permission.RECEIVE_SMS);
+                need.add(android.Manifest.permission.READ_SMS);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                    && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                need.add(android.Manifest.permission.POST_NOTIFICATIONS);
+            }
+            if (!need.isEmpty()) {
+                requestPermissions(need.toArray(new String[0]), 5502);
             }
         }
     }

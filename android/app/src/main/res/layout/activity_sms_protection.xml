@@ -165,6 +165,25 @@
                     android:text="›" android:textSize="22sp" android:textColor="@color/subtext"/>
             </LinearLayout>
 
+            <Button
+                android:id="@+id/btnTestDetection"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="Run a test detection"
+                android:textColor="@color/text"
+                android:textStyle="bold"
+                android:background="@drawable/btn_accent"
+                android:layout_marginTop="16dp"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Simulates a phishing SMS to confirm alerts are working on this device."
+                android:textSize="12sp"
+                android:textColor="@color/muted"
+                android:gravity="center"
+                android:layout_marginTop="8dp"/>
+
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

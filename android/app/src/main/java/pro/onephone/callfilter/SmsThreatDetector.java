@@ -64,8 +64,8 @@ public class SmsThreatDetector {
     public String getMode() { return prefs.getString(KEY_MODE, MODE_PASSIVE); }
     public void setMode(String m) { prefs.edit().putString(KEY_MODE, m).commit(); }
 
-    /** Score at or above which an SMS is flagged. Default 50. */
-    public int getThreshold() { return prefs.getInt(KEY_THRESHOLD, 50); }
+    /** Score at or above which an SMS is flagged. Default 35. */
+    public int getThreshold() { return prefs.getInt(KEY_THRESHOLD, 35); }
     public void setThreshold(int t) { prefs.edit().putInt(KEY_THRESHOLD, t).commit(); }
 
     // ---- Rule sync ----

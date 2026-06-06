@@ -76,7 +76,7 @@ public class SmsReceiver extends BroadcastReceiver {
         return out;
     }
 
-    private void showWarning(Context ctx, String from, String body, SmsThreatDetector.Result r) {
+    public static void showWarning(Context ctx, String from, String body, SmsThreatDetector.Result r) {
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
