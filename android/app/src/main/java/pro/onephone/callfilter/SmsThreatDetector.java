@@ -114,7 +114,7 @@ public class SmsThreatDetector {
             r.reasons.add("Link uses a raw IP address");
         }
         // shortener / blocklisted domains
-        JSONArray urlRules = safeArray(prefs.getString(KEY_URLS, "[]"));
+        JSONArray urlRules = urlRules();
         for (String u : r.urls) {
             String host = hostOf(u);
             for (int i = 0; i < urlRules.length(); i++) {
@@ -136,7 +136,7 @@ public class SmsThreatDetector {
         }
 
         // Layer 2: keyword rules
-        JSONArray kwRules = safeArray(prefs.getString(KEY_KEYWORDS, "[]"));
+        JSONArray kwRules = keywordRules();
         for (int i = 0; i < kwRules.length(); i++) {
             JSONObject o = kwRules.optJSONObject(i);
             if (o == null) continue;
@@ -181,6 +181,76 @@ public class SmsThreatDetector {
     }
 
     public interface ReputationCallback { void onResult(boolean blocked, String category); }
+
+    // ---- Built-in defaults (used when the backend cache is empty) ----
+
+    /** Default keyword rules so detection works offline / before the first sync. */
+    private static final String[][] DEFAULT_KEYWORDS = {
+        {"verify your account", "phishing", "40"},
+        {"kyc update", "phishing", "40"},
+        {"kyc pending", "phishing", "40"},
+        {"click the link", "phishing", "25"},
+        {"click here", "phishing", "20"},
+        {"you have won", "spam", "35"},
+        {"you've won", "spam", "35"},
+        {"claim your prize", "spam", "40"},
+        {"claim now", "spam", "30"},
+        {"account will be suspended", "phishing", "45"},
+        {"account is blocked", "phishing", "40"},
+        {"account has been blocked", "phishing", "40"},
+        {"urgent action required", "phishing", "35"},
+        {"congratulations you", "spam", "30"},
+        {"limited time offer", "promotional", "20"},
+        {"update your payment", "phishing", "45"},
+        {"update your kyc", "phishing", "45"},
+        {"your otp", "phishing", "20"},
+        {"share your otp", "phishing", "50"},
+        {"lottery", "spam", "35"},
+        {"cash prize", "spam", "35"},
+        {"redeem", "spam", "20"},
+        {"won a", "spam", "25"},
+        {"bank account", "phishing", "20"},
+        {"debit card", "phishing", "25"},
+        {"credit card blocked", "phishing", "45"},
+        {"pan card", "phishing", "30"},
+        {"refund", "phishing", "20"},
+        {"reward points", "spam", "25"},
+        {"expire", "phishing", "15"},
+        {"act now", "spam", "20"}
+    };
+
+    private static final String[] DEFAULT_URL_DOMAINS = {
+        "bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "rb.gy", "shorturl.at", "ow.ly"
+    };
+
+    private JSONArray keywordRules() {
+        JSONArray cached = safeArray(prefs.getString(KEY_KEYWORDS, "[]"));
+        if (cached.length() > 0) return cached;
+        // Fall back to built-in defaults
+        JSONArray def = new JSONArray();
+        for (String[] k : DEFAULT_KEYWORDS) {
+            try {
+                JSONObject o = new JSONObject();
+                o.put("phrase", k[0]); o.put("category", k[1]); o.put("weight", Integer.parseInt(k[2]));
+                def.put(o);
+            } catch (Exception ignored) {}
+        }
+        return def;
+    }
+
+    private JSONArray urlRules() {
+        JSONArray cached = safeArray(prefs.getString(KEY_URLS, "[]"));
+        if (cached.length() > 0) return cached;
+        JSONArray def = new JSONArray();
+        for (String d : DEFAULT_URL_DOMAINS) {
+            try {
+                JSONObject o = new JSONObject();
+                o.put("domain", d); o.put("category", "suspicious");
+                def.put(o);
+            } catch (Exception ignored) {}
+        }
+        return def;
+    }
 
     // ---- helpers ----
 

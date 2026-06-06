@@ -38,12 +38,6 @@ public class ProfileActivity extends AppCompatActivity {
                 startActivity(new android.content.Intent(this, SmsTemplatesActivity.class)));
         }
 
-        View rowSmsProt = findViewById(R.id.rowSmsProtection);
-        if (rowSmsProt != null) {
-            rowSmsProt.setOnClickListener(v ->
-                startActivity(new android.content.Intent(this, SmsProtectionActivity.class)));
-        }
-
         // Sign out
         View btnLogout = findViewById(R.id.btnLogout);
         if (btnLogout != null) {

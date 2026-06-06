@@ -395,34 +395,9 @@
                     android:text="›" android:textSize="22sp" android:textColor="@color/subtext"/>
             </LinearLayout>
 
-            <!-- SMS Phishing/Spam Protection -->
-            <LinearLayout
-                android:id="@+id/rowSmsProtection"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="@drawable/card_bg"
-                android:padding="16dp"
-                android:layout_marginBottom="12dp"
-                android:clickable="true"
-                android:focusable="true">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="🛡️" android:textSize="22sp" android:layout_marginEnd="12dp"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1"
-                    android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="SMS Protection"
-                        android:textSize="15sp" android:textStyle="bold" android:textColor="@color/text"/>
-                    <TextView android:id="@+id/smsProtectionSummary"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="Detect phishing &amp; spam messages"
-                        android:textSize="12sp" android:textColor="@color/subtext"
-                        android:layout_marginTop="2dp"/>
-                </LinearLayout>
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="›" android:textSize="22sp" android:textColor="@color/subtext"/>
-            </LinearLayout>
+            <!-- Sign out button at the bottom -->
+            <Button
+                android:id="@+id/btnLogout"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:text="Sign out"
@@ -435,7 +410,7 @@
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="CyberGuard AI · v2.2"
+                android:text="CyberGuard AI · v2.3"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"

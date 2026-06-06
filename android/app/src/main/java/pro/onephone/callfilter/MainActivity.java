@@ -77,6 +77,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void bindViews() {
         topBarUserInfo   = findViewById(R.id.topBarUserInfo);
+        View btnProfileTop = findViewById(R.id.btnProfileTop);
+        if (btnProfileTop != null) {
+            btnProfileTop.setOnClickListener(v ->
+                startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
+        }
         statAccept       = findViewById(R.id.statAccept);
         statReject       = findViewById(R.id.statReject);
         statTotal        = findViewById(R.id.statTotal);
@@ -115,8 +120,8 @@ public class MainActivity extends AppCompatActivity {
                 } else if (id == R.id.nav_rules) {
                     startActivity(new Intent(this, RulesActivity.class));
                     return true;
-                } else if (id == R.id.nav_profile) {
-                    startActivity(new Intent(this, ProfileActivity.class));
+                } else if (id == R.id.nav_sms) {
+                    startActivity(new Intent(this, SmsProtectionActivity.class));
                     return true;
                 }
                 return false;
