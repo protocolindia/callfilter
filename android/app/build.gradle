@@ -10,8 +10,8 @@ android {
         applicationId "pro.onephone.callfilter"
         minSdk 26
         targetSdk 34
-        versionCode 89
-        versionName "2.3"
+        versionCode 90
+        versionName "2.4"
 
         buildConfigField "String", "BACKEND_URL", "\"https://api.app.onephone.pro\""
     }
@@ -35,6 +35,10 @@ android {
         }
     }
 
+    // True only when a real release keystore is present on the build machine.
+    def hasReleaseKeystore = file("${rootDir}/keystore/release.keystore").exists() ||
+                             (System.getenv("KEYSTORE_FILE") != null)
+
     flavorDimensions += "distribution"
     productFlavors {
         playstore {
@@ -54,10 +58,20 @@ android {
             versionNameSuffix "-debug"
         }
         release {
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            if (hasReleaseKeystore) {
+                // Production build: real signing + size optimizations
+                minifyEnabled true
+                shrinkResources true
+                proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                signingConfig signingConfigs.release
+            } else {
+                // No release keystore present: sign with the debug key so the
+                // APK is still installable for sideload testing. Disable minify
+                // to avoid any ProGuard issues during testing.
+                minifyEnabled false
+                shrinkResources false
+                signingConfig signingConfigs.debug
+            }
         }
     }
 
