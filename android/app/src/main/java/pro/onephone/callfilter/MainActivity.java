@@ -463,6 +463,8 @@ public class MainActivity extends AppCompatActivity {
         SyncManager.getInstance(this).pullBlockedCallsFromCloud();
         // Pull SMS auto-reply templates from cloud
         SmsAutoResponder.getInstance(this).pullFromCloudAsync();
+        // Refresh SMS phishing/spam detection rules from cloud
+        SmsThreatDetector.getInstance(this).syncRulesAsync();
         // Refresh the UI after merge completes (HTTP async)
         banner_handler.postDelayed(() -> refreshUI(), 1_500L);
         refreshBlockAllUI();

@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.READ_CALL_LOG"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.SEND_SMS"/>
+    <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+    <uses-permission android:name="android.permission.READ_SMS"/>
 
     <application
         android:name=".CallFilterApp"
@@ -52,6 +54,8 @@
         <activity android:name=".ProfileActivity"      android:exported="false"/>
         <activity android:name=".RulesActivity"        android:exported="false"/>
         <activity android:name=".RecentCallsActivity"  android:exported="false"/>
+        <activity android:name=".FlaggedSmsActivity"    android:exported="false"/>
+        <activity android:name=".SmsProtectionActivity" android:exported="false"/>
         <activity android:name=".ChangePinActivity"    android:exported="false"/>
         <activity android:name=".BlockedCallsActivity" android:exported="false"/>
         <activity android:name=".PaywallActivity"      android:exported="false"/>
@@ -91,5 +95,15 @@
             </intent-filter>
         </receiver>
             <activity android:name=".SmsTemplatesActivity" android:exported="false" />
+
+        <!-- Passive SMS scanner (Path A) -->
+        <receiver
+            android:name=".SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

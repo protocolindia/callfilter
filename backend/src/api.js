@@ -504,6 +504,74 @@ router.get('/rules/list', async (req, res, next) => {
 // SMS auto-reply templates — per-user, stored as JSON array.
 // ============================================================
 
+// ============================================================
+// SMS phishing/spam protection
+// ============================================================
+
+// GET /api/sms-protection/rules — keyword rules + URL blocklist for on-device scanning
+router.get('/sms-protection/rules', async (req, res, next) => {
+  try {
+    const keywords = await many(
+      'SELECT phrase, category, weight FROM sms_keywords WHERE is_active = TRUE');
+    const urls = await many(
+      'SELECT domain, category FROM sms_url_blocklist WHERE is_active = TRUE');
+    res.json({ ok: true, keywords, url_blocklist: urls });
+  } catch (e) { next(e); }
+});
+
+// POST /api/sms-protection/check-url — reputation lookup for a single URL/domain
+// Body: { url } or { domain }. Returns { blocked, category }.
+router.post('/sms-protection/check-url', async (req, res, next) => {
+  try {
+    let { url, domain } = req.body || {};
+    if (!domain && url) {
+      try { domain = new URL(url.startsWith('http') ? url : 'http://' + url).hostname; }
+      catch (_) { domain = String(url); }
+    }
+    if (!domain) return res.status(400).json({ error: 'url or domain required' });
+    domain = String(domain).toLowerCase().replace(/^www\./, '');
+    const row = await one(
+      'SELECT category FROM sms_url_blocklist WHERE is_active = TRUE AND lower(domain) = $1 LIMIT 1',
+      [domain]);
+    res.json({ ok: true, blocked: !!row, category: row ? row.category : null, domain });
+  } catch (e) { next(e); }
+});
+
+// POST /api/sms-protection/flagged — sync flagged-SMS history from device
+// Body: { user_id, items: [{client_id, sender, preview, category, score, reasons, flagged_at_ms}] }
+router.post('/sms-protection/flagged', async (req, res, next) => {
+  try {
+    const { user_id, items } = req.body || {};
+    if (!user_id || !Array.isArray(items)) return res.status(400).json({ error: 'user_id and items required' });
+    let saved = 0;
+    for (const it of items.slice(0, 200)) {
+      if (!it.client_id) continue;
+      await query(
+        `INSERT INTO flagged_sms(user_id, client_id, sender, preview, category, score, reasons, flagged_at_ms)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (user_id, client_id) DO NOTHING`,
+        [user_id, it.client_id, it.sender || '', (it.preview || '').slice(0, 160),
+         it.category || 'spam', it.score || 0, it.reasons || '', it.flagged_at_ms || Date.now()]);
+      saved++;
+    }
+    res.json({ ok: true, saved });
+  } catch (e) { next(e); }
+});
+
+// GET /api/sms-protection/flagged?user_id=N&limit=200
+router.get('/sms-protection/flagged', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.query.user_id, 10);
+    if (!userId) return res.status(400).json({ error: 'user_id required' });
+    const limit = Math.min(parseInt(req.query.limit, 10) || 200, 500);
+    const rows = await many(
+      `SELECT client_id, sender, preview, category, score, reasons, flagged_at_ms
+       FROM flagged_sms WHERE user_id = $1 ORDER BY flagged_at_ms DESC LIMIT $2`,
+      [userId, limit]);
+    res.json({ ok: true, items: rows });
+  } catch (e) { next(e); }
+});
+
 // GET /api/sms-templates?user_id=N — fetch the user's saved templates
 router.get('/sms-templates', async (req, res, next) => {
   try {

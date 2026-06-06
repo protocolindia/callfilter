@@ -1477,4 +1477,81 @@ router.post('/users/:id/reset-subscriptions', requireAdmin, async (req, res, nex
   } catch (e) { next(e); }
 });
 
+
+// ============================================================
+// SMS protection — admin management of keywords + URL blocklist
+// ============================================================
+
+router.get('/sms-protection/keywords', requireAdmin, async (req, res, next) => {
+  try {
+    const rows = await many('SELECT * FROM sms_keywords ORDER BY id DESC');
+    res.json({ keywords: rows });
+  } catch (e) { next(e); }
+});
+
+router.post('/sms-protection/keywords', requireAdmin, async (req, res, next) => {
+  try {
+    const { phrase, category, weight } = req.body || {};
+    if (!phrase || !phrase.trim()) return res.status(400).json({ error: 'phrase required' });
+    const row = await one(
+      `INSERT INTO sms_keywords(phrase, category, weight) VALUES ($1,$2,$3) RETURNING *`,
+      [phrase.trim(), category || 'spam', parseInt(weight, 10) || 30]);
+    await audit(req.admin.username, 'sms_keyword_added', `phrase=${phrase}`);
+    res.json({ ok: true, keyword: row });
+  } catch (e) { next(e); }
+});
+
+router.put('/sms-protection/keywords/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { phrase, category, weight, is_active } = req.body || {};
+    const row = await one(
+      `UPDATE sms_keywords SET
+         phrase = COALESCE($2, phrase),
+         category = COALESCE($3, category),
+         weight = COALESCE($4, weight),
+         is_active = COALESCE($5, is_active)
+       WHERE id = $1 RETURNING *`,
+      [id, phrase, category, weight, is_active]);
+    if (!row) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true, keyword: row });
+  } catch (e) { next(e); }
+});
+
+router.delete('/sms-protection/keywords/:id', requireAdmin, async (req, res, next) => {
+  try {
+    await query('DELETE FROM sms_keywords WHERE id = $1', [parseInt(req.params.id, 10)]);
+    await audit(req.admin.username, 'sms_keyword_deleted', `id=${req.params.id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.get('/sms-protection/urls', requireAdmin, async (req, res, next) => {
+  try {
+    const rows = await many('SELECT * FROM sms_url_blocklist ORDER BY id DESC');
+    res.json({ urls: rows });
+  } catch (e) { next(e); }
+});
+
+router.post('/sms-protection/urls', requireAdmin, async (req, res, next) => {
+  try {
+    let { domain, category } = req.body || {};
+    if (!domain || !domain.trim()) return res.status(400).json({ error: 'domain required' });
+    domain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+    const row = await one(
+      `INSERT INTO sms_url_blocklist(domain, category) VALUES ($1,$2) RETURNING *`,
+      [domain, category || 'phishing']);
+    await audit(req.admin.username, 'sms_url_added', `domain=${domain}`);
+    res.json({ ok: true, url: row });
+  } catch (e) { next(e); }
+});
+
+router.delete('/sms-protection/urls/:id', requireAdmin, async (req, res, next) => {
+  try {
+    await query('DELETE FROM sms_url_blocklist WHERE id = $1', [parseInt(req.params.id, 10)]);
+    await audit(req.admin.username, 'sms_url_deleted', `id=${req.params.id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

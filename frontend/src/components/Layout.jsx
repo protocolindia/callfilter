@@ -40,6 +40,7 @@ export default function Layout({ children }) {
           {can('admin','billing') && <NavLink to="/payments" className={linkClass}>💰 Payments</NavLink>}
           {can('admin','support') && <NavLink to="/block-reasons" className={linkClass}>📋 Block Reasons</NavLink>}
           {(can('admin','support') || isGlobalOnly) && <NavLink to="/global-blocklist" className={linkClass}>🌐 Global Blocklist</NavLink>}
+          {can('admin','support') && <NavLink to="/sms-protection" className={linkClass}>🛡️ SMS Protection</NavLink>}
           {can('admin','billing') && <NavLink to="/settings" className={linkClass}>⚙️ Settings</NavLink>}
           {can('admin') && <NavLink to="/audit" className={linkClass}>📋 Audit Log</NavLink>}
           {(can('admin') || role === 'global_db_admin') && <NavLink to="/admin-users" className={linkClass}>🔐 Admin Users</NavLink>}
