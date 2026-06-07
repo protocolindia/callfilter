@@ -538,7 +538,7 @@ public class MainActivity extends AppCompatActivity {
                 "secure servers, so your block-rules and contacts list stay in sync if you " +
                 "switch devices.\n\n" +
                 "• Off by default — your contacts never leave the device unless you turn this on.\n" +
-                "• You can turn this off any time, and we'll delete your uploaded contacts.\n\n" +
+                "• You can turn this off any time. Your synced contacts stay safely in the cloud so they're available when you sign in on another device.\n\n" +
                 "By continuing you agree to our Privacy Policy at https://onephone.pro/privacy.")
             .setPositiveButton("Turn on", (d, w) -> {
                 if (checkSelfPermission(Manifest.permission.READ_CONTACTS)

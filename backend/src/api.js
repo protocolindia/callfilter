@@ -409,21 +409,33 @@ router.get('/contacts/list', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/contacts/opt-out — turn off + purge stored contacts
+// POST /api/contacts/opt-out — turn OFF syncing but KEEP stored contacts.
+// (Turning sync off must never delete cloud data.)
 router.post('/contacts/opt-out', async (req, res, next) => {
+  try {
+    const { user_id } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    await query(
+      `UPDATE users SET contacts_opted_in = FALSE WHERE id = $1`,
+      [user_id]
+    );
+    await audit('android', 'contacts_opt_out', `user_id=${user_id} (data retained)`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// POST /api/contacts/purge — explicit, deliberate deletion of all cloud contacts.
+// Only used when the user explicitly asks to erase their uploaded contacts.
+router.post('/contacts/purge', async (req, res, next) => {
   try {
     const { user_id } = req.body || {};
     if (!user_id) return res.status(400).json({ error: 'user_id required' });
     await query('DELETE FROM user_contacts WHERE user_id = $1', [user_id]);
     await query(
-      `UPDATE users
-         SET contacts_opted_in = FALSE,
-             contacts_count = 0,
-             last_contacts_sync = NULL
-       WHERE id = $1`,
+      `UPDATE users SET contacts_count = 0, last_contacts_sync = NULL WHERE id = $1`,
       [user_id]
     );
-    await audit('android', 'contacts_opt_out', `user_id=${user_id}`);
+    await audit('android', 'contacts_purge', `user_id=${user_id}`);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

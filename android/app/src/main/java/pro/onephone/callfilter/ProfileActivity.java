@@ -216,8 +216,8 @@ public class ProfileActivity extends AppCompatActivity {
             .setMessage(
                 "This uploads contact names and numbers to our secure servers "
                 + "so they're available if you switch devices.\n\n"
-                + "Off by default. You can turn it off any time and we'll delete "
-                + "your uploaded contacts.")
+                + "Off by default. You can turn it off any time; your synced "
+                + "contacts stay safely in the cloud.")
             .setPositiveButton("Turn on", (d, w) -> {
                 SyncManager.getInstance(this).setContactsOptedIn(true);
                 SyncManager.getInstance(this).syncContactsAsync();
