@@ -168,7 +168,7 @@ router.get('/users/:id/contacts', requireAdmin, async (req, res, next) => {
     params.push(limit, offset);
     const rows = await many(
       `SELECT c.id, c.client_contact_id, c.display_name, c.photo_uri,
-              c.starred, c.notes, c.created_at
+              c.starred, c.notes, c.created_at, c.deleted_at
          FROM user_contacts c
          ${whereSql}
          ORDER BY c.display_name ASC NULLS LAST, c.id ASC
@@ -219,6 +219,8 @@ router.get('/users/:id/contacts', requireAdmin, async (req, res, next) => {
       starred: r.starred,
       notes: r.notes,
       created_at: r.created_at,
+      deleted_at: r.deleted_at,
+      deleted: !!r.deleted_at,
       phones:    ph[String(r.id)] || [],
       emails:    em[String(r.id)] || [],
       addresses: ad[String(r.id)] || [],

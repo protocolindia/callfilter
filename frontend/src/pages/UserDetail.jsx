@@ -617,7 +617,11 @@ function ContactRow({ c, expanded, onToggle }) {
                 || c.orgs.length || c.websites.length || c.events.length;
 
   return (
-    <div className="contact-card">
+    <div className="contact-card" style={c.deleted ? {
+        opacity: 0.65,
+        background: 'rgba(248,113,113,0.08)',
+        borderLeft: '3px solid var(--red)'
+      } : undefined}>
       <div className="contact-header" onClick={hasMore ? onToggle : undefined}
            style={{ cursor: hasMore ? 'pointer' : 'default' }}>
         <div className="contact-avatar">
@@ -628,7 +632,16 @@ function ContactRow({ c, expanded, onToggle }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="contact-name">
             {c.starred && <span style={{ marginRight: 6 }}>⭐</span>}
-            {c.display_name || <span className="muted">— no name —</span>}
+            <span style={c.deleted ? { textDecoration: 'line-through' } : undefined}>
+              {c.display_name || <span className="muted">— no name —</span>}
+            </span>
+            {c.deleted && (
+              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700,
+                color: 'var(--red)', background: 'rgba(248,113,113,0.15)',
+                borderRadius: 4, padding: '2px 7px', verticalAlign: 'middle' }}>
+                DELETED
+              </span>
+            )}
           </div>
           <div className="contact-line muted">
             {primary
