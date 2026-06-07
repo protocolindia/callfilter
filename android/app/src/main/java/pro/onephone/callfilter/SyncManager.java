@@ -301,12 +301,13 @@ public class SyncManager {
                     }
 
                     boolean firstFull = !prefs.getBoolean(KEY_FIRST_FULL_DONE, false);
-                    // Set of normalized phone numbers already uploaded (stable key)
+                    // Set of stable keys already uploaded from this device.
                     Set<String> uploaded = new HashSet<>(
                         prefs.getStringSet(KEY_UPLOADED_IDS, new HashSet<String>()));
 
                     JSONArray arr = new JSONArray();
                     final Set<String> newKeys = new HashSet<>();
+                    final Set<String> allDeviceKeys = new HashSet<>();
                     Cursor c = null;
                     try {
                         c = appCtx.getContentResolver().query(
@@ -344,13 +345,12 @@ public class SyncManager {
                             // Stable identity: lookup key + first normalized number.
                             String stableKey = (lookupKey != null ? lookupKey : "")
                                 + "|" + (normNums.isEmpty() ? "" : normNums.get(0));
+                            allDeviceKeys.add(stableKey);
 
                             // On delta, skip contacts we've already uploaded.
                             if (!firstFull && uploaded.contains(stableKey)) continue;
 
                             JSONObject o = new JSONObject();
-                            // Use the stable key as the cloud's client_contact_id so
-                            // re-syncs upsert (and un-delete) the same row.
                             o.put("contact_id", stableKey);
                             o.put("name", name == null ? "" : name);
                             o.put("phones", phones);
@@ -359,8 +359,23 @@ public class SyncManager {
                         }
                     } finally { if (c != null) c.close(); }
 
-                    // Additive only — never send deletions.
-                    if (arr.length() == 0) {
+                    // ---- Safe deletion detection ----
+                    // A contact we uploaded before that is no longer on the phone = deleted.
+                    // Guards prevent a transient/empty contacts read from wiping the cloud.
+                    final Set<String> deletedKeys = new HashSet<>(uploaded);
+                    deletedKeys.removeAll(allDeviceKeys);
+                    int cap = Math.max(25, uploaded.size() / 2);
+                    boolean safeToDelete =
+                        !allDeviceKeys.isEmpty()                       // read succeeded
+                        && !deletedKeys.isEmpty()
+                        && deletedKeys.size() <= cap;                  // not a mass-wipe
+                    if (!deletedKeys.isEmpty() && !safeToDelete) {
+                        Log.w(TAG, "Skipping suspicious contact deletion: "
+                            + deletedKeys.size() + " of " + uploaded.size() + " (guard)");
+                    }
+                    final Set<String> toDelete = safeToDelete ? deletedKeys : new HashSet<String>();
+
+                    if (arr.length() == 0 && toDelete.isEmpty()) {
                         prefs.edit().putBoolean(KEY_FIRST_FULL_DONE, true).commit();
                         return;
                     }
@@ -369,6 +384,7 @@ public class SyncManager {
                     body.put("user_id", Long.parseLong(auth.getUserId()));
                     body.put("mode", firstFull ? "full" : "delta");
                     body.put("contacts", arr);
+                    if (!toDelete.isEmpty()) body.put("deleted_ids", new JSONArray(toDelete));
 
                     BackendClient.post(AuthManager.BACKEND_URL + "/api/contacts/sync", body,
                         new BackendClient.Callback() {
@@ -377,6 +393,7 @@ public class SyncManager {
                                 Set<String> updated = new HashSet<>(
                                     prefs.getStringSet(KEY_UPLOADED_IDS, new HashSet<String>()));
                                 updated.addAll(newKeys);
+                                updated.removeAll(toDelete);
                                 prefs.edit()
                                     .putStringSet(KEY_UPLOADED_IDS, updated)
                                     .putBoolean(KEY_FIRST_FULL_DONE, true)

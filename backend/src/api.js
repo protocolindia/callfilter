@@ -259,14 +259,8 @@ router.post('/contacts/sync', async (req, res, next) => {
       [user_id]
     );
 
-    // A full sync is authoritative and additive: resurrect any previously
-    // soft-deleted contacts for this user (recovers from older buggy deletes).
-    if (mode === 'full') {
-      await query(
-        'UPDATE user_contacts SET deleted_at = NULL WHERE user_id = $1 AND deleted_at IS NOT NULL',
-        [user_id]);
-    }
-
+    // Per-contact upsert below already un-deletes any contact that is present
+    // on the device (re-uploaded), so intentionally-deleted contacts stay deleted.
     let inserted = 0;
     for (const c of contacts) {
       if (!c || !c.contact_id) continue;
@@ -352,17 +346,28 @@ router.post('/contacts/sync', async (req, res, next) => {
       }
     }
 
+    // Soft-delete contacts the device reports as removed (by stable key).
+    // The device applies safety guards before sending these.
+    let softDeleted = 0;
+    if (Array.isArray(req.body.deleted_ids) && req.body.deleted_ids.length > 0) {
+      const ids = req.body.deleted_ids.map(String);
+      const r = await query(
+        `UPDATE user_contacts SET deleted_at = NOW(), updated_at = NOW()
+         WHERE user_id = $1 AND client_contact_id = ANY($2) AND deleted_at IS NULL`,
+        [user_id, ids]);
+      softDeleted = r.rowCount || 0;
+    }
+
     const total = await one(
       'SELECT COUNT(*)::int AS c FROM user_contacts WHERE user_id = $1 AND deleted_at IS NULL', [user_id]);
     await query(
       `UPDATE users SET last_contacts_sync = NOW(), contacts_count = $2 WHERE id = $1`,
       [user_id, total.c]);
 
-    // Sync is additive only — contacts are never auto-deleted from the cloud.
     await audit('android',
       mode === 'full' ? 'contacts_full_sync' : 'contacts_delta_sync',
-      `user_id=${user_id}, inserted=${inserted}, total=${total.c}`);
-    res.json({ ok: true, inserted, total: total.c });
+      `user_id=${user_id}, inserted=${inserted}, soft_deleted=${softDeleted}, total=${total.c}`);
+    res.json({ ok: true, inserted, soft_deleted: softDeleted, total: total.c });
   } catch (e) { next(e); }
 });
 
