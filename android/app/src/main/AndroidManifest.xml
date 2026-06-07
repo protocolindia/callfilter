@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
     <uses-permission android:name="android.permission.READ_PHONE_NUMBERS"/>
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission android:name="android.permission.WRITE_CONTACTS"/>
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="com.android.vending.BILLING"/>
     <uses-permission android:name="android.permission.READ_CALL_LOG"/>
@@ -56,6 +58,13 @@
         <activity android:name=".RecentCallsActivity"  android:exported="false"/>
         <activity android:name=".FlaggedSmsActivity"    android:exported="false"/>
         <activity android:name=".SmsProtectionActivity" android:exported="false"/>
+        <activity android:name=".SmsThreatAlertActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.CallFilter"/>
         <activity android:name=".ChangePinActivity"    android:exported="false"/>
         <activity android:name=".BlockedCallsActivity" android:exported="false"/>
         <activity android:name=".PaywallActivity"      android:exported="false"/>

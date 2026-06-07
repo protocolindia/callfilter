@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@drawable/bg_gradient"
+    android:padding="28dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚠️"
+        android:textSize="64sp"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/alertTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Possible phishing SMS"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        android:textColor="@color/text"
+        android:gravity="center"/>
+
+    <TextView
+        android:id="@+id/alertSender"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="From: Unknown"
+        android:textSize="15sp"
+        android:textColor="@color/subtext"
+        android:gravity="center"
+        android:layout_marginTop="8dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/card_bg"
+        android:padding="18dp"
+        android:layout_marginTop="24dp">
+        <TextView
+            android:id="@+id/alertReasons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Looks suspicious"
+            android:textSize="14sp"
+            android:textColor="@color/reject"
+            android:textStyle="bold"/>
+        <TextView
+            android:id="@+id/alertPreview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:layout_marginTop="10dp"/>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Do not tap any links or share OTPs, passwords, or bank details."
+            android:textSize="13sp"
+            android:textColor="@color/subtext"
+            android:layout_marginTop="12dp"/>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/alertDismiss"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:text="Got it, dismiss"
+        android:textColor="@color/text"
+        android:textStyle="bold"
+        android:background="@drawable/btn_accent"
+        android:layout_marginTop="28dp"/>
+
+    <TextView
+        android:id="@+id/alertViewList"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="View all flagged messages"
+        android:textSize="14sp"
+        android:textColor="@color/accent"
+        android:padding="14dp"
+        android:layout_marginTop="6dp"
+        android:clickable="true"
+        android:focusable="true"/>
+</LinearLayout>

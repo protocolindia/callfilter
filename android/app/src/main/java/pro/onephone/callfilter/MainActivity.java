@@ -470,6 +470,8 @@ public class MainActivity extends AppCompatActivity {
         SmsAutoResponder.getInstance(this).pullFromCloudAsync();
         // Refresh SMS phishing/spam detection rules from cloud
         SmsThreatDetector.getInstance(this).syncRulesAsync();
+        // Restore phone book from cloud on a fresh device (writes to Contacts)
+        SyncManager.getInstance(this).restoreContactsFromCloudAsync();
         // Refresh the UI after merge completes (HTTP async)
         banner_handler.postDelayed(() -> refreshUI(), 1_500L);
         refreshBlockAllUI();
@@ -540,13 +542,18 @@ public class MainActivity extends AppCompatActivity {
                 "By continuing you agree to our Privacy Policy at https://onephone.pro/privacy.")
             .setPositiveButton("Turn on", (d, w) -> {
                 if (checkSelfPermission(Manifest.permission.READ_CONTACTS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 105);
+                        != PackageManager.PERMISSION_GRANTED
+                    || checkSelfPermission(Manifest.permission.WRITE_CONTACTS)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{
+                        Manifest.permission.READ_CONTACTS,
+                        Manifest.permission.WRITE_CONTACTS}, 105);
                     return;
                 }
                 SyncManager.getInstance(MainActivity.this).setContactsOptedIn(true);
+                SyncManager.getInstance(MainActivity.this).restoreContactsFromCloudAsync();
                 SyncManager.getInstance(MainActivity.this).syncContactsAsync();
-                Toast.makeText(MainActivity.this, "✓ Contact sync enabled", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "\u2713 Contact sync enabled", Toast.LENGTH_SHORT).show();
             })
             .setNegativeButton("Cancel", null)
             .show();

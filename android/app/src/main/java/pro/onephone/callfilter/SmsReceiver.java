@@ -88,26 +88,38 @@ public class SmsReceiver extends BroadcastReceiver {
 
         String title = ("phishing".equals(r.category) ? "\u26A0\uFE0F Possible phishing SMS"
                                                        : "\u26A0\uFE0F Possible spam SMS");
-        String reason = r.reasons.isEmpty() ? "Looks suspicious" : r.reasons.get(0);
-        String text = "From " + from + " \u00B7 " + reason;
+        String reason = r.reasons.isEmpty() ? "Looks suspicious"
+                                            : android.text.TextUtils.join(", ", r.reasons);
+        String preview = body.length() > 140 ? body.substring(0, 140) + "\u2026" : body;
 
-        Intent open = new Intent(ctx, FlaggedSmsActivity.class);
-        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        android.app.PendingIntent pi = android.app.PendingIntent.getActivity(
-            ctx, 0, open,
+        // Full-screen alert (like an incoming call)
+        Intent full = new Intent(ctx, SmsThreatAlertActivity.class);
+        full.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        full.putExtra(SmsThreatAlertActivity.EXTRA_TITLE, title);
+        full.putExtra(SmsThreatAlertActivity.EXTRA_SENDER, from);
+        full.putExtra(SmsThreatAlertActivity.EXTRA_REASONS, reason);
+        full.putExtra(SmsThreatAlertActivity.EXTRA_PREVIEW, preview);
+        android.app.PendingIntent fullPi = android.app.PendingIntent.getActivity(
+            ctx, (from + body).hashCode(), full,
             android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_nav_home)
+            .setSmallIcon(R.drawable.ic_nav_shield)
             .setContentTitle(title)
-            .setContentText(text)
+            .setContentText("From " + from + " \u00B7 " + reason)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(
-                text + "\n\nScore: " + r.score + "/100. Do not tap links or share codes."))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+                "From " + from + "\n" + reason + "\n\nScore: " + r.score
+                + "/100. Do not tap links or share codes."))
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
             .setAutoCancel(true)
-            .setContentIntent(pi);
+            .setContentIntent(fullPi)
+            .setFullScreenIntent(fullPi, true);   // pop full-screen like a call
 
         try { nm.notify(NOTIF_BASE + (from.hashCode() & 0xFFF), b.build()); }
         catch (SecurityException ignored) {}
+
+        // Also try to launch the full-screen activity directly (best-effort)
+        try { ctx.startActivity(full); } catch (Exception ignored) {}
     }
 }

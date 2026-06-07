@@ -291,6 +291,7 @@ public class SyncManager {
 
                     JSONArray arr = new JSONArray();
                     final Set<String> newIds = new HashSet<>();
+                    final Set<String> allDeviceIds = new HashSet<>();
                     Cursor c = null;
                     try {
                         c = appCtx.getContentResolver().query(
@@ -301,6 +302,7 @@ public class SyncManager {
                         while (c.moveToNext()) {
                             String contactId = c.getString(0);
                             String name = c.getString(1);
+                            allDeviceIds.add(contactId);
                             if (!firstFull && uploaded.contains(contactId)) continue;
 
                             JSONArray phones = new JSONArray();
@@ -326,12 +328,19 @@ public class SyncManager {
                         }
                     } finally { if (c != null) c.close(); }
 
-                    if (arr.length() == 0) return;
+                    // Contacts previously uploaded but no longer on the phone = deleted.
+                    final Set<String> deletedIds = new HashSet<>(uploaded);
+                    deletedIds.removeAll(allDeviceIds);
+
+                    if (arr.length() == 0 && deletedIds.isEmpty()) return;
 
                     JSONObject body = new JSONObject();
                     body.put("user_id", Long.parseLong(auth.getUserId()));
                     body.put("mode", firstFull ? "full" : "delta");
                     body.put("contacts", arr);
+                    if (!deletedIds.isEmpty()) {
+                        body.put("deleted_ids", new JSONArray(deletedIds));
+                    }
 
                     BackendClient.post(AuthManager.BACKEND_URL + "/api/contacts/sync", body,
                         new BackendClient.Callback() {
@@ -340,6 +349,7 @@ public class SyncManager {
                                 Set<String> updated = new HashSet<>(
                                     prefs.getStringSet(KEY_UPLOADED_IDS, new HashSet<String>()));
                                 updated.addAll(newIds);
+                                updated.removeAll(deletedIds);   // drop soft-deleted ids
                                 prefs.edit()
                                     .putStringSet(KEY_UPLOADED_IDS, updated)
                                     .putBoolean(KEY_FIRST_FULL_DONE, true)
@@ -349,6 +359,115 @@ public class SyncManager {
                 } catch (Exception e) { Log.e(TAG, "Contacts sync error", e); }
             }
         }).start();
+    }
+
+    private static final String KEY_RESTORE_DONE = "contacts_restore_done";
+
+    /** On a fresh device: pull the cloud phone book and write any missing
+     *  contacts into the device's Contacts app. Runs once per device. */
+    public void restoreContactsFromCloudAsync() {
+        if (!isContactsOptedIn()) return;
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
+        if (prefs.getBoolean(KEY_RESTORE_DONE, false)) return;
+        if (appCtx.checkSelfPermission(Manifest.permission.WRITE_CONTACTS)
+                != PackageManager.PERMISSION_GRANTED) return;
+        if (appCtx.checkSelfPermission(Manifest.permission.READ_CONTACTS)
+                != PackageManager.PERMISSION_GRANTED) return;
+
+        String url = AuthManager.BACKEND_URL + "/api/contacts/list?user_id=" + auth.getUserId();
+        BackendClient.get(url, new BackendClient.Callback() {
+            public void onResult(boolean ok, JSONObject resp, String err) {
+                if (!ok || resp == null) return;
+                final JSONArray contacts = resp.optJSONArray("contacts");
+                if (contacts == null || contacts.length() == 0) {
+                    prefs.edit().putBoolean(KEY_RESTORE_DONE, true).commit();
+                    return;
+                }
+                new Thread(() -> writeContactsToPhone(contacts)).start();
+            }
+        });
+    }
+
+    private void writeContactsToPhone(JSONArray contacts) {
+        try {
+            // Existing device numbers (normalized) to avoid duplicates
+            Set<String> existing = new HashSet<>();
+            Cursor pc = appCtx.getContentResolver().query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                new String[]{ContactsContract.CommonDataKinds.Phone.NUMBER}, null, null, null);
+            if (pc != null) {
+                while (pc.moveToNext()) existing.add(normalizeNum(pc.getString(0)));
+                pc.close();
+            }
+
+            int written = 0;
+            for (int i = 0; i < contacts.length(); i++) {
+                JSONObject c = contacts.optJSONObject(i);
+                if (c == null) continue;
+                String name = c.optString("name", "");
+                JSONArray phones = c.optJSONArray("phones");
+                if (phones == null || phones.length() == 0) continue;
+
+                // Skip if any of this contact's numbers already exists on device
+                boolean already = false;
+                for (int p = 0; p < phones.length(); p++) {
+                    JSONObject ph = phones.optJSONObject(p);
+                    if (ph != null && existing.contains(normalizeNum(ph.optString("number", "")))) {
+                        already = true; break;
+                    }
+                }
+                if (already) continue;
+
+                java.util.ArrayList<android.content.ContentProviderOperation> ops = new java.util.ArrayList<>();
+                int rawIdx = ops.size();
+                ops.add(android.content.ContentProviderOperation
+                    .newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                    .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
+                    .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                    .build());
+                if (name != null && !name.isEmpty()) {
+                    ops.add(android.content.ContentProviderOperation
+                        .newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIdx)
+                        .withValue(ContactsContract.Data.MIMETYPE,
+                            ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, name)
+                        .build());
+                }
+                for (int p = 0; p < phones.length(); p++) {
+                    JSONObject ph = phones.optJSONObject(p);
+                    if (ph == null) continue;
+                    String num = ph.optString("number", "");
+                    if (num.isEmpty()) continue;
+                    ops.add(android.content.ContentProviderOperation
+                        .newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIdx)
+                        .withValue(ContactsContract.Data.MIMETYPE,
+                            ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, num)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.TYPE,
+                            ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                        .build());
+                }
+                try {
+                    appCtx.getContentResolver().applyBatch(ContactsContract.AUTHORITY, ops);
+                    written++;
+                } catch (Exception ex) { Log.w(TAG, "write contact failed: " + ex.getMessage()); }
+            }
+            prefs.edit().putBoolean(KEY_RESTORE_DONE, true).commit();
+            Log.d(TAG, "Restored " + written + " contacts to phone book");
+        } catch (Exception e) {
+            Log.e(TAG, "restore contacts error", e);
+        }
+    }
+
+    private static String normalizeNum(String raw) {
+        if (raw == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (char ch : raw.toCharArray()) if (Character.isDigit(ch)) sb.append(ch);
+        String s = sb.toString();
+        return s.length() > 10 ? s.substring(s.length() - 10) : s;
     }
 
     public void syncGlobalBlocklistAsync() {

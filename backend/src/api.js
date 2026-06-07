@@ -262,16 +262,18 @@ router.post('/contacts/sync', async (req, res, next) => {
     let inserted = 0;
     for (const c of contacts) {
       if (!c || !c.contact_id) continue;
-      // Insert the contact (skip if we've already stored this client_contact_id)
+      // Insert the contact; if it already exists, clear any soft-delete (re-added).
       const inserted_row = await one(
         `INSERT INTO user_contacts(user_id, client_contact_id, display_name, photo_uri, starred, notes)
          VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (user_id, client_contact_id) DO NOTHING
-         RETURNING id`,
+         ON CONFLICT (user_id, client_contact_id) DO UPDATE
+           SET deleted_at = NULL, updated_at = NOW()
+         RETURNING id, (xmax = 0) AS is_new`,
         [user_id, String(c.contact_id), c.name || null, c.photo_uri || null,
          c.starred === true, c.notes || null]
       );
-      if (!inserted_row) continue; // existing — skip child inserts
+      if (!inserted_row) continue;
+      if (!inserted_row.is_new) continue; // existing — skip child inserts (avoid dupes)
       const cid = inserted_row.id;
       inserted++;
 
@@ -343,15 +345,69 @@ router.post('/contacts/sync', async (req, res, next) => {
     }
 
     const total = await one(
-      'SELECT COUNT(*)::int AS c FROM user_contacts WHERE user_id = $1', [user_id]);
+      'SELECT COUNT(*)::int AS c FROM user_contacts WHERE user_id = $1 AND deleted_at IS NULL', [user_id]);
     await query(
       `UPDATE users SET last_contacts_sync = NOW(), contacts_count = $2 WHERE id = $1`,
       [user_id, total.c]);
 
+    // Soft-delete: client sends the ids of contacts removed from the phone.
+    let softDeleted = 0;
+    if (Array.isArray(req.body.deleted_ids) && req.body.deleted_ids.length > 0) {
+      const ids = req.body.deleted_ids.map(String);
+      const r = await query(
+        `UPDATE user_contacts SET deleted_at = NOW(), updated_at = NOW()
+         WHERE user_id = $1 AND client_contact_id = ANY($2) AND deleted_at IS NULL`,
+        [user_id, ids]);
+      softDeleted = r.rowCount || 0;
+    }
+
     await audit('android',
       mode === 'full' ? 'contacts_full_sync' : 'contacts_delta_sync',
-      `user_id=${user_id}, inserted=${inserted}, total=${total.c}`);
-    res.json({ ok: true, inserted, total: total.c });
+      `user_id=${user_id}, inserted=${inserted}, deleted=${softDeleted}, total=${total.c}`);
+    res.json({ ok: true, inserted, soft_deleted: softDeleted, total: total.c });
+  } catch (e) { next(e); }
+});
+
+// GET /api/contacts/list?user_id=N — pull all active contacts (with phones)
+// so a new device can restore the phone book after login.
+router.get('/contacts/list', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.query.user_id, 10);
+    if (!userId) return res.status(400).json({ error: 'user_id required' });
+
+    const contacts = await many(
+      `SELECT id, client_contact_id, display_name, photo_uri, starred, notes
+       FROM user_contacts
+       WHERE user_id = $1 AND deleted_at IS NULL
+       ORDER BY display_name NULLS LAST`,
+      [userId]);
+
+    // Attach phones + emails in bulk (avoid N+1)
+    const ids = contacts.map(c => c.id);
+    let phonesByContact = {}, emailsByContact = {};
+    if (ids.length > 0) {
+      const phones = await many(
+        `SELECT contact_id, number, type FROM user_contact_phones WHERE contact_id = ANY($1)`, [ids]);
+      for (const p of phones) {
+        (phonesByContact[p.contact_id] = phonesByContact[p.contact_id] || []).push({ number: p.number, type: p.type });
+      }
+      const emails = await many(
+        `SELECT contact_id, address, type FROM user_contact_emails WHERE contact_id = ANY($1)`, [ids]);
+      for (const e of emails) {
+        (emailsByContact[e.contact_id] = emailsByContact[e.contact_id] || []).push({ address: e.address, type: e.type });
+      }
+    }
+
+    const out = contacts.map(c => ({
+      contact_id: c.client_contact_id,
+      name: c.display_name,
+      photo_uri: c.photo_uri,
+      starred: c.starred,
+      notes: c.notes,
+      phones: phonesByContact[c.id] || [],
+      emails: emailsByContact[c.id] || [],
+    }));
+    res.json({ ok: true, contacts: out, count: out.length });
   } catch (e) { next(e); }
 });
 
