@@ -410,7 +410,7 @@
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="CyberGuard AI · v3.1"
+                android:text="CyberGuard AI · v3.2"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"
