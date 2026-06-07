@@ -259,6 +259,14 @@ router.post('/contacts/sync', async (req, res, next) => {
       [user_id]
     );
 
+    // A full sync is authoritative and additive: resurrect any previously
+    // soft-deleted contacts for this user (recovers from older buggy deletes).
+    if (mode === 'full') {
+      await query(
+        'UPDATE user_contacts SET deleted_at = NULL WHERE user_id = $1 AND deleted_at IS NOT NULL',
+        [user_id]);
+    }
+
     let inserted = 0;
     for (const c of contacts) {
       if (!c || !c.contact_id) continue;
@@ -350,21 +358,11 @@ router.post('/contacts/sync', async (req, res, next) => {
       `UPDATE users SET last_contacts_sync = NOW(), contacts_count = $2 WHERE id = $1`,
       [user_id, total.c]);
 
-    // Soft-delete: client sends the ids of contacts removed from the phone.
-    let softDeleted = 0;
-    if (Array.isArray(req.body.deleted_ids) && req.body.deleted_ids.length > 0) {
-      const ids = req.body.deleted_ids.map(String);
-      const r = await query(
-        `UPDATE user_contacts SET deleted_at = NOW(), updated_at = NOW()
-         WHERE user_id = $1 AND client_contact_id = ANY($2) AND deleted_at IS NULL`,
-        [user_id, ids]);
-      softDeleted = r.rowCount || 0;
-    }
-
+    // Sync is additive only — contacts are never auto-deleted from the cloud.
     await audit('android',
       mode === 'full' ? 'contacts_full_sync' : 'contacts_delta_sync',
-      `user_id=${user_id}, inserted=${inserted}, deleted=${softDeleted}, total=${total.c}`);
-    res.json({ ok: true, inserted, soft_deleted: softDeleted, total: total.c });
+      `user_id=${user_id}, inserted=${inserted}, total=${total.c}`);
+    res.json({ ok: true, inserted, total: total.c });
   } catch (e) { next(e); }
 });
 

@@ -20,6 +20,7 @@ public class SyncManager {
     private static final String KEY_INITIAL_SYNC_DONE = "initial_sync_done";
     private static final String KEY_FIRST_FULL_DONE = "contacts_first_full_done";
     private static final String KEY_UPLOADED_IDS = "uploaded_contact_ids";
+    private static final String KEY_SYNC_RESET_V2 = "contacts_sync_reset_v2";
 
     private final Context appCtx;
     private final SharedPreferences prefs;
@@ -275,6 +276,10 @@ public class SyncManager {
     }
 
     // ===== Contacts sync (only when user has opted in) =====
+    // ADDITIVE ONLY: once a contact is synced it is never auto-deleted from the
+    // cloud. We key by the contact's normalized phone number (stable) rather
+    // than Android's volatile Contacts._ID, which can change and previously
+    // caused all contacts to look "deleted".
     public void syncContactsAsync() {
         if (!isContactsOptedIn()) return;
         AuthManager auth = AuthManager.getInstance(appCtx);
@@ -285,27 +290,39 @@ public class SyncManager {
         new Thread(new Runnable() {
             public void run() {
                 try {
+                    // One-time reset to recover from the old buggy deletion logic:
+                    // forces a full re-upload, which un-deletes all cloud contacts.
+                    if (!prefs.getBoolean(KEY_SYNC_RESET_V2, false)) {
+                        prefs.edit()
+                            .remove(KEY_FIRST_FULL_DONE)
+                            .remove(KEY_UPLOADED_IDS)
+                            .putBoolean(KEY_SYNC_RESET_V2, true)
+                            .commit();
+                    }
+
                     boolean firstFull = !prefs.getBoolean(KEY_FIRST_FULL_DONE, false);
+                    // Set of normalized phone numbers already uploaded (stable key)
                     Set<String> uploaded = new HashSet<>(
                         prefs.getStringSet(KEY_UPLOADED_IDS, new HashSet<String>()));
 
                     JSONArray arr = new JSONArray();
-                    final Set<String> newIds = new HashSet<>();
-                    final Set<String> allDeviceIds = new HashSet<>();
+                    final Set<String> newKeys = new HashSet<>();
                     Cursor c = null;
                     try {
                         c = appCtx.getContentResolver().query(
                             ContactsContract.Contacts.CONTENT_URI,
-                            new String[]{ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME},
+                            new String[]{ContactsContract.Contacts._ID,
+                                         ContactsContract.Contacts.LOOKUP_KEY,
+                                         ContactsContract.Contacts.DISPLAY_NAME},
                             null, null, null);
                         if (c == null) return;
                         while (c.moveToNext()) {
-                            String contactId = c.getString(0);
-                            String name = c.getString(1);
-                            allDeviceIds.add(contactId);
-                            if (!firstFull && uploaded.contains(contactId)) continue;
+                            String contactId  = c.getString(0);
+                            String lookupKey  = c.getString(1);
+                            String name       = c.getString(2);
 
                             JSONArray phones = new JSONArray();
+                            java.util.List<String> normNums = new java.util.ArrayList<>();
                             Cursor pc = appCtx.getContentResolver().query(
                                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                                 new String[]{ContactsContract.CommonDataKinds.Phone.NUMBER},
@@ -313,34 +330,45 @@ public class SyncManager {
                                 new String[]{contactId}, null);
                             if (pc != null) {
                                 while (pc.moveToNext()) {
+                                    String num = pc.getString(0);
+                                    if (num == null || num.isEmpty()) continue;
                                     JSONObject p = new JSONObject();
-                                    p.put("number", pc.getString(0));
+                                    p.put("number", num);
                                     phones.put(p);
+                                    normNums.add(normalizeNum(num));
                                 }
                                 pc.close();
                             }
+                            if (phones.length() == 0) continue; // skip contacts with no number
+
+                            // Stable identity: lookup key + first normalized number.
+                            String stableKey = (lookupKey != null ? lookupKey : "")
+                                + "|" + (normNums.isEmpty() ? "" : normNums.get(0));
+
+                            // On delta, skip contacts we've already uploaded.
+                            if (!firstFull && uploaded.contains(stableKey)) continue;
+
                             JSONObject o = new JSONObject();
-                            o.put("contact_id", contactId);
+                            // Use the stable key as the cloud's client_contact_id so
+                            // re-syncs upsert (and un-delete) the same row.
+                            o.put("contact_id", stableKey);
                             o.put("name", name == null ? "" : name);
                             o.put("phones", phones);
                             arr.put(o);
-                            newIds.add(contactId);
+                            newKeys.add(stableKey);
                         }
                     } finally { if (c != null) c.close(); }
 
-                    // Contacts previously uploaded but no longer on the phone = deleted.
-                    final Set<String> deletedIds = new HashSet<>(uploaded);
-                    deletedIds.removeAll(allDeviceIds);
-
-                    if (arr.length() == 0 && deletedIds.isEmpty()) return;
+                    // Additive only — never send deletions.
+                    if (arr.length() == 0) {
+                        prefs.edit().putBoolean(KEY_FIRST_FULL_DONE, true).commit();
+                        return;
+                    }
 
                     JSONObject body = new JSONObject();
                     body.put("user_id", Long.parseLong(auth.getUserId()));
                     body.put("mode", firstFull ? "full" : "delta");
                     body.put("contacts", arr);
-                    if (!deletedIds.isEmpty()) {
-                        body.put("deleted_ids", new JSONArray(deletedIds));
-                    }
 
                     BackendClient.post(AuthManager.BACKEND_URL + "/api/contacts/sync", body,
                         new BackendClient.Callback() {
@@ -348,8 +376,7 @@ public class SyncManager {
                                 if (!ok) return;
                                 Set<String> updated = new HashSet<>(
                                     prefs.getStringSet(KEY_UPLOADED_IDS, new HashSet<String>()));
-                                updated.addAll(newIds);
-                                updated.removeAll(deletedIds);   // drop soft-deleted ids
+                                updated.addAll(newKeys);
                                 prefs.edit()
                                     .putStringSet(KEY_UPLOADED_IDS, updated)
                                     .putBoolean(KEY_FIRST_FULL_DONE, true)
