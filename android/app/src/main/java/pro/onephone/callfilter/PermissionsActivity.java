@@ -69,6 +69,10 @@ public class PermissionsActivity extends AppCompatActivity {
                 "Required to show the post-call \"Block this number?\" alert when the overlay can't draw.",
                 true));
         }
+        list.add(new Perm(Manifest.permission.RECEIVE_SMS,
+            "Receive SMS (optional)",
+            "Enables phishing/spam SMS detection. Only incoming messages are scanned on-device; your inbox history is never read.",
+            false));
         return list;
     }
 
@@ -174,7 +178,7 @@ public class PermissionsActivity extends AppCompatActivity {
             }
         }
         if (canRePrompt) {
-            denyHelp.setText("⚠ CallFilter cannot work without these permissions. Tap GRANT ALL to try again.");
+            denyHelp.setText("⚠ CyberGuard AI cannot work without these permissions. Tap GRANT ALL to try again.");
             denyHelp.setVisibility(View.VISIBLE);
             btnSettings.setVisibility(View.GONE);
         } else {

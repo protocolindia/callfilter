@@ -10,8 +10,8 @@ android {
         applicationId "pro.onephone.callfilter"
         minSdk 26
         targetSdk 34
-        versionCode 95
-        versionName "2.9"
+        versionCode 96
+        versionName "3.0"
 
         buildConfigField "String", "BACKEND_URL", "\"https://api.app.onephone.pro\""
     }

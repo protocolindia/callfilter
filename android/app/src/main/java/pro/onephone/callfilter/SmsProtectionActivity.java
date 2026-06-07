@@ -168,7 +168,6 @@ public class SmsProtectionActivity extends AppCompatActivity {
             if (checkSelfPermission(android.Manifest.permission.RECEIVE_SMS)
                     != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 need.add(android.Manifest.permission.RECEIVE_SMS);
-                need.add(android.Manifest.permission.READ_SMS);
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                     && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
