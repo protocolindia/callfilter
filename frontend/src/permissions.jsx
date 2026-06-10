@@ -24,20 +24,26 @@ export function PermissionsProvider({ children }) {
   const role = getAdminRole();
   const [perms, setPerms] = useState(getPermissions());
   const [ready, setReady] = useState(false);
+  const [diag, setDiag] = useState({ status: 'loading', hasField: false, count: 0 });
 
-  useEffect(() => {
-    let alive = true;
+  const fetchMe = React.useCallback(() => {
+    setReady(false);
+    setDiag(d => ({ ...d, status: 'loading' }));
     api.get('/admin/me')
       .then(r => {
-        const p = r?.admin?.permissions || [];
-        if (!alive) return;
+        const hasField = !!(r && r.admin && Array.isArray(r.admin.permissions));
+        const p = (r && r.admin && r.admin.permissions) || [];
         setPermissions(p);
         setPerms(p);
+        setDiag({ status: 'ok', hasField, count: p.length });
       })
-      .catch(() => {})
-      .finally(() => { if (alive) setReady(true); });
-    return () => { alive = false; };
+      .catch(err => {
+        setDiag({ status: 'error', hasField: false, count: 0, error: String(err && err.message || err) });
+      })
+      .finally(() => setReady(true));
   }, []);
+
+  useEffect(() => { fetchMe(); }, [fetchMe]);
 
   const can = (perm) =>
     role === 'super_admin' || perms.includes('*') || perms.includes(perm);
@@ -49,7 +55,7 @@ export function PermissionsProvider({ children }) {
   };
 
   return (
-    <PermCtx.Provider value={{ perms, ready, can, firstAllowed, role }}>
+    <PermCtx.Provider value={{ perms, ready, can, firstAllowed, role, diag, refresh: fetchMe }}>
       {children}
     </PermCtx.Provider>
   );
@@ -72,10 +78,32 @@ export function RequirePerm({ perm, children }) {
   if (dest && window.location.pathname !== dest) {
     return <RedirectTo to={dest} />;
   }
+  return <NoAccess />;
+}
+
+function NoAccess() {
+  const { role, diag, refresh } = usePerms();
+  let hint;
+  if (diag.status === 'error') {
+    hint = "Couldn't reach the server for permissions. The backend may be unreachable or running an older version. Error: " + (diag.error || 'unknown');
+  } else if (!diag.hasField) {
+    hint = "The server response did not include a permissions list. This means the BACKEND needs to be redeployed to the latest version.";
+  } else if (diag.count === 0) {
+    hint = "Your role '" + role + "' has no permissions assigned. Open Roles in the admin panel (as super admin), edit this role, tick the sections to allow, and save.";
+  } else {
+    hint = "Your role has permissions but none match an available section.";
+  }
   return (
-    <div style={{ padding: 40, textAlign: 'center', color: 'var(--subtext)' }}>
-      <h2>No access</h2>
-      <p>Your role doesn't have permission to view any sections. Contact an administrator.</p>
+    <div style={{ padding: 40, textAlign: 'center', color: 'var(--subtext)', maxWidth: 620, margin: '0 auto' }}>
+      <h2 style={{ color: 'var(--text)' }}>No access</h2>
+      <p>{hint}</p>
+      <p className="muted" style={{ fontSize: 12 }}>
+        Role: <b>{role}</b> &nbsp;·&nbsp; permissions field present: <b>{String(diag.hasField)}</b> &nbsp;·&nbsp; count: <b>{diag.count}</b>
+      </p>
+      <button onClick={refresh} style={{ marginTop: 12, padding: '8px 18px', borderRadius: 6,
+        border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer' }}>
+        Retry
+      </button>
     </div>
   );
 }
