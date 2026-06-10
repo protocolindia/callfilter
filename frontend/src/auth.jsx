@@ -10,6 +10,7 @@ export function AuthProvider({ children }) {
   const login = useCallback((tok, name) => {
     persistToken(tok);
     localStorage.setItem('cf_username', name || '');
+    localStorage.removeItem('cf_perms');   // clear any previous session's perms
     _setToken(tok);
     setUsername(name || '');
   }, []);
@@ -18,6 +19,7 @@ export function AuthProvider({ children }) {
     persistToken(null);
     localStorage.removeItem('cf_username');
     localStorage.removeItem('cf_admin');
+    localStorage.removeItem('cf_perms');
     _setToken(null);
     setUsername('');
   }, []);

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
-import { api, getAdminRole, getAdminMeta, setPermissions, getPermissions } from '../api.js';
+import { getAdminRole, getAdminMeta } from '../api.js';
+import { usePerms } from '../permissions.jsx';
 
 const ROLE_COLORS = {
   super_admin:'#a855f7', admin:'#4f8ef7', support:'#22c55e',
@@ -17,20 +18,7 @@ export default function Layout({ children }) {
   const { username, logout } = useAuth();
   const role = getAdminRole();
   const meta = getAdminMeta();
-  const [perms, setPerms] = useState(getPermissions());
-
-  // Fetch the current admin's effective permissions (kept fresh on each mount).
-  useEffect(() => {
-    let alive = true;
-    api.get('/admin/me').then(r => {
-      const p = r?.admin?.permissions || [];
-      if (alive) { setPermissions(p); setPerms(p); }
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  // Permission-based gate: super_admin sees everything; otherwise check nav.* perm.
-  const can = (perm) => role === 'super_admin' || perms.includes('*') || perms.includes(perm);
+  const { can } = usePerms();
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const linkClass = ({ isActive }) => isActive ? 'active' : '';

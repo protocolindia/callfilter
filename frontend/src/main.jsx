@@ -19,6 +19,7 @@ import Terms from './pages/Terms.jsx';
 import Privacy from './pages/Privacy.jsx';
 import { AuthProvider, useAuth } from './auth.jsx';
 import { getAdminRole } from './api.js';
+import { PermissionsProvider, RequirePerm, LandingRedirect } from './permissions.jsx';
 import './style.css';
 
 function Protected({ children }) {
@@ -33,20 +34,20 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/login" element={<Login />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
-        <Route element={<Protected><App /></Protected>}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/users/:id" element={<UserDetail />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/audit" element={<Audit />} />
-          <Route path="/billing" element={<Billing />} />
-          <Route path="/payments" element={<Payments />} />
-          <Route path="/block-reasons" element={<BlockReasons />} />
-          <Route path="/global-blocklist" element={<GlobalBlocklist />} />
-          <Route path="/sms-protection" element={<SmsProtection />} />
-          <Route path="/admin-users" element={<AdminUsers />} />
-          <Route path="/roles" element={<Roles />} />
+        <Route element={<Protected><PermissionsProvider><App /></PermissionsProvider></Protected>}>
+          <Route path="/" element={<LandingRedirect />} />
+          <Route path="/dashboard" element={<RequirePerm perm="nav.dashboard"><Dashboard /></RequirePerm>} />
+          <Route path="/users" element={<RequirePerm perm="nav.users"><Users /></RequirePerm>} />
+          <Route path="/users/:id" element={<RequirePerm perm="nav.users"><UserDetail /></RequirePerm>} />
+          <Route path="/settings" element={<RequirePerm perm="nav.settings"><Settings /></RequirePerm>} />
+          <Route path="/audit" element={<RequirePerm perm="nav.audit"><Audit /></RequirePerm>} />
+          <Route path="/billing" element={<RequirePerm perm="nav.billing"><Billing /></RequirePerm>} />
+          <Route path="/payments" element={<RequirePerm perm="nav.payments"><Payments /></RequirePerm>} />
+          <Route path="/block-reasons" element={<RequirePerm perm="nav.block_reasons"><BlockReasons /></RequirePerm>} />
+          <Route path="/global-blocklist" element={<RequirePerm perm="nav.global_blocklist"><GlobalBlocklist /></RequirePerm>} />
+          <Route path="/sms-protection" element={<RequirePerm perm="nav.sms_protection"><SmsProtection /></RequirePerm>} />
+          <Route path="/admin-users" element={<RequirePerm perm="nav.admin_users"><AdminUsers /></RequirePerm>} />
+          <Route path="/roles" element={<RequirePerm perm="nav.roles"><Roles /></RequirePerm>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
