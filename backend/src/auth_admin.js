@@ -56,6 +56,15 @@ const PERMISSION_CATALOG = [
     { key: 'admin_users.children', label: 'Manage own sub-users' },
     { key: 'roles.manage',         label: 'Manage roles' },
   ]},
+  { group: 'Settings tabs', perms: [
+    { key: 'settings.sms',          label: 'SMS settings' },
+    { key: 'settings.otp',          label: 'OTP Rules' },
+    { key: 'settings.subscription', label: 'Subscription' },
+    { key: 'settings.razorpay',     label: 'Razorpay' },
+    { key: 'settings.contacts',     label: 'Contacts Sync' },
+    { key: 'settings.fraud',        label: 'Fraud Reports' },
+    { key: 'settings.password',     label: 'Password' },
+  ]},
   { group: 'Other', perms: [
     { key: 'sms_protection.manage', label: 'Manage SMS protection' },
     { key: 'settings.edit',         label: 'Edit settings' },

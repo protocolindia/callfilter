@@ -77,34 +77,69 @@ public class BlockedCallsActivity extends AppCompatActivity {
             container.addView(row);
 
             final String reportNumber = e.number;
+            final String reportReason = isGlobal
+                ? (e.rulePattern != null ? e.rulePattern : "Global list")
+                : (e.reason != null ? e.reason : (e.ruleType != null ? e.ruleType : ""));
             TextView reportBtn = row.findViewById(R.id.btnReportFraud);
-            reportBtn.setOnClickListener(v -> confirmReportFraud(reportNumber));
+            reportBtn.setOnClickListener(v -> confirmReportFraud(reportNumber, reportReason));
         }
     }
 
-    private void confirmReportFraud(final String number) {
-        new androidx.appcompat.app.AlertDialog.Builder(this, R.style.DarkDialog)
-            .setTitle("Report fraud number?")
-            .setMessage("Report " + number + " as a fraud/scam number? This is sent to our "
-                + "team for review and helps protect other users.")
-            .setPositiveButton("Report", (d, w) -> sendFraudReport(number))
-            .setNegativeButton("Cancel", null)
-            .show();
-    }
-
-    private void sendFraudReport(String number) {
+    private void confirmReportFraud(final String number, final String blockReason) {
         AuthManager auth = AuthManager.getInstance(this);
         if (!auth.isBackendEnabled()) {
             android.widget.Toast.makeText(this, "Reporting needs an internet connection",
                 android.widget.Toast.LENGTH_SHORT).show();
             return;
         }
+        // Fetch categories, then show a single-select picker.
+        BackendClient.get(AuthManager.BACKEND_URL + "/api/fraud-categories",
+            new BackendClient.Callback() {
+                public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                    runOnUiThread(() -> {
+                        org.json.JSONArray arr = resp != null ? resp.optJSONArray("categories") : null;
+                        if (!ok || arr == null || arr.length() == 0) {
+                            // No categories configured: fall back to a simple confirm.
+                            new androidx.appcompat.app.AlertDialog.Builder(BlockedCallsActivity.this, R.style.DarkDialog)
+                                .setTitle("Report fraud number?")
+                                .setMessage("Report " + number + " as fraud/scam?")
+                                .setPositiveButton("Report", (d, w) ->
+                                    sendFraudReport(number, 0, blockReason))
+                                .setNegativeButton("Cancel", null).show();
+                            return;
+                        }
+                        final int n = arr.length();
+                        final String[] names = new String[n];
+                        final int[] ids = new int[n];
+                        for (int i = 0; i < n; i++) {
+                            org.json.JSONObject o = arr.optJSONObject(i);
+                            names[i] = o != null ? o.optString("name", "Category") : "Category";
+                            ids[i]   = o != null ? o.optInt("id", 0) : 0;
+                        }
+                        final int[] sel = { 0 };
+                        new androidx.appcompat.app.AlertDialog.Builder(BlockedCallsActivity.this, R.style.DarkDialog)
+                            .setTitle("Report " + number + " as:")
+                            .setSingleChoiceItems(names, 0, (d, which) -> sel[0] = which)
+                            .setPositiveButton("Report", (d, w) ->
+                                sendFraudReport(number, ids[sel[0]], blockReason))
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                    });
+                }
+            });
+    }
+
+    private void sendFraudReport(String number, int categoryId, String blockReason) {
+        AuthManager auth = AuthManager.getInstance(this);
         try {
             org.json.JSONObject body = new org.json.JSONObject();
             if (!auth.getUserId().isEmpty()) body.put("user_id", Long.parseLong(auth.getUserId()));
             body.put("number", number);
-            body.put("category", "fraud");
+            if (categoryId > 0) body.put("category_id", categoryId);
             body.put("reporter", auth.getFullNumber());
+            if (blockReason != null && !blockReason.isEmpty()) body.put("block_reason", blockReason);
+            String cName = ContactsCacheManager.getInstance(this).getName(number);
+            if (cName != null && !cName.isEmpty()) body.put("caller_name", cName);
             BackendClient.post(AuthManager.BACKEND_URL + "/api/report-fraud", body,
                 new BackendClient.Callback() {
                     public void onResult(boolean ok, org.json.JSONObject resp, String err) {

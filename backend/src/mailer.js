@@ -17,7 +17,7 @@ async function loadSettings() {
  * Send an email using the SMTP settings stored in the DB.
  * Returns { ok, error?, skipped? }.
  */
-async function sendMail({ to, subject, text }) {
+async function sendMail({ to, subject, text, html }) {
   if (!nodemailer) return { ok: false, error: 'nodemailer not installed' };
   const s = await loadSettings();
   const host = s.smtp_host, user = s.smtp_user, pass = s.smtp_pass;
@@ -31,8 +31,15 @@ async function sendMail({ to, subject, text }) {
     auth: user ? { user, pass } : undefined,
   });
 
+  // `to` may be a string or an array of addresses.
+  const recipients = Array.isArray(to) ? to.join(', ') : to;
+
   try {
-    await transport.sendMail({ from, to, subject, text });
+    const msg = { from, to: recipients, subject };
+    if (html) msg.html = html;
+    if (text) msg.text = text;
+    if (!html && !text) msg.text = '';
+    await transport.sendMail(msg);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };

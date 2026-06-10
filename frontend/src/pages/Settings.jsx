@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { api, hasPermission } from '../api.js';
+import RichTextEditor from '../components/RichTextEditor.jsx';
+
+const PLACEHOLDERS = ['number','reporter','caller_name','block_reason','category','date'];
 
 const inp = {
   padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
@@ -23,13 +26,13 @@ function Field({ label, hint, span, children }) {
 }
 
 const TABS = [
-  { id: 'sms',          icon: '📱', label: 'SMS'          },
-  { id: 'otp',          icon: '🔑', label: 'OTP Rules'    },
-  { id: 'subscription', icon: '💳', label: 'Subscription' },
-  { id: 'razorpay',     icon: '💰', label: 'Razorpay'     },
-  { id: 'contacts',     icon: '📇', label: 'Contacts Sync' },
-  { id: 'fraud',        icon: '🚩', label: 'Fraud Reports' },
-  { id: 'password',     icon: '🔒', label: 'Password'     },
+  { id: 'sms',          icon: '📱', label: 'SMS',          perm: 'settings.sms'          },
+  { id: 'otp',          icon: '🔑', label: 'OTP Rules',    perm: 'settings.otp'          },
+  { id: 'subscription', icon: '💳', label: 'Subscription', perm: 'settings.subscription' },
+  { id: 'razorpay',     icon: '💰', label: 'Razorpay',     perm: 'settings.razorpay'     },
+  { id: 'contacts',     icon: '📇', label: 'Contacts Sync',perm: 'settings.contacts'     },
+  { id: 'fraud',        icon: '🚩', label: 'Fraud Reports',perm: 'settings.fraud'        },
+  { id: 'password',     icon: '🔒', label: 'Password',     perm: 'settings.password'     },
 ];
 
 const PROVIDERS = [
@@ -42,7 +45,13 @@ const PROVIDERS = [
 ];
 
 export default function Settings() {
-  const [tab, setTab]           = useState('sms');
+  // Per-tab gating. A tab shows if the role has its specific permission.
+  // Backward-compat: if the role has the broad 'settings.edit', or hasn't been
+  // given ANY specific settings.<tab> permission yet, show all tabs.
+  const anyTabPerm = TABS.some(t => hasPermission(t.perm));
+  const seesAll = hasPermission('settings.edit') || !anyTabPerm;
+  const visibleTabs = TABS.filter(t => seesAll || hasPermission(t.perm));
+  const [tab, setTab]           = useState((visibleTabs[0] && visibleTabs[0].id) || 'sms');
   const [settings, setSettings] = useState(null);
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
@@ -161,7 +170,7 @@ export default function Settings() {
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 24,
         background: 'var(--card)', borderRadius: 10, padding: 6, overflowX: 'auto' }}>
-        {TABS.map(t => (
+        {visibleTabs.map(t => (
           <button key={t.id} style={tabStyle(t.id)} onClick={() => setTab(t.id)}>
             <span style={{ fontSize: 16 }}>{t.icon}</span>{t.label}
           </button>
@@ -540,20 +549,16 @@ export default function Settings() {
 
       {/* ========== FRAUD REPORTS TAB ========== */}
       {tab === 'fraud' && (
-        <form onSubmit={save}>
+        <div>
+          <FraudCategories />
+          <form onSubmit={save}>
           <div className="card" style={{ marginBottom: 16 }}>
-            <h2 style={{ marginTop: 0, marginBottom: 4 }}>Fraud Report Delivery</h2>
+            <h2 style={{ marginTop: 0, marginBottom: 4 }}>Email sending (SMTP)</h2>
             <p className="muted" style={{ marginTop: 0, marginBottom: 20 }}>
-              When a user reports a fraud call from the app, the report is saved and
-              emailed to the address below. Configure an SMTP server to enable email
-              delivery (reports are always stored regardless).
+              Reports are emailed to each category's recipients using this SMTP server.
+              Reports are always stored even if SMTP isn't configured.
             </p>
             <div style={g2}>
-              <Field label="Fraud report email (recipient)" span>
-                <input type="email" value={settings.fraud_report_email || ''}
-                  onChange={e => set('fraud_report_email', e.target.value)}
-                  placeholder="fraud@yourcompany.com" style={inp}/>
-              </Field>
               <Field label="SMTP host">
                 <input value={settings.smtp_host || ''}
                   onChange={e => set('smtp_host', e.target.value)}
@@ -593,9 +598,10 @@ export default function Settings() {
             background: 'var(--accent)', color: '#fff', fontWeight: 700,
             cursor: saving ? 'not-allowed' : 'pointer',
             opacity: saving ? 0.6 : 1, fontSize: 15 }}>
-            {saving ? 'Saving...' : 'Save Fraud Settings'}
+            {saving ? 'Saving...' : 'Save SMTP Settings'}
           </button>
-        </form>
+          </form>
+        </div>
       )}
 
       {/* ========== SUBSCRIPTION TAB ========== */}
@@ -741,3 +747,120 @@ export default function Settings() {
     </div>
   );
 }
+
+// ── Fraud category manager (multi-recipient + per-category HTML template) ──
+function FraudCategories() {
+  const [cats, setCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // {new?, id, name, subject, template_html, emailsText}
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/admin/fraud-categories');
+      setCats(r.categories || []);
+    } catch (e) { /* ignore */ }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const startNew = () => setEditing({
+    new: true, name: '', subject: 'Fraud report: {{number}}',
+    template_html: '', emailsText: '',
+  });
+  const startEdit = (c) => setEditing({
+    id: c.id, name: c.name, subject: c.subject || 'Fraud report: {{number}}',
+    template_html: c.template_html || '', emailsText: (c.emails || []).join('\n'),
+  });
+
+  const save = async () => {
+    if (!editing.name.trim()) { alert('Category name is required'); return; }
+    const emails = editing.emailsText.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    const body = { name: editing.name, subject: editing.subject,
+      template_html: editing.template_html, emails };
+    try {
+      if (editing.new) await api.post('/admin/fraud-categories', body);
+      else await api.put(`/admin/fraud-categories/${editing.id}`, body);
+      setEditing(null); load();
+    } catch (e) { alert(e.message); }
+  };
+
+  const remove = async (c) => {
+    if (!window.confirm(`Delete category "${c.name}"?`)) return;
+    try { await api.delete(`/admin/fraud-categories/${c.id}`); load(); }
+    catch (e) { alert(e.message); }
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <h2 style={{ margin: 0 }}>Fraud Categories</h2>
+        <button type="button" className="btn btn-primary" onClick={startNew}>+ New category</button>
+      </div>
+      <p className="muted" style={{ marginTop: 6 }}>
+        Each category has its own recipient list and HTML email template. When a user
+        reports a call, they pick a category and the email goes to all its recipients.
+      </p>
+
+      {loading ? <p className="muted">Loading…</p> : (
+        <table className="data-table">
+          <thead><tr><th>Category</th><th>Recipients</th><th></th></tr></thead>
+          <tbody>
+            {cats.map(c => (
+              <tr key={c.id}>
+                <td>{c.name}</td>
+                <td>{(c.emails || []).length} email(s)</td>
+                <td style={{ whiteSpace:'nowrap' }}>
+                  <button type="button" className="btn" onClick={() => startEdit(c)}>Edit</button>
+                  <button type="button" className="btn" onClick={() => remove(c)}
+                    style={{ marginLeft:6, background:'rgba(248,113,113,0.15)', color:'#f87171' }}>Delete</button>
+                </td>
+              </tr>
+            ))}
+            {cats.length === 0 && <tr><td colSpan="3" className="muted">No categories yet.</td></tr>}
+          </tbody>
+        </table>
+      )}
+
+      {editing && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)',
+            display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }}>
+          <div className="card" style={{ maxWidth:760, width:'100%', maxHeight:'88vh', overflow:'auto' }}>
+            <h2 style={{ marginTop:0 }}>{editing.new ? 'New category' : `Edit: ${editing.name}`}</h2>
+
+            <label style={{ display:'block', fontWeight:600, marginBottom:6 }}>Category name</label>
+            <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })}
+              placeholder="e.g. Phishing" style={inp2} />
+
+            <label style={{ display:'block', fontWeight:600, margin:'14px 0 6px' }}>Email subject</label>
+            <input value={editing.subject} onChange={e => setEditing({ ...editing, subject: e.target.value })}
+              placeholder="Fraud report: {{number}}" style={inp2} />
+
+            <label style={{ display:'block', fontWeight:600, margin:'14px 0 6px' }}>
+              Recipient emails (one per line)</label>
+            <textarea value={editing.emailsText}
+              onChange={e => setEditing({ ...editing, emailsText: e.target.value })}
+              rows={3} placeholder={"abuse@bank.com\nfraud@police.gov"} style={{ ...inp2, fontFamily:'monospace' }} />
+
+            <label style={{ display:'block', fontWeight:600, margin:'14px 0 6px' }}>Email template</label>
+            <RichTextEditor
+              value={editing.template_html}
+              onChange={html => setEditing({ ...editing, template_html: html })}
+              placeholders={PLACEHOLDERS} />
+
+            <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:16 }}>
+              <button type="button" className="btn" onClick={() => setEditing(null)}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={save}>Save category</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const inp2 = {
+  width: '100%', padding: '9px 12px', borderRadius: 6,
+  border: '1px solid var(--border)', background: 'var(--surface)',
+  color: 'var(--text)', fontSize: 14, boxSizing: 'border-box',
+};

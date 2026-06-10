@@ -1545,48 +1545,71 @@ router.get('/global-blocklist/user-config', async (req, res, next) => {
 
 // POST /api/report-fraud — user reports a fraudulent/scam number.
 // Persists the report and emails it to the configured fraud_report_email.
+// GET /api/fraud-categories — public list for the app's report picker
+router.get('/fraud-categories', async (req, res, next) => {
+  try {
+    const rows = await many(
+      `SELECT id, name FROM fraud_categories
+        WHERE active = TRUE ORDER BY position ASC, id ASC`);
+    res.json({ ok: true, categories: rows });
+  } catch (e) { next(e); }
+});
+
+// Render a template by replacing {{placeholder}} tokens.
+function renderTemplate(tpl, vars) {
+  return String(tpl || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) =>
+    (vars[k] !== undefined && vars[k] !== null && vars[k] !== '') ? String(vars[k]) : '');
+}
+
+// POST /api/report-fraud — user reports a fraudulent number under a category.
+// Emails the category's HTML template to ALL of its recipient addresses.
 router.post('/report-fraud', async (req, res, next) => {
   try {
-    const { user_id, number, category, note, reporter } = req.body || {};
+    const { user_id, number, category_id, category, note, reporter,
+            caller_name, block_reason } = req.body || {};
     if (!number || !String(number).trim())
       return res.status(400).json({ error: 'number required' });
 
-    const row = await one(
-      `INSERT INTO fraud_reports(user_id, number, category, note, reporter)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
-      [user_id || null, String(number).trim(), category || 'fraud',
-       note || null, reporter || null]);
+    // Resolve the category (by id, or fall back to first active one).
+    let cat = null;
+    if (category_id) cat = await one('SELECT * FROM fraud_categories WHERE id = $1', [category_id]);
+    if (!cat) cat = await one('SELECT * FROM fraud_categories WHERE active = TRUE ORDER BY position ASC, id ASC LIMIT 1');
 
-    // Best-effort email to the configured address.
+    const row = await one(
+      `INSERT INTO fraud_reports(user_id, number, category, category_id, note,
+                                 reporter, caller_name, block_reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, created_at`,
+      [user_id || null, String(number).trim(),
+       cat ? cat.name : (category || 'fraud'), cat ? cat.id : null,
+       note || null, reporter || null, caller_name || null, block_reason || null]);
+
     let emailed = false;
     try {
-      const { sendMail, loadSettings } = require('./mailer');
-      const s = await loadSettings();
-      const to = s.fraud_report_email;
-      if (to) {
-        const body =
-          `A fraud call has been reported in CyberGuard AI.\n\n` +
-          `Reported number : ${number}\n` +
-          `Category        : ${category || 'fraud'}\n` +
-          `Reported by      : ${reporter || ('user #' + (user_id || 'unknown'))}\n` +
-          `Note            : ${note || '(none)'}\n` +
-          `Report ID       : ${row.id}\n` +
-          `Time            : ${row.created_at}\n`;
-        const r = await sendMail({
-          to,
-          subject: `[CyberGuard] Fraud report: ${number}`,
-          text: body,
-        });
+      const { sendMail } = require('./mailer');
+      let recipients = [];
+      if (cat) {
+        const ems = await many('SELECT email FROM fraud_category_emails WHERE category_id = $1', [cat.id]);
+        recipients = ems.map(e => e.email).filter(Boolean);
+      }
+      if (recipients.length) {
+        const vars = {
+          number, reporter: reporter || ('user #' + (user_id || 'unknown')),
+          category: cat ? cat.name : (category || 'fraud'),
+          caller_name: caller_name || '', block_reason: block_reason || '',
+          note: note || '', date: new Date(row.created_at).toLocaleString(),
+          report_id: row.id,
+        };
+        const subject = renderTemplate(cat ? cat.subject : 'Fraud report: {{number}}', vars);
+        const html = renderTemplate(cat ? cat.template_html : '', vars)
+          || `Fraud report for ${number}`;
+        const r = await sendMail({ to: recipients, subject, html });
         emailed = !!r.ok;
       }
     } catch (mailErr) {
-      // Email is best-effort; the report is already persisted.
       console.warn('fraud report email failed:', mailErr.message);
     }
 
-    if (emailed) {
-      await query('UPDATE fraud_reports SET emailed = TRUE WHERE id = $1', [row.id]);
-    }
+    if (emailed) await query('UPDATE fraud_reports SET emailed = TRUE WHERE id = $1', [row.id]);
     res.json({ ok: true, id: row.id, emailed });
   } catch (e) { next(e); }
 });

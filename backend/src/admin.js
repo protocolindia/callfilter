@@ -58,8 +58,19 @@ const { loginHandler } = require('./auth_admin.js');
 router.post('/login', loginHandler);
 
 // GET /admin/me
-router.get('/me', requireAdmin, (req, res) => {
-  res.json({ username: req.admin.username });
+router.get('/me', requireAdmin, async (req, res) => {
+  try {
+    let permissions = ['*'];
+    if (req.admin.role !== 'super_admin') {
+      const roles = await loadRoles();
+      permissions = roles[req.admin.role] || [];
+    }
+    res.json({ ok: true, username: req.admin.username,
+               admin: { ...req.admin, permissions } });
+  } catch (e) {
+    res.json({ ok: true, username: req.admin.username,
+               admin: { ...req.admin, permissions: [] } });
+  }
 });
 
 // GET /admin/stats
@@ -1184,19 +1195,7 @@ router.post('/admin-users/:id/restore', requireAdmin,
   } catch (e) { next(e); }
 });
 
-// GET /admin/me — current admin user info
-router.get('/me', requireAdmin, async (req, res) => {
-  try {
-    let permissions = ['*'];
-    if (req.admin.role !== 'super_admin') {
-      const roles = await loadRoles();
-      permissions = roles[req.admin.role] || [];
-    }
-    res.json({ ok: true, admin: { ...req.admin, permissions } });
-  } catch (e) {
-    res.json({ ok: true, admin: { ...req.admin, permissions: [] } });
-  }
-});
+// GET /admin/me — see the consolidated handler near the top of this router.
 
 
 // ============================================================
@@ -1695,5 +1694,80 @@ router.delete('/roles/:id', requireAdmin, requirePerm('roles.manage'), async (re
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
+
+// ============================================================
+// FRAUD CATEGORIES (multi-recipient + per-category HTML template)
+// ============================================================
+
+// GET /admin/fraud-categories — list categories with their recipient emails
+router.get('/fraud-categories', requireAdmin, async (req, res, next) => {
+  try {
+    const cats = await many(
+      `SELECT id, name, subject, template_html, position, active
+         FROM fraud_categories ORDER BY position ASC, id ASC`);
+    const emails = await many('SELECT id, category_id, email FROM fraud_category_emails ORDER BY id ASC');
+    const byCat = {};
+    emails.forEach(e => { (byCat[e.category_id] = byCat[e.category_id] || []).push(e.email); });
+    res.json({ ok: true, categories: cats.map(c => ({ ...c, emails: byCat[c.id] || [] })) });
+  } catch (e) { next(e); }
+});
+
+// POST /admin/fraud-categories — create. Body: { name, subject, template_html, emails[] }
+router.post('/fraud-categories', requireAdmin, requirePerm('settings.fraud'), async (req, res, next) => {
+  try {
+    const { name, subject, template_html, emails } = req.body || {};
+    if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+    const cat = await one(
+      `INSERT INTO fraud_categories(name, subject, template_html)
+       VALUES ($1,$2,$3) RETURNING *`,
+      [name.trim(), (subject || 'Fraud report: {{number}}').trim(), template_html || '']);
+    await replaceCategoryEmails(cat.id, emails);
+    await audit(req.admin.username, 'fraud_category_created', name);
+    res.json({ ok: true, id: cat.id });
+  } catch (e) { next(e); }
+});
+
+// PUT /admin/fraud-categories/:id — update name/subject/template + replace emails
+router.put('/fraud-categories/:id', requireAdmin, requirePerm('settings.fraud'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { name, subject, template_html, emails, active } = req.body || {};
+    const cat = await one(
+      `UPDATE fraud_categories SET
+         name = COALESCE($2, name),
+         subject = COALESCE($3, subject),
+         template_html = COALESCE($4, template_html),
+         active = COALESCE($5, active),
+         updated_at = NOW()
+       WHERE id = $1 RETURNING id`,
+      [id, name || null, subject || null,
+       template_html !== undefined ? template_html : null,
+       (typeof active === 'boolean' ? active : null)]);
+    if (!cat) return res.status(404).json({ error: 'Category not found' });
+    if (Array.isArray(emails)) await replaceCategoryEmails(id, emails);
+    await audit(req.admin.username, 'fraud_category_updated', `id=${id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// DELETE /admin/fraud-categories/:id
+router.delete('/fraud-categories/:id', requireAdmin, requirePerm('settings.fraud'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await query('DELETE FROM fraud_categories WHERE id = $1', [id]); // emails cascade
+    await audit(req.admin.username, 'fraud_category_deleted', `id=${id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Helper: replace all recipient emails for a category.
+async function replaceCategoryEmails(categoryId, emails) {
+  await query('DELETE FROM fraud_category_emails WHERE category_id = $1', [categoryId]);
+  if (!Array.isArray(emails)) return;
+  const clean = emails.map(e => String(e || '').trim()).filter(e => e.includes('@'));
+  for (const em of clean) {
+    await query('INSERT INTO fraud_category_emails(category_id, email) VALUES ($1,$2)', [categoryId, em]);
+  }
+}
 
 module.exports = router;
