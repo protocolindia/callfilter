@@ -511,6 +511,21 @@ export default function Settings() {
       {tab === 'fraud' && (
         <form onSubmit={save}>
           <div className="card" style={{ marginBottom: 16 }}>
+            <h2 style={{ marginTop: 0, marginBottom: 4 }}>Contacts Sync (global)</h2>
+            <p className="muted" style={{ marginTop: 0, marginBottom: 14 }}>
+              Master switch for the contacts backup/sync feature. When OFF, contacts
+              sync is disabled for ALL users regardless of their individual setting.
+              Existing cloud data is retained.
+            </p>
+            <Field label="Contacts sync feature">
+              <select value={settings.contacts_sync_enabled || 'true'}
+                onChange={e => set('contacts_sync_enabled', e.target.value)} style={inp}>
+                <option value="true">Enabled for all users</option>
+                <option value="false">Disabled for everyone</option>
+              </select>
+            </Field>
+          </div>
+          <div className="card" style={{ marginBottom: 16 }}>
             <h2 style={{ marginTop: 0, marginBottom: 4 }}>Fraud Report Delivery</h2>
             <p className="muted" style={{ marginTop: 0, marginBottom: 20 }}>
               When a user reports a fraud call from the app, the report is saved and

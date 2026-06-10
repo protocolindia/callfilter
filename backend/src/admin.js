@@ -118,6 +118,23 @@ router.get('/users/:id', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// PUT /admin/users/:id/contacts-sync — enable/disable contacts sync for one user
+// Body: { allowed: true|false }
+router.put('/users/:id/contacts-sync', requireAdmin, async (req, res, next) => {
+  try {
+    if (!['super_admin','admin'].includes(req.admin.role))
+      return res.status(403).json({ error: 'Admin or super_admin only' });
+    const id = parseInt(req.params.id, 10);
+    const allowed = req.body && req.body.allowed === true;
+    const u = await one(
+      'UPDATE users SET contacts_sync_allowed = $2 WHERE id = $1 RETURNING id, contacts_sync_allowed',
+      [id, allowed]);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    await audit(req.admin.username, 'user_contacts_sync_set', `user_id=${id}, allowed=${allowed}`);
+    res.json({ ok: true, contacts_sync_allowed: u.contacts_sync_allowed });
+  } catch (e) { next(e); }
+});
+
 // PUT /admin/users/:id/otp-mode — override OTP delivery mode for one user
 // Body: { otp_mode: 'global' | 'demo' | 'production' }
 router.put('/users/:id/otp-mode', requireAdmin, async (req, res, next) => {
@@ -359,6 +376,7 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'sms_api_message_template',
       'sms_provider',
       'fraud_report_email',
+      'contacts_sync_enabled',
       'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_secure',
       'trial_days',
       'default_plan_id'

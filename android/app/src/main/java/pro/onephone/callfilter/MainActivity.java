@@ -472,6 +472,12 @@ public class MainActivity extends AppCompatActivity {
         SmsThreatDetector.getInstance(this).syncRulesAsync();
         // Restore phone book from cloud on a fresh device (writes to Contacts)
         SyncManager.getInstance(this).restoreContactsFromCloudAsync();
+        // Refresh the admin contacts-sync policy; if disabled, stop local syncing.
+        SyncManager.getInstance(this).fetchSyncConfigAsync(allowed -> {
+            if (!allowed) {
+                SyncManager.getInstance(MainActivity.this).setContactsOptedIn(false);
+            }
+        });
         // Refresh the UI after merge completes (HTTP async)
         banner_handler.postDelayed(() -> refreshUI(), 1_500L);
         refreshBlockAllUI();
@@ -508,9 +514,10 @@ public class MainActivity extends AppCompatActivity {
     private void showAccountMenu(View anchor) {
         SyncManager sm = SyncManager.getInstance(this);
         final boolean optedIn = sm.isContactsOptedIn();
-        final String contactsItem = optedIn
-            ? "📇 Cloud contact sync: ON"
-            : "📇 Cloud contact sync: OFF";
+        final boolean syncAllowed = sm.isSyncAllowedByAdmin();
+        final String contactsItem = !syncAllowed
+            ? "📇 Cloud contact sync: Disabled by admin"
+            : (optedIn ? "📇 Cloud contact sync: ON" : "📇 Cloud contact sync: OFF");
         final String[] items = { "🔐 Change PIN", contactsItem, "🚪 Logout" };
         new AlertDialog.Builder(this)
             .setTitle("Account")
@@ -519,8 +526,15 @@ public class MainActivity extends AppCompatActivity {
                     if (which == 0) {
                         startActivity(new Intent(MainActivity.this, ChangePinActivity.class));
                     } else if (which == 1) {
-                        if (optedIn) confirmContactsOptOut();
-                        else         confirmContactsOptIn();
+                        if (!syncAllowed) {
+                            Toast.makeText(MainActivity.this,
+                                "Contact sync has been disabled by the administrator.",
+                                Toast.LENGTH_LONG).show();
+                        } else if (optedIn) {
+                            confirmContactsOptOut();
+                        } else {
+                            confirmContactsOptIn();
+                        }
                     } else if (which == 2) {
                         confirmLogout();
                     }

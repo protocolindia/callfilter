@@ -107,6 +107,14 @@ export default function UserDetail() {
     finally { setCallsLoading(false); }
   }
 
+  async function toggleContactsSync() {
+    const next = !(user.contacts_sync_allowed === false) ? false : true;
+    try {
+      await api.put(`/admin/users/${id}/contacts-sync`, { allowed: next });
+      setUser(u => ({ ...u, contacts_sync_allowed: next }));
+    } catch (e) { alert(e.message); }
+  }
+
   async function loadContacts() {
     setContactsLoading(true);
     try {
@@ -173,6 +181,28 @@ export default function UserDetail() {
 
       {tab === 'contacts' && (
         <section className="card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 12, padding: '10px 14px', marginBottom: 14, borderRadius: 8,
+              background: user.contacts_sync_allowed === false ? 'rgba(248,113,113,0.10)' : 'rgba(52,211,153,0.10)',
+              border: '1px solid var(--border)' }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>
+                Contacts sync for this user:{' '}
+                <span style={{ color: user.contacts_sync_allowed === false ? 'var(--red)' : '#34d399' }}>
+                  {user.contacts_sync_allowed === false ? 'Disabled' : 'Enabled'}
+                </span>
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                When disabled, this user's app stops syncing contacts (their existing cloud data is kept).
+              </div>
+            </div>
+            <button className="btn" onClick={toggleContactsSync}
+              style={{ background: user.contacts_sync_allowed === false ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)',
+                color: user.contacts_sync_allowed === false ? '#34d399' : '#f87171', whiteSpace: 'nowrap' }}>
+              {user.contacts_sync_allowed === false ? 'Enable' : 'Disable'}
+            </button>
+          </div>
+
           <input
             type="text"
             placeholder="🔍 Search contacts (name, number, email)…"

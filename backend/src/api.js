@@ -371,6 +371,23 @@ router.post('/contacts/sync', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/contacts/sync-config?user_id=N — whether contacts sync is allowed
+// for this user. allowed = global setting AND per-user flag.
+router.get('/contacts/sync-config', async (req, res, next) => {
+  try {
+    const userId = parseInt(req.query.user_id, 10);
+    const globalRaw = await getSetting('contacts_sync_enabled');
+    const globalOn = (globalRaw === null || globalRaw === undefined || globalRaw === '')
+      ? true : String(globalRaw) === 'true';
+    let userOn = true;
+    if (userId) {
+      const u = await one('SELECT contacts_sync_allowed FROM users WHERE id = $1', [userId]);
+      if (u && u.contacts_sync_allowed === false) userOn = false;
+    }
+    res.json({ ok: true, allowed: globalOn && userOn, global: globalOn, user: userOn });
+  } catch (e) { next(e); }
+});
+
 // GET /api/contacts/list?user_id=N — pull all active contacts (with phones)
 // so a new device can restore the phone book after login.
 router.get('/contacts/list', async (req, res, next) => {

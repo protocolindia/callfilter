@@ -21,6 +21,7 @@ public class SyncManager {
     private static final String KEY_FIRST_FULL_DONE = "contacts_first_full_done";
     private static final String KEY_UPLOADED_IDS = "uploaded_contact_ids";
     private static final String KEY_SYNC_RESET_V2 = "contacts_sync_reset_v2";
+    private static final String KEY_SYNC_ALLOWED = "contacts_sync_allowed_by_admin";
 
     private final Context appCtx;
     private final SharedPreferences prefs;
@@ -40,6 +41,35 @@ public class SyncManager {
     public boolean isContactsOptedIn() {
         return prefs.getBoolean(KEY_CONTACTS_OPTED_IN, false);
     }
+
+    /** Whether the admin has allowed contacts sync (global + per-user). Defaults
+     *  to true so the feature works before the first config fetch. */
+    public boolean isSyncAllowedByAdmin() {
+        return prefs.getBoolean(KEY_SYNC_ALLOWED, true);
+    }
+
+    /** Fetch the admin's contacts-sync policy and cache it. Optional callback
+     *  runs on completion with the effective allowed value. */
+    public void fetchSyncConfigAsync(final ConfigCallback cb) {
+        AuthManager auth = AuthManager.getInstance(appCtx);
+        if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) {
+            if (cb != null) cb.onResult(isSyncAllowedByAdmin());
+            return;
+        }
+        String url = AuthManager.BACKEND_URL + "/api/contacts/sync-config?user_id=" + auth.getUserId();
+        BackendClient.get(url, new BackendClient.Callback() {
+            public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                boolean allowed = isSyncAllowedByAdmin();
+                if (ok && resp != null) {
+                    allowed = resp.optBoolean("allowed", true);
+                    prefs.edit().putBoolean(KEY_SYNC_ALLOWED, allowed).commit();
+                }
+                if (cb != null) cb.onResult(allowed);
+            }
+        });
+    }
+
+    public interface ConfigCallback { void onResult(boolean allowed); }
 
     public void setContactsOptedIn(boolean optedIn) {
         prefs.edit().putBoolean(KEY_CONTACTS_OPTED_IN, optedIn).commit();
@@ -282,6 +312,7 @@ public class SyncManager {
     // caused all contacts to look "deleted".
     public void syncContactsAsync() {
         if (!isContactsOptedIn()) return;
+        if (!isSyncAllowedByAdmin()) { Log.d(TAG, "Contacts sync disabled by admin"); return; }
         AuthManager auth = AuthManager.getInstance(appCtx);
         if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
         if (appCtx.checkSelfPermission(Manifest.permission.READ_CONTACTS)
@@ -411,6 +442,7 @@ public class SyncManager {
      *  contacts into the device's Contacts app. Runs once per device. */
     public void restoreContactsFromCloudAsync() {
         if (!isContactsOptedIn()) return;
+        if (!isSyncAllowedByAdmin()) { Log.d(TAG, "Contacts sync disabled by admin"); return; }
         AuthManager auth = AuthManager.getInstance(appCtx);
         if (!auth.isBackendEnabled() || auth.getUserId().isEmpty()) return;
         if (prefs.getBoolean(KEY_RESTORE_DONE, false)) return;
