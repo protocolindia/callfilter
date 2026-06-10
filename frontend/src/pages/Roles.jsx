@@ -38,13 +38,21 @@ export default function Roles() {
   const save = async () => {
     if (!editing.label.trim()) { alert('Name is required'); return; }
     try {
+      let res;
       if (editing.new) {
-        await api.post('/admin/roles', { label: editing.label, permissions: editing.permissions });
+        res = await api.post('/admin/roles', { label: editing.label, permissions: editing.permissions });
       } else {
-        await api.put(`/admin/roles/${editing.id}`, { label: editing.label, permissions: editing.permissions });
+        res = await api.put(`/admin/roles/${editing.id}`, { label: editing.label, permissions: editing.permissions });
+      }
+      // Confirm what the server actually stored (proves the write worked).
+      const saved = res && res.role && Array.isArray(res.role.permissions)
+        ? res.role.permissions : null;
+      if (editing.permissions.length > 0 && saved && saved.length === 0) {
+        alert('Warning: the server saved 0 permissions even though you selected '
+          + editing.permissions.length + '. The backend may not be updated. Please redeploy the backend.');
       }
       setEditing(null); load();
-    } catch (e) { alert(e.message); }
+    } catch (e) { alert('Save failed: ' + e.message); }
   };
 
   const remove = async (role) => {
@@ -80,7 +88,13 @@ export default function Roles() {
               <td>{r.user_count}</td>
               <td>{Array.isArray(r.permissions) && r.permissions.includes('*')
                     ? 'All permissions'
-                    : (Array.isArray(r.permissions) ? r.permissions.length : 0) + ' permissions'}</td>
+                    : (Array.isArray(r.permissions) ? r.permissions.length : 0) + ' permissions'}
+                {Array.isArray(r.permissions) && r.permissions.length > 0 && !r.permissions.includes('*') && (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 2, maxWidth: 360 }}>
+                    {r.permissions.join(', ')}
+                  </div>
+                )}
+              </td>
               <td style={{ whiteSpace:'nowrap' }}>
                 {r.key !== 'super_admin' &&
                   <button className="btn" onClick={() => startEdit(r)}>Edit</button>}

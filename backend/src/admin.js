@@ -62,7 +62,7 @@ router.get('/me', requireAdmin, async (req, res) => {
   try {
     let permissions = ['*'];
     if (req.admin.role !== 'super_admin') {
-      const roles = await loadRoles();
+      const roles = await loadRoles(true); // force fresh read (no cache)
       permissions = roles[req.admin.role] || [];
     }
     res.json({ ok: true, username: req.admin.username,
@@ -1663,16 +1663,19 @@ router.put('/roles/:id', requireAdmin, requirePerm('roles.manage'), async (req, 
     if (role.key === 'super_admin')
       return res.status(400).json({ error: 'super_admin permissions cannot be changed' });
     const { label, permissions } = req.body || {};
-    const perms = Array.isArray(permissions) ? permissions : null;
-    const row = await one(
-      `UPDATE roles SET
-         label = COALESCE($2, label),
-         permissions = COALESCE($3::jsonb, permissions),
-         updated_at = NOW()
-       WHERE id = $1 RETURNING *`,
-      [id, label || null, perms ? JSON.stringify(perms) : null]);
+    // Always set permissions directly (the editor sends the full array).
+    // Direct ::jsonb assignment avoids any COALESCE type ambiguity.
+    if (Array.isArray(permissions)) {
+      await query('UPDATE roles SET permissions = $2::jsonb, updated_at = NOW() WHERE id = $1',
+        [id, JSON.stringify(permissions)]);
+    }
+    if (typeof label === 'string' && label.trim()) {
+      await query('UPDATE roles SET label = $2, updated_at = NOW() WHERE id = $1', [id, label.trim()]);
+    }
     invalidateRoleCache();
-    await audit(req.admin.username, 'role_updated', `key=${role.key}`);
+    const row = await one('SELECT id, key, label, permissions, is_system FROM roles WHERE id = $1', [id]);
+    await audit(req.admin.username, 'role_updated',
+      `key=${role.key} perms=${Array.isArray(permissions) ? permissions.length : 'unchanged'}`);
     res.json({ ok: true, role: row });
   } catch (e) { next(e); }
 });
