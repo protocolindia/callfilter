@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
-import { getAdminRole, getAdminMeta } from '../api.js';
+import { api, getAdminRole, getAdminMeta, setPermissions, getPermissions } from '../api.js';
 
 const ROLE_COLORS = {
   super_admin:'#a855f7', admin:'#4f8ef7', support:'#22c55e',
@@ -17,8 +17,20 @@ export default function Layout({ children }) {
   const { username, logout } = useAuth();
   const role = getAdminRole();
   const meta = getAdminMeta();
-  const isGlobalOnly = role === 'global_db_admin' || role === 'global_db_user';
-  const can = (...roles) => role === 'super_admin' || roles.includes(role);
+  const [perms, setPerms] = useState(getPermissions());
+
+  // Fetch the current admin's effective permissions (kept fresh on each mount).
+  useEffect(() => {
+    let alive = true;
+    api.get('/admin/me').then(r => {
+      const p = r?.admin?.permissions || [];
+      if (alive) { setPermissions(p); setPerms(p); }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  // Permission-based gate: super_admin sees everything; otherwise check nav.* perm.
+  const can = (perm) => role === 'super_admin' || perms.includes('*') || perms.includes(perm);
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const linkClass = ({ isActive }) => isActive ? 'active' : '';
@@ -34,16 +46,17 @@ export default function Layout({ children }) {
           </div>
         </div>
         <nav>
-          {!isGlobalOnly && <NavLink to="/dashboard" className={linkClass}>📊 Dashboard</NavLink>}
-          {can('admin','support') && <NavLink to="/users" className={linkClass}>👥 Users</NavLink>}
-          {can('admin','billing') && <NavLink to="/billing" className={linkClass}>💳 Billing</NavLink>}
-          {can('admin','billing') && <NavLink to="/payments" className={linkClass}>💰 Payments</NavLink>}
-          {can('admin','support') && <NavLink to="/block-reasons" className={linkClass}>📋 Block Reasons</NavLink>}
-          {(can('admin','support') || isGlobalOnly) && <NavLink to="/global-blocklist" className={linkClass}>🌐 Global Blocklist</NavLink>}
-          {can('admin','support') && <NavLink to="/sms-protection" className={linkClass}>🛡️ SMS Protection</NavLink>}
-          {can('admin','billing') && <NavLink to="/settings" className={linkClass}>⚙️ Settings</NavLink>}
-          {can('admin') && <NavLink to="/audit" className={linkClass}>📋 Audit Log</NavLink>}
-          {(can('admin') || role === 'global_db_admin') && <NavLink to="/admin-users" className={linkClass}>🔐 Admin Users</NavLink>}
+          {can('nav.dashboard') && <NavLink to="/dashboard" className={linkClass}>📊 Dashboard</NavLink>}
+          {can('nav.users') && <NavLink to="/users" className={linkClass}>👥 Users</NavLink>}
+          {can('nav.billing') && <NavLink to="/billing" className={linkClass}>💳 Billing</NavLink>}
+          {can('nav.payments') && <NavLink to="/payments" className={linkClass}>💰 Payments</NavLink>}
+          {can('nav.block_reasons') && <NavLink to="/block-reasons" className={linkClass}>📋 Block Reasons</NavLink>}
+          {can('nav.global_blocklist') && <NavLink to="/global-blocklist" className={linkClass}>🌐 Global Blocklist</NavLink>}
+          {can('nav.sms_protection') && <NavLink to="/sms-protection" className={linkClass}>🛡️ SMS Protection</NavLink>}
+          {can('nav.settings') && <NavLink to="/settings" className={linkClass}>⚙️ Settings</NavLink>}
+          {can('nav.audit') && <NavLink to="/audit" className={linkClass}>📋 Audit Log</NavLink>}
+          {can('nav.admin_users') && <NavLink to="/admin-users" className={linkClass}>🔐 Admin Users</NavLink>}
+          {can('nav.roles') && <NavLink to="/roles" className={linkClass}>🎭 Roles</NavLink>}
         </nav>
         <div className="bottom">
           <div style={{ marginBottom:6 }}>

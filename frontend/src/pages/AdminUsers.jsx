@@ -123,11 +123,23 @@ export default function AdminUsers() {
   const [resetPw2, setResetPw2]     = useState('');
   const [resetMsg, setResetMsg]     = useState('');
   const [resetting, setResetting]   = useState(false);
+  const [dbRoles, setDbRoles]       = useState([]);
+
+  useEffect(() => {
+    api.get('/admin/roles')
+      .then(r => setDbRoles(r.roles || []))
+      .catch(() => {});
+  }, []);
+
+  // All role keys from the DB (system + custom), minus ones this admin may not create.
+  const allRoleKeys = dbRoles.map(r => r.key);
+  const roleLabelFor = (key) =>
+    (dbRoles.find(r => r.key === key)?.label) || ROLE_LABELS[key]?.label || key;
 
   const creatableRoles = isSuperAdmin
-    ? ['super_admin', 'admin', 'support', 'billing', 'global_db_admin', 'global_db_user']
+    ? (allRoleKeys.length ? allRoleKeys : ['super_admin','admin','support','billing','global_db_admin','global_db_user'])
     : currentRole === 'admin'
-    ? ['support', 'billing', 'global_db_admin', 'global_db_user']
+    ? allRoleKeys.filter(k => k !== 'super_admin')
     : currentRole === 'global_db_admin'
     ? ['global_db_user']
     : [];
@@ -498,7 +510,7 @@ export default function AdminUsers() {
                   style={inp}>
                   <option value="">Select role...</option>
                   {creatableRoles.map(r => (
-                    <option key={r} value={r}>{ROLE_LABELS[r]?.label || r}</option>
+                    <option key={r} value={r}>{roleLabelFor(r)}</option>
                   ))}
                 </select>
               </div>
@@ -574,7 +586,7 @@ export default function AdminUsers() {
                       <select value={editRole} onChange={e => setEditRole(e.target.value)}
                         style={{ ...inp, width: 150 }}>
                         {creatableRoles.map(r => (
-                          <option key={r} value={r}>{ROLE_LABELS[r]?.label || r}</option>
+                          <option key={r} value={r}>{roleLabelFor(r)}</option>
                         ))}
                       </select>
                     </td>

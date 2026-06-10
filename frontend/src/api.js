@@ -29,6 +29,21 @@ export function getAdminRole() {
   return getAdminMeta()?.role || 'admin';
 }
 
+// Effective permissions for the current admin (fetched from /admin/me).
+export function setPermissions(perms) {
+  if (Array.isArray(perms)) localStorage.setItem('cf_perms', JSON.stringify(perms));
+}
+export function getPermissions() {
+  try { return JSON.parse(localStorage.getItem('cf_perms') || '[]'); }
+  catch { return []; }
+}
+export function hasPermission(perm) {
+  const role = getAdminRole();
+  if (role === 'super_admin') return true;
+  const perms = getPermissions();
+  return perms.includes('*') || perms.includes(perm);
+}
+
 async function request(path, options = {}) {
   const token = getToken();
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };

@@ -12,6 +12,7 @@ import Payments from './pages/Payments.jsx';
 import BlockReasons from './pages/BlockReasons.jsx';
 import GlobalBlocklist from './pages/GlobalBlocklist.jsx';
 import SmsProtection from './pages/SmsProtection.jsx';
+import Roles from './pages/Roles.jsx';
 import AdminUsers from './pages/AdminUsers.jsx';
 import UserDetail from './pages/UserDetail.jsx';
 import Terms from './pages/Terms.jsx';
@@ -45,6 +46,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/global-blocklist" element={<GlobalBlocklist />} />
           <Route path="/sms-protection" element={<SmsProtection />} />
           <Route path="/admin-users" element={<AdminUsers />} />
+          <Route path="/roles" element={<Roles />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

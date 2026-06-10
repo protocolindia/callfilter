@@ -1,7 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { query, one, many } = require('./db');
-const { requireAdmin, requireRole, globalScopeWhere, PERMS } = require('./auth_admin.js');
+const { requireAdmin, requireRole, requirePerm, globalScopeWhere, PERMS,
+        loadRoles, invalidateRoleCache, PERMISSION_CATALOG } = require('./auth_admin.js');
 const { pushBlocklistChanged } = require('./fcm');
 
 // ── HTTP GET helper (uses Node built-in https/http, more reliable than fetch) ──
@@ -1081,6 +1082,10 @@ router.post('/admin-users', requireAdmin, async (req, res, next) => {
     if (creatorRole === 'admin' && role === 'super_admin')
       return res.status(403).json({ error: 'Admin cannot create super_admin accounts' });
 
+    // The role must exist (system or custom).
+    const roleRow = await one('SELECT key FROM roles WHERE key = $1', [role]);
+    if (!roleRow) return res.status(400).json({ error: 'Unknown role: ' + role });
+
     const bcrypt = require('bcryptjs');
     const hash = await bcrypt.hash(password, 12);
     const parent_id = creatorRole === 'global_db_admin' ? req.admin.id : null;
@@ -1181,7 +1186,16 @@ router.post('/admin-users/:id/restore', requireAdmin,
 
 // GET /admin/me — current admin user info
 router.get('/me', requireAdmin, async (req, res) => {
-  res.json({ ok: true, admin: req.admin });
+  try {
+    let permissions = ['*'];
+    if (req.admin.role !== 'super_admin') {
+      const roles = await loadRoles();
+      permissions = roles[req.admin.role] || [];
+    }
+    res.json({ ok: true, admin: { ...req.admin, permissions } });
+  } catch (e) {
+    res.json({ ok: true, admin: { ...req.admin, permissions: [] } });
+  }
 });
 
 
@@ -1597,6 +1611,88 @@ router.get('/fraud-reports', requireAdmin, async (req, res, next) => {
       `SELECT id, user_id, number, category, note, reporter, emailed, created_at
          FROM fraud_reports ORDER BY created_at DESC LIMIT $1`, [limit]);
     res.json({ reports: rows });
+  } catch (e) { next(e); }
+});
+
+// ============================================================
+// ROLE MANAGEMENT (custom roles + permissions)
+// ============================================================
+
+// GET /admin/permission-catalog — the master list of permissions for the editor
+router.get('/permission-catalog', requireAdmin, (req, res) => {
+  res.json({ ok: true, catalog: PERMISSION_CATALOG });
+});
+
+// GET /admin/roles — list all roles with their permissions
+router.get('/roles', requireAdmin, requirePerm('roles.manage'), async (req, res, next) => {
+  try {
+    const rows = await many(
+      `SELECT r.id, r.key, r.label, r.permissions, r.is_system,
+              (SELECT COUNT(*)::int FROM admin_users a WHERE a.role = r.key AND a.deleted_at IS NULL) AS user_count
+         FROM roles r ORDER BY r.is_system DESC, r.label ASC`);
+    res.json({ ok: true, roles: rows });
+  } catch (e) { next(e); }
+});
+
+// POST /admin/roles — create a custom role
+router.post('/roles', requireAdmin, requirePerm('roles.manage'), async (req, res, next) => {
+  try {
+    let { key, label, permissions } = req.body || {};
+    if (!label || !label.trim()) return res.status(400).json({ error: 'label required' });
+    // Derive a safe key from the label if not supplied.
+    key = (key || label).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    if (!key) return res.status(400).json({ error: 'invalid key' });
+    if (!Array.isArray(permissions)) permissions = [];
+    const exists = await one('SELECT id FROM roles WHERE key = $1', [key]);
+    if (exists) return res.status(409).json({ error: 'A role with this key already exists' });
+    const row = await one(
+      `INSERT INTO roles(key, label, permissions, is_system)
+       VALUES ($1,$2,$3,FALSE) RETURNING *`,
+      [key, label.trim(), JSON.stringify(permissions)]);
+    invalidateRoleCache();
+    await audit(req.admin.username, 'role_created', `key=${key}`);
+    res.json({ ok: true, role: row });
+  } catch (e) { next(e); }
+});
+
+// PUT /admin/roles/:id — edit label + permissions (key is immutable)
+router.put('/roles/:id', requireAdmin, requirePerm('roles.manage'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const role = await one('SELECT * FROM roles WHERE id = $1', [id]);
+    if (!role) return res.status(404).json({ error: 'Role not found' });
+    if (role.key === 'super_admin')
+      return res.status(400).json({ error: 'super_admin permissions cannot be changed' });
+    const { label, permissions } = req.body || {};
+    const perms = Array.isArray(permissions) ? permissions : null;
+    const row = await one(
+      `UPDATE roles SET
+         label = COALESCE($2, label),
+         permissions = COALESCE($3, permissions),
+         updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [id, label || null, perms ? JSON.stringify(perms) : null]);
+    invalidateRoleCache();
+    await audit(req.admin.username, 'role_updated', `key=${role.key}`);
+    res.json({ ok: true, role: row });
+  } catch (e) { next(e); }
+});
+
+// DELETE /admin/roles/:id — delete a custom role (not system, not in use)
+router.delete('/roles/:id', requireAdmin, requirePerm('roles.manage'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const role = await one('SELECT * FROM roles WHERE id = $1', [id]);
+    if (!role) return res.status(404).json({ error: 'Role not found' });
+    if (role.is_system) return res.status(400).json({ error: 'System roles cannot be deleted' });
+    const inUse = await one(
+      'SELECT COUNT(*)::int AS c FROM admin_users WHERE role = $1 AND deleted_at IS NULL', [role.key]);
+    if (inUse.c > 0)
+      return res.status(409).json({ error: `Role is assigned to ${inUse.c} user(s). Reassign them first.` });
+    await query('DELETE FROM roles WHERE id = $1', [id]);
+    invalidateRoleCache();
+    await audit(req.admin.username, 'role_deleted', `key=${role.key}`);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
