@@ -81,7 +81,14 @@ public class BlockedCallsActivity extends AppCompatActivity {
                 ? (e.rulePattern != null ? e.rulePattern : "Global list")
                 : (e.reason != null ? e.reason : (e.ruleType != null ? e.ruleType : ""));
             TextView reportBtn = row.findViewById(R.id.btnReportFraud);
-            reportBtn.setOnClickListener(v -> confirmReportFraud(reportNumber, reportReason));
+            if (isGlobal) {
+                // Global-blocklist numbers are already known centrally — no need
+                // for the user to report them.
+                reportBtn.setVisibility(View.GONE);
+            } else {
+                reportBtn.setVisibility(View.VISIBLE);
+                reportBtn.setOnClickListener(v -> confirmReportFraud(reportNumber, reportReason));
+            }
         }
     }
 

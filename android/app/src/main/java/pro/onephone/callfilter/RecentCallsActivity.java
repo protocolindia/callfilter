@@ -191,9 +191,33 @@ public class RecentCallsActivity extends AppCompatActivity {
                 numberView.setVisibility(View.GONE);
             }
             countBadge.setText(g.callCount + "\u00D7");
-            metaView.setText(g.mostRecentType + "  \u00B7  "
+
+            // Is this number on the global blocklist? (raw membership, ignoring
+            // which reasons the user has enabled).
+            String globalReason = GlobalBlocklistDb.getInstance(this).reasonFor(g.number);
+            boolean isGlobalBlocked = globalReason != null;
+            TextView globalBadge = row.findViewById(R.id.recentGlobalBadge);
+            globalBadge.setVisibility(isGlobalBlocked ? View.VISIBLE : View.GONE);
+
+            String meta = g.mostRecentType + "  \u00B7  "
                 + DateUtils.getRelativeTimeSpanString(g.mostRecentMs,
-                    System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS));
+                    System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS);
+            if (isGlobalBlocked) {
+                meta = "\uD83D\uDEAB Blocked (global blocklist)  \u00B7  " + meta;
+            }
+            metaView.setText(meta);
+
+            // Report fraud — only for numbers NOT in the phonebook, and not for
+            // global-blocklist numbers (already known centrally).
+            boolean isContact = ContactsCacheManager.getInstance(this).isContact(g.number);
+            TextView reportBtn = row.findViewById(R.id.btnReportRecent);
+            if (!isContact && !isGlobalBlocked) {
+                reportBtn.setVisibility(View.VISIBLE);
+                final String rNum = g.number;
+                reportBtn.setOnClickListener(v -> confirmReportFraud(rNum));
+            } else {
+                reportBtn.setVisibility(View.GONE);
+            }
 
             // Already a reject rule for this number?
             final boolean alreadyBlocked = isAlreadyBlocked(g.number);
@@ -263,5 +287,69 @@ public class RecentCallsActivity extends AppCompatActivity {
     private static String normalize(String n) {
         if (n == null) return "";
         return n.replaceAll("[^0-9+]", "");
+    }
+
+    // ---- Report fraud (category picker -> backend) ----
+    private void confirmReportFraud(final String number) {
+        AuthManager auth = AuthManager.getInstance(this);
+        if (!auth.isBackendEnabled()) {
+            Toast.makeText(this, "Reporting needs an internet connection", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        BackendClient.get(AuthManager.BACKEND_URL + "/api/fraud-categories",
+            new BackendClient.Callback() {
+                public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                    runOnUiThread(() -> {
+                        org.json.JSONArray arr = resp != null ? resp.optJSONArray("categories") : null;
+                        if (!ok || arr == null || arr.length() == 0) {
+                            new AlertDialog.Builder(RecentCallsActivity.this, R.style.DarkDialog)
+                                .setTitle("Report fraud number?")
+                                .setMessage("Report " + number + " as fraud/scam?")
+                                .setPositiveButton("Report", (d, w) -> sendFraudReport(number, 0))
+                                .setNegativeButton("Cancel", null).show();
+                            return;
+                        }
+                        final int n = arr.length();
+                        final String[] names = new String[n];
+                        final int[] ids = new int[n];
+                        for (int i = 0; i < n; i++) {
+                            org.json.JSONObject o = arr.optJSONObject(i);
+                            names[i] = o != null ? o.optString("name", "Category") : "Category";
+                            ids[i]   = o != null ? o.optInt("id", 0) : 0;
+                        }
+                        final int[] sel = { 0 };
+                        new AlertDialog.Builder(RecentCallsActivity.this, R.style.DarkDialog)
+                            .setTitle("Report " + number + " as:")
+                            .setSingleChoiceItems(names, 0, (d, which) -> sel[0] = which)
+                            .setPositiveButton("Report", (d, w) -> sendFraudReport(number, ids[sel[0]]))
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                    });
+                }
+            });
+    }
+
+    private void sendFraudReport(String number, int categoryId) {
+        AuthManager auth = AuthManager.getInstance(this);
+        try {
+            org.json.JSONObject body = new org.json.JSONObject();
+            if (!auth.getUserId().isEmpty()) body.put("user_id", Long.parseLong(auth.getUserId()));
+            body.put("number", number);
+            if (categoryId > 0) body.put("category_id", categoryId);
+            body.put("reporter", auth.getFullNumber());
+            String cName = ContactsCacheManager.getInstance(this).getName(number);
+            if (cName != null && !cName.isEmpty()) body.put("caller_name", cName);
+            BackendClient.post(AuthManager.BACKEND_URL + "/api/report-fraud", body,
+                new BackendClient.Callback() {
+                    public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                        runOnUiThread(() -> Toast.makeText(RecentCallsActivity.this,
+                            ok ? "\u2713 Reported. Thank you for helping keep others safe."
+                               : "Could not send report. Please try again.",
+                            Toast.LENGTH_LONG).show());
+                    }
+                });
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not send report", Toast.LENGTH_SHORT).show();
+        }
     }
 }

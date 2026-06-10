@@ -25,16 +25,30 @@
         android:layout_weight="1"
         android:layout_height="wrap_content"
         android:orientation="vertical">
-        <TextView
-            android:id="@+id/recentCallName"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Unknown"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="@color/text"
-            android:maxLines="1"
-            android:ellipsize="end"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView
+                android:id="@+id/recentGlobalBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌐"
+                android:textSize="14sp"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone"/>
+            <TextView
+                android:id="@+id/recentCallName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Unknown"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/text"
+                android:maxLines="1"
+                android:ellipsize="end"/>
+        </LinearLayout>
         <TextView
             android:id="@+id/recentCallNumber"
             android:layout_width="wrap_content"
@@ -52,6 +66,18 @@
             android:textSize="11sp"
             android:textColor="@color/muted"
             android:layout_marginTop="2dp"/>
+        <TextView
+            android:id="@+id/btnReportRecent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🚩 Report fraud"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/accent"
+            android:layout_marginTop="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone"/>
     </LinearLayout>
 
     <TextView

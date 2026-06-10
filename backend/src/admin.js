@@ -60,62 +60,19 @@ const { loginHandler } = require('./auth_admin.js');
 router.post('/login', loginHandler);
 
 // GET /admin/me
-const BUILD_VERSION = 'v4.9';
 router.get('/me', requireAdmin, async (req, res) => {
   let permissions = ['*'];
-  let perm_source = 'wildcard';
-  let role_keys = [];
-  const probe = {};
   try {
-    // Direct DB-identity probe — reveals exactly which database the BACKEND
-    // is connected to (compare against your Railway query tab).
-    try {
-      const id = await one('SELECT current_database() AS db, current_schema() AS schema, inet_server_addr()::text AS host');
-      probe.db = id && id.db; probe.schema = id && id.schema; probe.host = id && id.host;
-    } catch (e) { probe.db_error = e.message; }
-    try {
-      const c = await one('SELECT COUNT(*)::int AS n FROM roles');
-      probe.roles_count = c && c.n;
-    } catch (e) { probe.roles_count_error = e.message; }
-
     if (req.admin.role !== 'super_admin') {
-      // Read this role's permissions DIRECTLY (no cache, no legacy fallback),
-      // so the result reflects the live table the backend is actually using.
-      try {
-        const r = await one('SELECT permissions FROM roles WHERE key = $1', [req.admin.role]);
-        if (r) {
-          let perms = r.permissions;
-          if (!Array.isArray(perms)) { try { perms = JSON.parse(perms || '[]'); } catch { perms = []; } }
-          permissions = perms;
-          perm_source = 'db_direct';
-        } else {
-          permissions = [];
-          perm_source = 'role_not_found';
-        }
-      } catch (e) {
-        permissions = [];
-        perm_source = 'roles_query_error';
-        probe.roles_query_error = e.message;
-      }
-      try {
-        const ks = await many('SELECT key FROM roles ORDER BY key');
-        role_keys = ks.map(k => k.key);
-      } catch (e) { /* already captured above */ }
+      const r = await one('SELECT permissions FROM roles WHERE key = $1', [req.admin.role]);
+      let perms = r ? r.permissions : [];
+      if (!Array.isArray(perms)) { try { perms = JSON.parse(perms || '[]'); } catch { perms = []; } }
+      permissions = perms;
     }
   } catch (e) {
     permissions = (req.admin.role === 'super_admin') ? ['*'] : [];
-    perm_source = 'error:' + (e.message || 'unknown');
   }
-  res.json({
-    ok: true,
-    build: BUILD_VERSION,
-    username: req.admin.username,
-    perm_source,
-    role_keys,
-    db_probe: probe,
-    migration_errors: getMigrationFailures(),
-    admin: { ...req.admin, permissions },
-  });
+  res.json({ ok: true, username: req.admin.username, admin: { ...req.admin, permissions } });
 });
 
 // GET /admin/stats
