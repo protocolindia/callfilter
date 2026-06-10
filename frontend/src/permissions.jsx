@@ -38,7 +38,8 @@ export function PermissionsProvider({ children }) {
         setDiag({ status: 'ok', hasField, count: p.length,
                   build: r && r.build, perm_source: r && r.perm_source,
                   role_keys: (r && r.role_keys) || [],
-                  migration_errors: (r && r.migration_errors) || [] });
+                  migration_errors: (r && r.migration_errors) || [],
+                  db_probe: (r && r.db_probe) || {} });
       })
       .catch(err => {
         setDiag({ status: 'error', hasField: false, count: 0, error: String(err && err.message || err) });
@@ -111,6 +112,17 @@ function NoAccess() {
         role: <b>{role}</b> &nbsp;·&nbsp; backend build: <b>{diag.build || '(none / old)'}</b> &nbsp;·&nbsp;
         perm source: <b>{diag.perm_source || '?'}</b> &nbsp;·&nbsp; count: <b>{diag.count}</b>
       </p>
+      {diag.db_probe && (
+        <div style={{ marginTop: 10, padding: 12, borderRadius: 8, textAlign: 'left',
+            background: 'rgba(79,142,247,0.08)', border: '1px solid var(--border)', fontSize: 12 }}>
+          <b>Backend database probe:</b>
+          <div>connected db: <b>{diag.db_probe.db || diag.db_probe.db_error || '?'}</b></div>
+          <div>schema: <b>{diag.db_probe.schema || '?'}</b> &nbsp; host: <b>{diag.db_probe.host || '?'}</b></div>
+          <div>roles rows the backend sees: <b>{diag.db_probe.roles_count != null ? diag.db_probe.roles_count : (diag.db_probe.roles_count_error || '?')}</b></div>
+          {diag.db_probe.roles_query_error && <div style={{ color:'var(--red)' }}>roles query error: {diag.db_probe.roles_query_error}</div>}
+          <div style={{ marginTop: 4 }}>role keys: {(diag.role_keys || []).join(', ') || '(none)'}</div>
+        </div>
+      )}
       {Array.isArray(diag.migration_errors) && diag.migration_errors.length > 0 && (
         <div style={{ marginTop: 10, padding: 12, borderRadius: 8, textAlign: 'left',
             background: 'rgba(248,113,113,0.10)', border: '1px solid var(--border)', fontSize: 12 }}>
