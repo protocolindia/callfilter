@@ -56,9 +56,19 @@ public class CallStateReceiver extends BroadcastReceiver {
                         }
                     }
                     if (popupNumber != null && !popupNumber.isEmpty()) {
-                        Log.d(TAG, "Call ended — offering popup for " + popupNumber);
-                        try { PostCallBlockOverlay.offer(appCtx, popupNumber); }
-                        catch (Exception e) { Log.w(TAG, "post-call overlay failed: " + e); }
+                        // Only offer the block popup for numbers NOT in the phonebook.
+                        // Known contacts should never trigger the "Block this number?" prompt.
+                        boolean known = false;
+                        try {
+                            known = ContactsCacheManager.getInstance(appCtx).isContact(popupNumber);
+                        } catch (Exception e) { Log.w(TAG, "contact check failed: " + e); }
+                        if (known) {
+                            Log.d(TAG, "Call ended — number is a saved contact, skipping popup");
+                        } else {
+                            Log.d(TAG, "Call ended — offering popup for " + popupNumber);
+                            try { PostCallBlockOverlay.offer(appCtx, popupNumber); }
+                            catch (Exception e) { Log.w(TAG, "post-call overlay failed: " + e); }
+                        }
 
                         // Show popup if global_list block had an image configured
                         try {
