@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { query, one, many } = require('./db');
 const { requireAdmin, requireRole, globalScopeWhere, PERMS } = require('./auth_admin.js');
+const { pushBlocklistChanged } = require('./fcm');
 
 // ── HTTP GET helper (uses Node built-in https/http, more reliable than fetch) ──
 function httpGet(urlStr, timeoutMs) {
@@ -384,6 +385,7 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'sms_provider',
       'fraud_report_email',
       'contacts_sync_enabled',
+      'fcm_server_key',
       'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_secure',
       'trial_days',
       'default_plan_id'
@@ -891,6 +893,7 @@ router.post('/global-blocklist', requireAdmin, async (req, res, next) => {
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [clean, reason.trim(), (notes || '').trim() || null,
        req.admin.username, req.admin.id || null]);
+    pushBlocklistChanged().catch(() => {});
     await audit(req.admin.username, 'global_block_added',
       `${clean} reason="${reason}"`);
     res.json({ ok: true, entry });
@@ -928,6 +931,7 @@ router.put('/global-blocklist/:id', requireAdmin, async (req, res, next) => {
        active !== undefined ? active : null,
        id]);
     if (!entry) return res.status(404).json({ error: 'not found' });
+    pushBlocklistChanged().catch(() => {});
     await audit(req.admin.username, 'global_block_updated', `id=${id}`);
     res.json({ ok: true, entry });
   } catch (e) { next(e); }
@@ -956,6 +960,7 @@ router.delete('/global-blocklist/:id', requireAdmin, async (req, res, next) => {
       await query('UPDATE global_blocklist SET deleted_at = NOW(), active = FALSE WHERE id = $1', [id]);
       await audit(req.admin.username, 'global_block_soft_deleted', `${entry.number}`);
     }
+    pushBlocklistChanged().catch(() => {});
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -996,6 +1001,7 @@ router.post('/global-blocklist/import', requireAdmin, async (req, res, next) => 
 
     await audit(req.admin.username, 'global_block_imported',
       `inserted=${inserted} skipped=${skipped}`);
+    pushBlocklistChanged().catch(() => {});
     res.json({ ok: true, inserted, skipped, errors: errors.slice(0, 10) });
   } catch (e) { next(e); }
 });

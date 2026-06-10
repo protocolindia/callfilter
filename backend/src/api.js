@@ -1475,6 +1475,33 @@ router.get('/global-blocklist', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/global-blocklist/delta?since_id=<cursor> — incremental changes via
+// the change-log. Scales to very large lists; device loops until caught_up.
+router.get('/global-blocklist/delta', async (req, res, next) => {
+  try {
+    const sinceId = parseInt(req.query.since_id, 10) || 0;
+    const LIMIT = 20000;
+    const rows = await many(
+      `SELECT id, number, reason, admin_id, op
+         FROM global_blocklist_changes
+        WHERE id > $1
+        ORDER BY id ASC
+        LIMIT $2`,
+      [sinceId, LIMIT]);
+
+    const cursor = rows.length ? rows[rows.length - 1].id : sinceId;
+    res.json({
+      ok: true,
+      cursor,
+      caught_up: rows.length < LIMIT,
+      changes: rows.map(r => ({
+        number: r.number, reason: r.reason,
+        added_by_admin_id: r.admin_id, op: r.op,
+      })),
+    });
+  } catch (e) { next(e); }
+});
+
 // GET /api/global-blocklist/config — display settings for app
 router.get('/global-blocklist/config', async (req, res, next) => {
   try {

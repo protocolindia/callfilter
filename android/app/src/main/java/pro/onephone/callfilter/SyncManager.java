@@ -549,6 +549,9 @@ public class SyncManager {
     public void syncGlobalBlocklistAsync() {
         AuthManager auth = AuthManager.getInstance(appCtx);
         if (!auth.isBackendEnabled()) return;
+        // Incremental delta sync of the number list into SQLite (scales large).
+        GlobalBlocklistManager.getInstance(appCtx).syncDeltaAsync();
+        // Refresh admin popup configs (small payload).
         GlobalBlocklistManager.getInstance(appCtx).syncAsync((ok, count, err) -> {
             if (ok) Log.d(TAG, "Global blocklist synced: " + count);
             else    Log.w(TAG, "Global blocklist sync failed: " + err);

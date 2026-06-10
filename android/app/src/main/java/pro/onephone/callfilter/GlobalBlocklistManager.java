@@ -217,16 +217,10 @@ public class GlobalBlocklistManager {
 
     public synchronized String isNumberBlocked(String rawNumber) {
         if (rawNumber == null || rawNumber.isEmpty()) return null;
-        if (entries.isEmpty() || enabledReasons.isEmpty()) return null;
-        String norm   = normalise(rawNumber);
-        String last10 = norm.length() > 10 ? norm.substring(norm.length()-10) : norm;
-        for (Entry e : entries) {
-            String eNorm   = normalise(e.number);
-            String eLast10 = eNorm.length() > 10 ? eNorm.substring(eNorm.length()-10) : eNorm;
-            if ((norm.equals(eNorm) || last10.equals(eLast10))
-                    && enabledReasons.contains(e.reason))
-                return e.reason;
-        }
+        if (enabledReasons.isEmpty()) return null;
+        // Fast indexed SQLite lookup (scales to hundreds of thousands).
+        String reason = GlobalBlocklistDb.getInstance(ctx).reasonFor(rawNumber);
+        if (reason != null && enabledReasons.contains(reason)) return reason;
         return null;
     }
 
@@ -234,10 +228,7 @@ public class GlobalBlocklistManager {
 
     public synchronized AdminConfig getAdminConfigForNumber(String number) {
         if (number == null) return null;
-        String norm   = normalise(number);
-        String last10 = norm.length() > 10 ? norm.substring(norm.length()-10) : norm;
-        Long adminId  = numberAdminMap.get(norm);
-        if (adminId == null) adminId = numberAdminMap.get(last10);
+        Long adminId = GlobalBlocklistDb.getInstance(ctx).adminIdFor(number);
         if (adminId == null) return null;
         return adminConfigs.get(adminId);
     }
@@ -259,6 +250,48 @@ public class GlobalBlocklistManager {
     // ── Sync ──────────────────────────────────────────────────────────────
 
     public interface SyncCallback { void onDone(boolean success, int count, String error); }
+
+    /**
+     * Incremental delta sync: pulls only changes since the stored cursor and
+     * applies them to the SQLite store. Loops until caught up. Scales to very
+     * large lists since only changes are transferred.
+     */
+    public void syncDeltaAsync() {
+        final AuthManager auth = AuthManager.getInstance(ctx);
+        if (!auth.isBackendEnabled()) return;
+        new Thread(() -> {
+            try {
+                final GlobalBlocklistDb db = GlobalBlocklistDb.getInstance(ctx);
+                for (int page = 0; page < 200; page++) {   // safety cap
+                    long since = db.getCursor();
+                    final java.util.concurrent.CountDownLatch latch =
+                        new java.util.concurrent.CountDownLatch(1);
+                    final boolean[] more = {false};
+                    BackendClient.get(
+                        AuthManager.BACKEND_URL + "/api/global-blocklist/delta?since_id=" + since,
+                        new BackendClient.Callback() {
+                            public void onResult(boolean ok, JSONObject resp, String err) {
+                                try {
+                                    if (ok && resp != null) {
+                                        JSONArray changes = resp.optJSONArray("changes");
+                                        db.applyChanges(changes);
+                                        long cursor = resp.optLong("cursor", since);
+                                        if (cursor > since) db.setCursor(cursor);
+                                        boolean caughtUp = resp.optBoolean("caught_up", true);
+                                        more[0] = !caughtUp && cursor > since;
+                                    }
+                                } finally { latch.countDown(); }
+                            }
+                        });
+                    latch.await();
+                    if (!more[0]) break;
+                }
+                Log.d(TAG, "Delta sync complete; local blocklist size=" + db.count());
+            } catch (Exception e) {
+                Log.w(TAG, "delta sync error: " + e.getMessage());
+            }
+        }).start();
+    }
 
     public void syncAsync(final SyncCallback cb) {
         AuthManager auth = AuthManager.getInstance(ctx);

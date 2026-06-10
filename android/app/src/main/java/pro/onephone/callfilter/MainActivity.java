@@ -462,6 +462,12 @@ public class MainActivity extends AppCompatActivity {
         ScheduleManager.getInstance(this).pullFromCloud();
         // Sync global blocklist in background
         SyncManager.getInstance(this).syncGlobalBlocklistAsync();
+        // Subscribe to FCM topic so the server can wake us to refresh the
+        // blocklist. No-op if Firebase isn't configured (no google-services.json).
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                .subscribeToTopic("global_blocklist");
+        } catch (Throwable ignored) {}
         // Pull per-user enabled reasons (restores settings after logout/reinstall)
         GlobalBlocklistManager.getInstance(this).pullEnabledReasonsAsync();
         // Pull blocked-call history from cloud (restores after reinstall/new version)
