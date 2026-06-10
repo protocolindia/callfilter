@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
+import android.widget.TextView;
 import androidx.appcompat.widget.SwitchCompat;
 import android.widget.EditText;
 import android.widget.Button;
@@ -101,21 +102,53 @@ public class ProfileActivity extends AppCompatActivity {
 
         // ----- Contact sync toggle -----
         SyncManager sm = SyncManager.getInstance(this);
+        final View contactsSyncRow = findViewById(R.id.contactsSyncRow);
+        boolean syncAllowed = sm.isSyncAllowedByAdmin();
         contactsSyncSwitch.setOnCheckedChangeListener(null);
-        contactsSyncSwitch.setChecked(sm.isContactsOptedIn());
-        contactsSyncSwitch.setOnCheckedChangeListener((b, checked) -> {
-            if (checked) {
-                if (checkSelfPermission(Manifest.permission.READ_CONTACTS)
-                        != PackageManager.PERMISSION_GRANTED) {
-                    contactsSyncSwitch.setChecked(false);
-                    requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 105);
-                    return;
+        if (!syncAllowed) {
+            // Feature is hidden entirely when disabled by the administrator.
+            if (contactsSyncRow != null) contactsSyncRow.setVisibility(View.GONE);
+        } else {
+            if (contactsSyncRow != null) contactsSyncRow.setVisibility(View.VISIBLE);
+            contactsSyncSwitch.setChecked(sm.isContactsOptedIn());
+            contactsSyncSwitch.setOnCheckedChangeListener((b, checked) -> {
+                if (checked) {
+                    if (checkSelfPermission(Manifest.permission.READ_CONTACTS)
+                            != PackageManager.PERMISSION_GRANTED) {
+                        contactsSyncSwitch.setChecked(false);
+                        requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 105);
+                        return;
+                    }
+                    showOptInConfirm();
+                } else {
+                    showOptOutConfirm();
                 }
-                showOptInConfirm();
+            });
+        }
+
+        // Refresh the admin policy in the background; hide/show the row if it changed.
+        sm.fetchSyncConfigAsync(allowed -> runOnUiThread(() -> {
+            contactsSyncSwitch.setOnCheckedChangeListener(null);
+            if (!allowed) {
+                if (contactsSyncRow != null) contactsSyncRow.setVisibility(View.GONE);
             } else {
-                showOptOutConfirm();
+                if (contactsSyncRow != null) contactsSyncRow.setVisibility(View.VISIBLE);
+                contactsSyncSwitch.setChecked(sm.isContactsOptedIn());
+                contactsSyncSwitch.setOnCheckedChangeListener((b, checked) -> {
+                    if (checked) {
+                        if (checkSelfPermission(Manifest.permission.READ_CONTACTS)
+                                != PackageManager.PERMISSION_GRANTED) {
+                            contactsSyncSwitch.setChecked(false);
+                            requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 105);
+                            return;
+                        }
+                        showOptInConfirm();
+                    } else {
+                        showOptOutConfirm();
+                    }
+                });
             }
-        });
+        }));
 
         // ----- Change PIN -----
         findViewById(R.id.rowChangePin).setOnClickListener(v ->

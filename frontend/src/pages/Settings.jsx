@@ -27,6 +27,7 @@ const TABS = [
   { id: 'otp',          icon: '🔑', label: 'OTP Rules'    },
   { id: 'subscription', icon: '💳', label: 'Subscription' },
   { id: 'razorpay',     icon: '💰', label: 'Razorpay'     },
+  { id: 'contacts',     icon: '📇', label: 'Contacts Sync' },
   { id: 'fraud',        icon: '🚩', label: 'Fraud Reports' },
   { id: 'password',     icon: '🔒', label: 'Password'     },
 ];
@@ -507,15 +508,17 @@ export default function Settings() {
         </form>
       )}
 
-      {/* ========== FRAUD REPORTS TAB ========== */}
-      {tab === 'fraud' && (
+      {/* ========== CONTACTS SYNC TAB ========== */}
+      {tab === 'contacts' && (
         <form onSubmit={save}>
           <div className="card" style={{ marginBottom: 16 }}>
             <h2 style={{ marginTop: 0, marginBottom: 4 }}>Contacts Sync (global)</h2>
             <p className="muted" style={{ marginTop: 0, marginBottom: 14 }}>
-              Master switch for the contacts backup/sync feature. When OFF, contacts
-              sync is disabled for ALL users regardless of their individual setting.
-              Existing cloud data is retained.
+              Master switch for the contacts backup/sync feature. When set to "Disabled
+              for everyone", contacts sync is turned off for ALL users regardless of their
+              individual setting. When "Enabled for all", each user is allowed by default and
+              you can still disable specific users from their profile → Contacts tab.
+              Existing cloud data is always retained.
             </p>
             <Field label="Contacts sync feature">
               <select value={settings.contacts_sync_enabled || 'true'}
@@ -525,6 +528,19 @@ export default function Settings() {
               </select>
             </Field>
           </div>
+          <button type="submit" disabled={saving} style={{
+            padding: '11px 28px', borderRadius: 6, border: 'none',
+            background: 'var(--accent)', color: '#fff', fontWeight: 700,
+            cursor: saving ? 'not-allowed' : 'pointer',
+            opacity: saving ? 0.6 : 1, fontSize: 15 }}>
+            {saving ? 'Saving...' : 'Save Contacts Settings'}
+          </button>
+        </form>
+      )}
+
+      {/* ========== FRAUD REPORTS TAB ========== */}
+      {tab === 'fraud' && (
+        <form onSubmit={save}>
           <div className="card" style={{ marginBottom: 16 }}>
             <h2 style={{ marginTop: 0, marginBottom: 4 }}>Fraud Report Delivery</h2>
             <p className="muted" style={{ marginTop: 0, marginBottom: 20 }}>

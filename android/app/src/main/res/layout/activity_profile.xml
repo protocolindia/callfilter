@@ -200,6 +200,7 @@
 
                 <!-- Cloud contact sync -->
                 <LinearLayout
+                    android:id="@+id/contactsSyncRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -223,6 +224,7 @@
                             android:textSize="15sp"
                             android:textColor="@color/text"/>
                         <TextView
+                            android:id="@+id/contactsSyncSubtitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Upload contacts so they're available across devices"
@@ -410,7 +412,7 @@
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="CyberGuard AI · v3.5"
+                android:text="CyberGuard AI · v3.7"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"

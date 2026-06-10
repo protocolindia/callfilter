@@ -118,20 +118,27 @@ router.get('/users/:id', requireAdmin, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// PUT /admin/users/:id/contacts-sync — enable/disable contacts sync for one user
-// Body: { allowed: true|false }
+// PUT /admin/users/:id/contacts-sync — set contacts-sync override for one user
+// Body: { override: 'default' | 'on' | 'off' }  (also accepts legacy { allowed: bool })
 router.put('/users/:id/contacts-sync', requireAdmin, async (req, res, next) => {
   try {
     if (!['super_admin','admin'].includes(req.admin.role))
       return res.status(403).json({ error: 'Admin or super_admin only' });
     const id = parseInt(req.params.id, 10);
-    const allowed = req.body && req.body.allowed === true;
+    let override = req.body && req.body.override;
+    if (!override && req.body && typeof req.body.allowed === 'boolean') {
+      override = req.body.allowed ? 'default' : 'off';   // legacy mapping
+    }
+    if (!['default','on','off'].includes(override))
+      return res.status(400).json({ error: "override must be 'default', 'on' or 'off'" });
     const u = await one(
-      'UPDATE users SET contacts_sync_allowed = $2 WHERE id = $1 RETURNING id, contacts_sync_allowed',
-      [id, allowed]);
+      `UPDATE users SET contacts_sync_override = $2,
+              contacts_sync_allowed = ($2 <> 'off')
+       WHERE id = $1 RETURNING id, contacts_sync_override`,
+      [id, override]);
     if (!u) return res.status(404).json({ error: 'User not found' });
-    await audit(req.admin.username, 'user_contacts_sync_set', `user_id=${id}, allowed=${allowed}`);
-    res.json({ ok: true, contacts_sync_allowed: u.contacts_sync_allowed });
+    await audit(req.admin.username, 'user_contacts_sync_set', `user_id=${id}, override=${override}`);
+    res.json({ ok: true, contacts_sync_override: u.contacts_sync_override });
   } catch (e) { next(e); }
 });
 

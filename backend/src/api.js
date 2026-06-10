@@ -379,12 +379,15 @@ router.get('/contacts/sync-config', async (req, res, next) => {
     const globalRaw = await getSetting('contacts_sync_enabled');
     const globalOn = (globalRaw === null || globalRaw === undefined || globalRaw === '')
       ? true : String(globalRaw) === 'true';
-    let userOn = true;
+    let userOn = globalOn; // default = follow global
     if (userId) {
-      const u = await one('SELECT contacts_sync_allowed FROM users WHERE id = $1', [userId]);
-      if (u && u.contacts_sync_allowed === false) userOn = false;
+      const u = await one('SELECT contacts_sync_override FROM users WHERE id = $1', [userId]);
+      const ov = u && u.contacts_sync_override ? u.contacts_sync_override : 'default';
+      if (ov === 'on') userOn = true;
+      else if (ov === 'off') userOn = false;
+      else userOn = globalOn;
     }
-    res.json({ ok: true, allowed: globalOn && userOn, global: globalOn, user: userOn });
+    res.json({ ok: true, allowed: userOn, global: globalOn, user: userOn });
   } catch (e) { next(e); }
 });
 

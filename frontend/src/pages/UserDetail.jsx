@@ -107,11 +107,10 @@ export default function UserDetail() {
     finally { setCallsLoading(false); }
   }
 
-  async function toggleContactsSync() {
-    const next = !(user.contacts_sync_allowed === false) ? false : true;
+  async function setContactsSyncOverride(override) {
     try {
-      await api.put(`/admin/users/${id}/contacts-sync`, { allowed: next });
-      setUser(u => ({ ...u, contacts_sync_allowed: next }));
+      await api.put(`/admin/users/${id}/contacts-sync`, { override });
+      setUser(u => ({ ...u, contacts_sync_override: override }));
     } catch (e) { alert(e.message); }
   }
 
@@ -183,24 +182,25 @@ export default function UserDetail() {
         <section className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               gap: 12, padding: '10px 14px', marginBottom: 14, borderRadius: 8,
-              background: user.contacts_sync_allowed === false ? 'rgba(248,113,113,0.10)' : 'rgba(52,211,153,0.10)',
+              background: user.contacts_sync_override === 'off' ? 'rgba(248,113,113,0.10)'
+                        : user.contacts_sync_override === 'on' ? 'rgba(52,211,153,0.10)'
+                        : 'rgba(148,163,184,0.10)',
               border: '1px solid var(--border)' }}>
             <div>
-              <div style={{ fontWeight: 700 }}>
-                Contacts sync for this user:{' '}
-                <span style={{ color: user.contacts_sync_allowed === false ? 'var(--red)' : '#34d399' }}>
-                  {user.contacts_sync_allowed === false ? 'Disabled' : 'Enabled'}
-                </span>
-              </div>
+              <div style={{ fontWeight: 700 }}>Contacts sync for this user</div>
               <div className="muted" style={{ fontSize: 12 }}>
-                When disabled, this user's app stops syncing contacts (their existing cloud data is kept).
+                "Follow global" uses the global Settings switch. "Always enabled" turns it on
+                for this user even when the global switch is off. Existing cloud data is always kept.
               </div>
             </div>
-            <button className="btn" onClick={toggleContactsSync}
-              style={{ background: user.contacts_sync_allowed === false ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)',
-                color: user.contacts_sync_allowed === false ? '#34d399' : '#f87171', whiteSpace: 'nowrap' }}>
-              {user.contacts_sync_allowed === false ? 'Enable' : 'Disable'}
-            </button>
+            <select
+              value={user.contacts_sync_override || 'default'}
+              onChange={e => setContactsSyncOverride(e.target.value)}
+              style={{ padding: '8px 10px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+              <option value="default">Follow global setting</option>
+              <option value="on">Always enabled</option>
+              <option value="off">Always disabled</option>
+            </select>
           </div>
 
           <input
