@@ -1646,7 +1646,7 @@ router.post('/roles', requireAdmin, requirePerm('roles.manage'), async (req, res
     if (exists) return res.status(409).json({ error: 'A role with this key already exists' });
     const row = await one(
       `INSERT INTO roles(key, label, permissions, is_system)
-       VALUES ($1,$2,$3,FALSE) RETURNING *`,
+       VALUES ($1,$2,$3::jsonb,FALSE) RETURNING *`,
       [key, label.trim(), JSON.stringify(permissions)]);
     invalidateRoleCache();
     await audit(req.admin.username, 'role_created', `key=${key}`);
@@ -1667,7 +1667,7 @@ router.put('/roles/:id', requireAdmin, requirePerm('roles.manage'), async (req, 
     const row = await one(
       `UPDATE roles SET
          label = COALESCE($2, label),
-         permissions = COALESCE($3, permissions),
+         permissions = COALESCE($3::jsonb, permissions),
          updated_at = NOW()
        WHERE id = $1 RETURNING *`,
       [id, label || null, perms ? JSON.stringify(perms) : null]);
