@@ -6,8 +6,12 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const { pool, one, query } = require('./db');
 
+let _migrationFailures = [];
+function getMigrationFailures() { return _migrationFailures; }
+
 async function migrate() {
   console.log('🔧 Running migrations...');
+  _migrationFailures = [];
 
   // Tracking table for applied migrations
   await query(`
@@ -36,18 +40,16 @@ async function migrate() {
       await query('INSERT INTO schema_migrations(filename) VALUES ($1)', [f]);
       console.log(`  ✓ ${f} applied successfully`);
     } catch (e) {
-      // Loud failure — print full error and DO NOT mark migration as
-      // complete. Next deploy will retry. (Previously this code silently
-      // marked migrations as complete on "already exists" / "does not
-      // exist" errors, which masked real schema problems.)
+      // Log loudly and record the failure, but DO NOT crash the whole server.
+      // A single bad migration must not freeze the backend on an old build.
+      // The migration is left un-applied so it retries on the next deploy.
       console.error(`  ✗ ${f} FAILED: ${e.message}`);
-      console.error(`     The migration was NOT marked as applied. Fix the`);
-      console.error(`     error and redeploy. To inspect, run: psql $DATABASE_URL`);
-      throw e;
+      _migrationFailures.push({ file: f, error: e.message });
     }
   }
 
   // Seed default settings
+  try {
   const defaults = {
     sms_provider:         'custom_url',
     sms_api_url:          '',
@@ -119,8 +121,16 @@ async function migrate() {
     await query('INSERT INTO admins(username, password_hash) VALUES ($1, $2)', [username, hash]);
     console.log(`✓ Default admin: ${username} / ${password === 'changeme' ? 'changeme (CHANGE THIS!)' : '(from env)'}`);
   }
+  } catch (seedErr) {
+    console.error('  ✗ Seeding step failed (non-fatal):', seedErr.message);
+    _migrationFailures.push({ file: 'seed', error: seedErr.message });
+  }
 
-  console.log('✅ Migrations complete');
+  if (_migrationFailures.length) {
+    console.error('⚠️  Some migrations failed:', _migrationFailures.map(f => f.file).join(', '));
+  } else {
+    console.log('✅ Migrations complete');
+  }
 }
 
 if (require.main === module) {
@@ -129,4 +139,4 @@ if (require.main === module) {
     .catch(err => { console.error('❌ Migration failed:', err); process.exit(1); });
 }
 
-module.exports = { migrate };
+module.exports = { migrate, getMigrationFailures };

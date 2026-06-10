@@ -3,6 +3,8 @@ const bcrypt = require('bcryptjs');
 const { query, one, many } = require('./db');
 const { requireAdmin, requireRole, requirePerm, globalScopeWhere, PERMS,
         loadRoles, invalidateRoleCache, PERMISSION_CATALOG } = require('./auth_admin.js');
+let getMigrationFailures = () => [];
+try { getMigrationFailures = require('./migrate').getMigrationFailures || getMigrationFailures; } catch (_) {}
 const { pushBlocklistChanged } = require('./fcm');
 
 // ── HTTP GET helper (uses Node built-in https/http, more reliable than fetch) ──
@@ -58,19 +60,36 @@ const { loginHandler } = require('./auth_admin.js');
 router.post('/login', loginHandler);
 
 // GET /admin/me
+const BUILD_VERSION = 'v4.8';
 router.get('/me', requireAdmin, async (req, res) => {
+  let permissions = ['*'];
+  let perm_source = 'wildcard';
+  let role_keys = [];
   try {
-    let permissions = ['*'];
     if (req.admin.role !== 'super_admin') {
       const roles = await loadRoles(true); // force fresh read (no cache)
-      permissions = roles[req.admin.role] || [];
+      role_keys = Object.keys(roles);
+      if (Object.prototype.hasOwnProperty.call(roles, req.admin.role)) {
+        permissions = roles[req.admin.role] || [];
+        perm_source = 'db';
+      } else {
+        permissions = [];
+        perm_source = 'role_not_found'; // req.admin.role is not a key in roles table
+      }
     }
-    res.json({ ok: true, username: req.admin.username,
-               admin: { ...req.admin, permissions } });
   } catch (e) {
-    res.json({ ok: true, username: req.admin.username,
-               admin: { ...req.admin, permissions: [] } });
+    permissions = (req.admin.role === 'super_admin') ? ['*'] : [];
+    perm_source = 'error:' + (e.message || 'unknown');
   }
+  res.json({
+    ok: true,
+    build: BUILD_VERSION,
+    username: req.admin.username,
+    perm_source,
+    role_keys,
+    migration_errors: getMigrationFailures(),
+    admin: { ...req.admin, permissions },
+  });
 });
 
 // GET /admin/stats

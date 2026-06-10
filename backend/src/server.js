@@ -4,20 +4,16 @@ const cors = require('cors');
 const { migrate } = require('./migrate');
 
 async function main() {
-  // Run migrations on every boot — Postgres handles IF NOT EXISTS gracefully
+  // Run migrations on every boot. A failing migration is logged but does NOT
+  // stop the server — otherwise one bad migration would freeze the backend on
+  // an old build forever (deploys would keep crashing). Failures are surfaced
+  // via /admin/me so they're visible without server log access.
   try {
     await migrate();
-    console.log('✅ Migrations OK');
+    console.log('✅ Migrations step finished');
   } catch (err) {
-    // If migrations fail, the schema is in an unknown state — running
-    // the server anyway can silently mask data-loss bugs (e.g. rules
-    // sync mirror-deleting cloud rows). Fail loud so Railway surfaces
-    // the error in deploy logs and the user knows to fix it.
-    console.error('═══════════════════════════════════════════════════════');
-    console.error('❌ MIGRATIONS FAILED — refusing to start server');
+    console.error('⚠️ Migration step threw (continuing to start server):');
     console.error(err.stack || err.message || err);
-    console.error('═══════════════════════════════════════════════════════');
-    process.exit(1);
   }
 
   const app = express();
