@@ -31,4 +31,11 @@
             android:paddingStart="8dp" android:paddingEnd="8dp"
             android:paddingTop="2dp" android:paddingBottom="2dp" android:visibility="gone"/>
     </LinearLayout>
+    <TextView android:id="@+id/btnReportFraud"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="🚩 Report fraud"
+        android:textSize="12sp" android:textStyle="bold"
+        android:textColor="@color/accent"
+        android:paddingTop="8dp" android:paddingBottom="2dp"
+        android:clickable="true" android:focusable="true"/>
 </LinearLayout>

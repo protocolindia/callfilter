@@ -1496,6 +1496,54 @@ router.get('/global-blocklist/user-config', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/report-fraud — user reports a fraudulent/scam number.
+// Persists the report and emails it to the configured fraud_report_email.
+router.post('/report-fraud', async (req, res, next) => {
+  try {
+    const { user_id, number, category, note, reporter } = req.body || {};
+    if (!number || !String(number).trim())
+      return res.status(400).json({ error: 'number required' });
+
+    const row = await one(
+      `INSERT INTO fraud_reports(user_id, number, category, note, reporter)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
+      [user_id || null, String(number).trim(), category || 'fraud',
+       note || null, reporter || null]);
+
+    // Best-effort email to the configured address.
+    let emailed = false;
+    try {
+      const { sendMail, loadSettings } = require('./mailer');
+      const s = await loadSettings();
+      const to = s.fraud_report_email;
+      if (to) {
+        const body =
+          `A fraud call has been reported in CyberGuard AI.\n\n` +
+          `Reported number : ${number}\n` +
+          `Category        : ${category || 'fraud'}\n` +
+          `Reported by      : ${reporter || ('user #' + (user_id || 'unknown'))}\n` +
+          `Note            : ${note || '(none)'}\n` +
+          `Report ID       : ${row.id}\n` +
+          `Time            : ${row.created_at}\n`;
+        const r = await sendMail({
+          to,
+          subject: `[CyberGuard] Fraud report: ${number}`,
+          text: body,
+        });
+        emailed = !!r.ok;
+      }
+    } catch (mailErr) {
+      // Email is best-effort; the report is already persisted.
+      console.warn('fraud report email failed:', mailErr.message);
+    }
+
+    if (emailed) {
+      await query('UPDATE fraud_reports SET emailed = TRUE WHERE id = $1', [row.id]);
+    }
+    res.json({ ok: true, id: row.id, emailed });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;
 
 // HTTP GET helper using Node built-in modules (avoids fetch SSL issues on Railway)

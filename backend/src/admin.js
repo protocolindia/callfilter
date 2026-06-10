@@ -358,6 +358,8 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'msg91_template_id',
       'sms_api_message_template',
       'sms_provider',
+      'fraud_report_email',
+      'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_secure',
       'trial_days',
       'default_plan_id'
     ];
@@ -1553,6 +1555,17 @@ router.delete('/sms-protection/urls/:id', requireAdmin, async (req, res, next) =
     await query('DELETE FROM sms_url_blocklist WHERE id = $1', [parseInt(req.params.id, 10)]);
     await audit(req.admin.username, 'sms_url_deleted', `id=${req.params.id}`);
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// GET /admin/fraud-reports — list reported fraud numbers
+router.get('/fraud-reports', requireAdmin, async (req, res, next) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
+    const rows = await many(
+      `SELECT id, user_id, number, category, note, reporter, emailed, created_at
+         FROM fraud_reports ORDER BY created_at DESC LIMIT $1`, [limit]);
+    res.json({ reports: rows });
   } catch (e) { next(e); }
 });
 

@@ -5,6 +5,19 @@ import android.telecom.CallScreeningService;
 import android.util.Log;
 
 public class CallBlockerService extends CallScreeningService {
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        // Keep the global blocklist fresh: pull the latest from the server when
+        // the screening service starts, so admin updates reach the device even
+        // if the app UI hasn't been opened recently.
+        try {
+            if (AuthManager.getInstance(this).isLoggedIn()) {
+                GlobalBlocklistManager.getInstance(this).syncAsync((ok, count, err) -> {});
+            }
+        } catch (Exception ignored) {}
+    }
     private static final String TAG = "CallBlockerService";
 
     @Override
@@ -136,14 +149,21 @@ public class CallBlockerService extends CallScreeningService {
             Log.d(TAG, "VERDICT: REJECT (type=" + rType + " pattern=" + rPattern + ")");
             // Auto-send SMS reply if enabled (Block All Now only)
             SmsAutoResponder.getInstance(this).sendIfEnabled(number, rType);
-            // Show global block popup if this was a global_list block
+            // Determine who is responsible for this block (shown in Blocked Calls).
+            String blockedBy;
             if ("global_list".equals(rType)) {
                 showGlobalBlockPopup(number, rPattern);
+                GlobalBlocklistManager.AdminConfig cfg =
+                    GlobalBlocklistManager.getInstance(this).getAdminConfigForNumber(number);
+                blockedBy = (cfg != null && cfg.displayName != null && !cfg.displayName.isEmpty())
+                    ? cfg.displayName : "Global blocklist";
+            } else {
+                blockedBy = "Your rule";
             }
             FrequencyTracker.getInstance(this)
                 .recordRejection(number, System.currentTimeMillis());
             BlockedCallsManager.getInstance(this)
-                .recordBlock(number, rType, rPattern, rAction);
+                .recordBlock(number, rType, rPattern, rAction, blockedBy);
             CallResponse.Builder b = new CallResponse.Builder()
                 .setDisallowCall(true)
                 .setRejectCall(true)

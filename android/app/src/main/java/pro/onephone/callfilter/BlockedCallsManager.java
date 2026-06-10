@@ -28,6 +28,7 @@ public class BlockedCallsManager {
         public String rulePattern;
         public String ruleAction;
         public String reason;       // user-selected categorization (post-call popup)
+        public String blockedBy;    // who/what blocked it (admin name, "Your rule", etc.)
         public long blockedAtMs;
         public boolean synced;
     }
@@ -53,6 +54,8 @@ public class BlockedCallsManager {
                 e.ruleAction  = o.optString("rule_action", "reject");
                 e.reason      = o.optString("reason", null);
                 if ("null".equals(e.reason)) e.reason = null;
+                e.blockedBy   = o.optString("blocked_by", null);
+                if ("null".equals(e.blockedBy)) e.blockedBy = null;
                 e.blockedAtMs = o.optLong("blocked_at_ms", System.currentTimeMillis());
                 e.synced      = o.optBoolean("synced", false);
                 entries.add(e);
@@ -71,6 +74,7 @@ public class BlockedCallsManager {
                 o.put("rule_pattern", e.rulePattern);
                 o.put("rule_action", e.ruleAction);
                 if (e.reason != null) o.put("reason", e.reason);
+                if (e.blockedBy != null) o.put("blocked_by", e.blockedBy);
                 o.put("blocked_at_ms", e.blockedAtMs);
                 o.put("synced", e.synced);
                 arr.put(o);
@@ -80,12 +84,18 @@ public class BlockedCallsManager {
     }
 
     public synchronized void recordBlock(String number, String ruleType, String rulePattern, String ruleAction) {
+        recordBlock(number, ruleType, rulePattern, ruleAction, null);
+    }
+
+    public synchronized void recordBlock(String number, String ruleType, String rulePattern,
+                                         String ruleAction, String blockedBy) {
         Entry e = new Entry();
         e.clientId    = UUID.randomUUID().toString();
         e.number      = number == null ? "" : number;
         e.ruleType    = ruleType == null ? "" : ruleType;
         e.rulePattern = rulePattern == null ? "" : rulePattern;
         e.ruleAction  = ruleAction == null ? "reject" : ruleAction;
+        e.blockedBy   = blockedBy;
         e.blockedAtMs = System.currentTimeMillis();
         e.synced      = false;
         entries.add(0, e);
@@ -129,6 +139,8 @@ public class BlockedCallsManager {
             e.ruleAction  = o.optString("rule_action", "reject");
             e.reason      = o.optString("reason", null);
             if ("null".equals(e.reason)) e.reason = null;
+            e.blockedBy   = o.optString("blocked_by", null);
+            if ("null".equals(e.blockedBy)) e.blockedBy = null;
             e.blockedAtMs = o.optLong("blocked_at_ms", System.currentTimeMillis());
             e.synced      = true;
             entries.add(e);

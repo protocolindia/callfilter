@@ -58,20 +58,65 @@ public class BlockedCallsActivity extends AppCompatActivity {
             timeView.setText(DateUtils.getRelativeTimeSpanString(
                 e.blockedAtMs, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS));
             boolean isGlobal = "global_list".equals(e.ruleType);
+            String by = (e.blockedBy != null && !e.blockedBy.isEmpty()) ? e.blockedBy : null;
             if (isGlobal) {
                 globeBadge.setVisibility(View.VISIBLE);
                 String reason = (e.rulePattern != null && !e.rulePattern.isEmpty()) ? e.rulePattern : "Global list";
-                ruleView.setText("GLOBAL · " + reason);
+                ruleView.setText("GLOBAL · " + reason
+                    + (by != null ? "  ·  by " + by : "  ·  by Global blocklist"));
                 reasonPill.setText(reason);
                 reasonPill.setVisibility(View.VISIBLE);
             } else {
                 globeBadge.setVisibility(View.GONE);
-                ruleView.setText(e.ruleType.toUpperCase() + (e.rulePattern.isEmpty() ? "" : " · " + e.rulePattern));
+                ruleView.setText(e.ruleType.toUpperCase() + (e.rulePattern.isEmpty() ? "" : " · " + e.rulePattern)
+                    + (by != null ? "  ·  by " + by : ""));
                 if (e.reason != null && !e.reason.isEmpty()) {
                     reasonPill.setText(e.reason); reasonPill.setVisibility(View.VISIBLE);
                 } else { reasonPill.setVisibility(View.GONE); }
             }
             container.addView(row);
+
+            final String reportNumber = e.number;
+            TextView reportBtn = row.findViewById(R.id.btnReportFraud);
+            reportBtn.setOnClickListener(v -> confirmReportFraud(reportNumber));
+        }
+    }
+
+    private void confirmReportFraud(final String number) {
+        new androidx.appcompat.app.AlertDialog.Builder(this, R.style.DarkDialog)
+            .setTitle("Report fraud number?")
+            .setMessage("Report " + number + " as a fraud/scam number? This is sent to our "
+                + "team for review and helps protect other users.")
+            .setPositiveButton("Report", (d, w) -> sendFraudReport(number))
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void sendFraudReport(String number) {
+        AuthManager auth = AuthManager.getInstance(this);
+        if (!auth.isBackendEnabled()) {
+            android.widget.Toast.makeText(this, "Reporting needs an internet connection",
+                android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            org.json.JSONObject body = new org.json.JSONObject();
+            if (!auth.getUserId().isEmpty()) body.put("user_id", Long.parseLong(auth.getUserId()));
+            body.put("number", number);
+            body.put("category", "fraud");
+            body.put("reporter", auth.getFullNumber());
+            BackendClient.post(AuthManager.BACKEND_URL + "/api/report-fraud", body,
+                new BackendClient.Callback() {
+                    public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                        runOnUiThread(() -> android.widget.Toast.makeText(BlockedCallsActivity.this,
+                            ok ? "\u2713 Reported. Thank you for helping keep others safe."
+                               : "Could not send report. Please try again.",
+                            android.widget.Toast.LENGTH_LONG).show());
+                    }
+                });
+        } catch (Exception e) {
+            android.widget.Toast.makeText(this, "Could not send report",
+                android.widget.Toast.LENGTH_SHORT).show();
         }
     }
 }

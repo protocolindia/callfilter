@@ -27,6 +27,7 @@ const TABS = [
   { id: 'otp',          icon: '🔑', label: 'OTP Rules'    },
   { id: 'subscription', icon: '💳', label: 'Subscription' },
   { id: 'razorpay',     icon: '💰', label: 'Razorpay'     },
+  { id: 'fraud',        icon: '🚩', label: 'Fraud Reports' },
   { id: 'password',     icon: '🔒', label: 'Password'     },
 ];
 
@@ -502,6 +503,66 @@ export default function Settings() {
             cursor: saving ? 'not-allowed' : 'pointer',
             opacity: saving ? 0.6 : 1, fontSize: 15 }}>
             {saving ? 'Saving...' : 'Save OTP Settings'}
+          </button>
+        </form>
+      )}
+
+      {/* ========== FRAUD REPORTS TAB ========== */}
+      {tab === 'fraud' && (
+        <form onSubmit={save}>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <h2 style={{ marginTop: 0, marginBottom: 4 }}>Fraud Report Delivery</h2>
+            <p className="muted" style={{ marginTop: 0, marginBottom: 20 }}>
+              When a user reports a fraud call from the app, the report is saved and
+              emailed to the address below. Configure an SMTP server to enable email
+              delivery (reports are always stored regardless).
+            </p>
+            <div style={g2}>
+              <Field label="Fraud report email (recipient)" span>
+                <input type="email" value={settings.fraud_report_email || ''}
+                  onChange={e => set('fraud_report_email', e.target.value)}
+                  placeholder="fraud@yourcompany.com" style={inp}/>
+              </Field>
+              <Field label="SMTP host">
+                <input value={settings.smtp_host || ''}
+                  onChange={e => set('smtp_host', e.target.value)}
+                  placeholder="smtp.gmail.com" style={inp}/>
+              </Field>
+              <Field label="SMTP port">
+                <input value={settings.smtp_port || '587'}
+                  onChange={e => set('smtp_port', e.target.value)}
+                  placeholder="587" style={inp}/>
+              </Field>
+              <Field label="SMTP username">
+                <input value={settings.smtp_user || ''}
+                  onChange={e => set('smtp_user', e.target.value)}
+                  placeholder="apikey or email" style={inp}/>
+              </Field>
+              <Field label="SMTP password">
+                <input type="password" value={settings.smtp_pass || ''}
+                  onChange={e => set('smtp_pass', e.target.value)}
+                  placeholder="••••••••" style={inp}/>
+              </Field>
+              <Field label="From address">
+                <input value={settings.smtp_from || ''}
+                  onChange={e => set('smtp_from', e.target.value)}
+                  placeholder="CyberGuard <noreply@yourcompany.com>" style={inp}/>
+              </Field>
+              <Field label="Use TLS/SSL (secure)">
+                <select value={settings.smtp_secure || 'false'}
+                  onChange={e => set('smtp_secure', e.target.value)} style={inp}>
+                  <option value="false">No (STARTTLS, port 587)</option>
+                  <option value="true">Yes (SSL, port 465)</option>
+                </select>
+              </Field>
+            </div>
+          </div>
+          <button type="submit" disabled={saving} style={{
+            padding: '11px 28px', borderRadius: 6, border: 'none',
+            background: 'var(--accent)', color: '#fff', fontWeight: 700,
+            cursor: saving ? 'not-allowed' : 'pointer',
+            opacity: saving ? 0.6 : 1, fontSize: 15 }}>
+            {saving ? 'Saving...' : 'Save Fraud Settings'}
           </button>
         </form>
       )}
