@@ -1,182 +1,122 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../api';
+import { api } from '../api.js';
 
 /**
- * Admin manages the list of reasons that the Android app shows in the
- * post-call "Block this number?" follow-up dialog.
- *
- * Stored server-side as a single newline-delimited string in
- * settings.block_reasons. Each non-empty line becomes one reason.
+ * Block reasons double as fraud-report categories. Each reason can be enabled
+ * for reporting, and given its own recipient emails. The shared templates live
+ * under Settings -> Fraud Reports.
  */
 export default function BlockReasons() {
-  const [items, setItems] = useState([]);
-  const [adding, setAdding] = useState('');
+  const [reasons, setReasons] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [editingIdx, setEditingIdx] = useState(-1);
-  const [editValue, setEditValue] = useState('');
+  const [adding, setAdding] = useState('');
+  const [editing, setEditing] = useState(null); // {id,label,report_enabled,emailsText}
 
-  useEffect(() => { load(); }, []);
-
-  async function load() {
+  const load = async () => {
     setLoading(true);
     try {
-      const r = await api.get('/admin/settings');
-      const raw = (r.settings && r.settings.block_reasons) || '';
-      const arr = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-      setItems(arr);
-    } catch (e) {
-      alert('Failed to load: ' + e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+      const r = await api.get('/admin/block-reasons');
+      setReasons(r.reasons || []);
+    } catch (e) { /* ignore */ }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
 
-  async function save(newList) {
-    setSaving(true);
-    setSaved(false);
-    try {
-      await api.put('/admin/settings', { block_reasons: newList.join('\n') });
-      setItems(newList);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (e) {
-      alert('Save failed: ' + e.message);
-    } finally {
-      setSaving(false);
-    }
-  }
+  const add = async () => {
+    const label = adding.trim();
+    if (!label) return;
+    try { await api.post('/admin/block-reasons', { label }); setAdding(''); load(); }
+    catch (e) { alert(e.message); }
+  };
 
-  function add() {
-    const v = adding.trim();
-    if (!v) return;
-    if (items.includes(v)) {
-      alert('That reason already exists.');
-      return;
-    }
-    const newList = [...items, v];
-    setAdding('');
-    save(newList);
-  }
+  const toggleReport = async (r) => {
+    try { await api.put(`/admin/block-reasons/${r.id}`, { report_enabled: !r.report_enabled }); load(); }
+    catch (e) { alert(e.message); }
+  };
 
-  function remove(i) {
-    if (!confirm(`Delete "${items[i]}"?`)) return;
-    const newList = items.filter((_, idx) => idx !== i);
-    save(newList);
-  }
+  const remove = async (r) => {
+    if (!window.confirm(`Delete reason "${r.label}"?`)) return;
+    try { await api.delete(`/admin/block-reasons/${r.id}`); load(); }
+    catch (e) { alert(e.message); }
+  };
 
-  function startEdit(i) {
-    setEditingIdx(i);
-    setEditValue(items[i]);
-  }
+  const startEditEmails = (r) =>
+    setEditing({ id: r.id, label: r.label, emailsText: (r.emails || []).join('\n') });
 
-  function commitEdit() {
-    const v = editValue.trim();
-    if (!v) { setEditingIdx(-1); return; }
-    if (v === items[editingIdx]) { setEditingIdx(-1); return; }
-    if (items.includes(v)) { alert('Already exists.'); return; }
-    const newList = items.map((it, idx) => idx === editingIdx ? v : it);
-    setEditingIdx(-1);
-    save(newList);
-  }
+  const saveEmails = async () => {
+    const emails = editing.emailsText.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    try { await api.put(`/admin/block-reasons/${editing.id}`, { emails }); setEditing(null); load(); }
+    catch (e) { alert(e.message); }
+  };
 
-  function move(i, dir) {
-    const j = i + dir;
-    if (j < 0 || j >= items.length) return;
-    const newList = [...items];
-    [newList[i], newList[j]] = [newList[j], newList[i]];
-    save(newList);
-  }
+  if (loading) return <div className="card">Loading…</div>;
 
   return (
     <div>
-      <header className="page-head">
-        <h1>📋 Block Reasons</h1>
-        <p className="muted">
-          Categories that appear in the Android app's "Why are you blocking?"
-          follow-up dialog after a user taps BLOCK in the post-call popup.
-          Selected reasons are saved on each blocked-call row.
-        </p>
-      </header>
+      <h1 style={{ marginTop: 0 }}>📋 Block Reasons</h1>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Reasons appear in the app's post-call block picker. Enable "Report" to also use a
+        reason as a fraud-report category (with its own recipient emails). Templates are in
+        Settings → Fraud Reports.
+      </p>
 
-      <section className="card">
-        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-          <input
-            type="text"
-            placeholder="New reason (e.g. 'Insurance spam')"
-            value={adding}
-            onChange={e => setAdding(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && add()}
-            style={{ flex: 1 }}
-          />
-          <button className="btn btn-primary" onClick={add} disabled={saving || !adding.trim()}>
-            + Add reason
-          </button>
+      <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+        <input value={adding} onChange={e => setAdding(e.target.value)}
+          placeholder="New reason (e.g. Loan scam)"
+          onKeyDown={e => e.key === 'Enter' && add()}
+          style={{ flex: 1, padding: '9px 12px', borderRadius: 6,
+            border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}/>
+        <button className="btn btn-primary" onClick={add}>Add</button>
+      </div>
+
+      <table className="data-table">
+        <thead><tr><th>Reason</th><th>Report?</th><th>Recipients</th><th></th></tr></thead>
+        <tbody>
+          {reasons.map(r => (
+            <tr key={r.id}>
+              <td>{r.label}</td>
+              <td>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!r.report_enabled} onChange={() => toggleReport(r)} />
+                  {r.report_enabled ? 'Yes' : 'No'}
+                </label>
+              </td>
+              <td>
+                {r.report_enabled ? (
+                  <button className="btn" onClick={() => startEditEmails(r)}>
+                    {(r.emails || []).length} email(s) — edit
+                  </button>
+                ) : <span className="muted">—</span>}
+              </td>
+              <td style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn" onClick={() => remove(r)}
+                  style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171' }}>Delete</button>
+              </td>
+            </tr>
+          ))}
+          {reasons.length === 0 && <tr><td colSpan="4" className="muted">No reasons yet.</td></tr>}
+        </tbody>
+      </table>
+
+      {editing && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div className="card" style={{ maxWidth: 520, width: '100%' }}>
+            <h2 style={{ marginTop: 0 }}>Recipients for "{editing.label}"</h2>
+            <p className="muted" style={{ marginTop: 0 }}>One email per line. A report in this
+              category emails all of them (using the shared recipient template).</p>
+            <textarea value={editing.emailsText}
+              onChange={e => setEditing({ ...editing, emailsText: e.target.value })}
+              rows={5} placeholder={"abuse@bank.com\nfraud@police.gov"}
+              style={{ width: '100%', padding: 10, borderRadius: 6, fontFamily: 'monospace',
+                border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', boxSizing: 'border-box' }}/>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
+              <button className="btn" onClick={() => setEditing(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveEmails}>Save</button>
+            </div>
+          </div>
         </div>
-
-        {loading ? <p className="muted">Loading…</p>
-         : items.length === 0
-          ? <p className="muted">No reasons defined yet. Add some above.</p>
-          : (
-          <table>
-            <thead>
-              <tr><th style={{ width: 60 }}>#</th><th>Reason</th><th style={{ width: 240 }}>Actions</th></tr>
-            </thead>
-            <tbody>
-              {items.map((item, i) => (
-                <tr key={i}>
-                  <td className="muted">{i + 1}</td>
-                  <td>
-                    {editingIdx === i ? (
-                      <input
-                        type="text"
-                        value={editValue}
-                        onChange={e => setEditValue(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') commitEdit();
-                          if (e.key === 'Escape') setEditingIdx(-1);
-                        }}
-                        autoFocus
-                        style={{ width: '100%' }}
-                      />
-                    ) : item}
-                  </td>
-                  <td className="actions">
-                    {editingIdx === i ? (
-                      <>
-                        <button className="btn btn-mini btn-primary" onClick={commitEdit}>Save</button>
-                        <button className="btn btn-mini btn-ghost" onClick={() => setEditingIdx(-1)}>Cancel</button>
-                      </>
-                    ) : (
-                      <>
-                        <button className="btn btn-mini btn-ghost" onClick={() => move(i, -1)} disabled={i === 0}>↑</button>
-                        <button className="btn btn-mini btn-ghost" onClick={() => move(i,  1)} disabled={i === items.length - 1}>↓</button>
-                        <button className="btn btn-mini btn-ghost" onClick={() => startEdit(i)}>Edit</button>
-                        <button className="btn btn-mini btn-danger" onClick={() => remove(i)}>Delete</button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {saving && <p className="muted" style={{ marginTop: 14 }}>Saving…</p>}
-        {saved && <p style={{ marginTop: 14, color: 'var(--success, #4ade80)' }}>✓ Saved</p>}
-      </section>
-
-      <section className="card" style={{ marginTop: 24 }}>
-        <h2>How users see this</h2>
-        <p className="muted">
-          When a user finishes a call with an unknown number, the Android app
-          shows a "Block this number?" popup. If they tap BLOCK, a follow-up
-          dialog lets them pick one of the reasons above (or Skip). The selected
-          reason is saved on the blocked-call record and visible in the
-          user's Blocked Calls tab.
-        </p>
-      </section>
+      )}
     </div>
   );
 }

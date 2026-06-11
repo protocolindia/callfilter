@@ -1,6 +1,7 @@
 package pro.onephone.callfilter;
 
 import androidx.appcompat.app.AlertDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
@@ -99,6 +100,10 @@ public class BlockedCallsActivity extends AppCompatActivity {
                 android.widget.Toast.LENGTH_SHORT).show();
             return;
         }
+        if (auth.getEmail() == null || auth.getEmail().isEmpty()) {
+            promptAddEmail();
+            return;
+        }
         // Fetch categories, then show a single-select picker.
         BackendClient.get(AuthManager.BACKEND_URL + "/api/fraud-categories",
             new BackendClient.Callback() {
@@ -144,6 +149,8 @@ public class BlockedCallsActivity extends AppCompatActivity {
             body.put("number", number);
             if (categoryId > 0) body.put("category_id", categoryId);
             body.put("reporter", auth.getFullNumber());
+            if (auth.getEmail() != null && !auth.getEmail().isEmpty())
+                body.put("reporter_email", auth.getEmail());
             if (blockReason != null && !blockReason.isEmpty()) body.put("block_reason", blockReason);
             String cName = ContactsCacheManager.getInstance(this).getName(number);
             if (cName != null && !cName.isEmpty()) body.put("caller_name", cName);
@@ -160,5 +167,16 @@ public class BlockedCallsActivity extends AppCompatActivity {
             android.widget.Toast.makeText(this, "Could not send report",
                 android.widget.Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void promptAddEmail() {
+        new androidx.appcompat.app.AlertDialog.Builder(this, R.style.DarkDialog)
+            .setTitle("Email required")
+            .setMessage("Please add your email in your Profile before reporting. "
+                + "You'll get a confirmation of your report by email.")
+            .setPositiveButton("Open Profile", (d, w) ->
+                startActivity(new Intent(this, ProfileActivity.class)))
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 }

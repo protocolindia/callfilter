@@ -100,6 +100,39 @@ public class ProfileActivity extends AppCompatActivity {
         btnViewPlans.setOnClickListener(v ->
             startActivity(new Intent(ProfileActivity.this, PaywallActivity.class)));
 
+        // ----- Email (editable; required to report fraud) -----
+        final android.widget.EditText emailInput = findViewById(R.id.profileEmailInput);
+        final TextView emailSave = findViewById(R.id.profileEmailSave);
+        emailInput.setText(AuthManager.getInstance(this).getEmail());
+        emailSave.setOnClickListener(v -> {
+            String email = emailInput.getText().toString().trim();
+            if (!email.isEmpty() && !email.contains("@")) {
+                Toast.makeText(this, "Please enter a valid email", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            AuthManager auth = AuthManager.getInstance(this);
+            auth.setEmail(email);
+            if (auth.isBackendEnabled() && !auth.getUserId().isEmpty()) {
+                try {
+                    org.json.JSONObject body = new org.json.JSONObject();
+                    body.put("user_id", Long.parseLong(auth.getUserId()));
+                    body.put("email", email);
+                    BackendClient.post(AuthManager.BACKEND_URL + "/api/profile/email", body,
+                        new BackendClient.Callback() {
+                            public void onResult(boolean ok, org.json.JSONObject resp, String err) {
+                                runOnUiThread(() -> Toast.makeText(ProfileActivity.this,
+                                    ok ? "Email saved" : "Saved on device (sync failed)",
+                                    Toast.LENGTH_SHORT).show());
+                            }
+                        });
+                } catch (Exception e) {
+                    Toast.makeText(this, "Email saved on device", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(this, "Email saved", Toast.LENGTH_SHORT).show();
+            }
+        });
+
         // ----- Contact sync toggle -----
         SyncManager sm = SyncManager.getInstance(this);
         final View contactsSyncRow = findViewById(R.id.contactsSyncRow);

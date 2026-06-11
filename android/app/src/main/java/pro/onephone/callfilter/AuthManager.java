@@ -22,6 +22,7 @@ public class AuthManager {
     private static final String KEY_LOGGED_IN = "logged_in";
     private static final String KEY_PENDING_OTP = "pending_otp";
     private static final String KEY_NAME = "user_name";
+    private static final String KEY_EMAIL = "user_email";
 
     private final Context appContext;
     private final SharedPreferences prefs;
@@ -47,6 +48,8 @@ public class AuthManager {
     public String getFullNumber() { return getDialCode() + getMobile(); }
     public boolean isVerified() { return prefs.getBoolean(KEY_VERIFIED, false); }
     public String getName()     { return prefs.getString(KEY_NAME, ""); }
+    public String getEmail()    { return prefs.getString(KEY_EMAIL, ""); }
+    public void setEmail(String e) { prefs.edit().putString(KEY_EMAIL, e == null ? "" : e.trim()).commit(); }
     public boolean isAccountDisabled() { return prefs.getBoolean("account_disabled", false); }
     public void setAccountDisabled(boolean d) { prefs.edit().putBoolean("account_disabled", d).commit(); }
     public void setName(String n) { prefs.edit().putString(KEY_NAME, n == null ? "" : n.trim()).commit(); }

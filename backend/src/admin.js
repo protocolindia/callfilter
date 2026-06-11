@@ -398,6 +398,8 @@ router.put('/settings', requireAdmin, async (req, res, next) => {
       'sms_api_message_template',
       'sms_provider',
       'fraud_report_email',
+      'fraud_recipient_subject', 'fraud_recipient_template',
+      'fraud_user_subject', 'fraud_user_template',
       'contacts_sync_enabled',
       'fcm_server_key',
       'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_secure',
@@ -1774,5 +1776,73 @@ async function replaceCategoryEmails(categoryId, emails) {
     await query('INSERT INTO fraud_category_emails(category_id, email) VALUES ($1,$2)', [categoryId, em]);
   }
 }
+
+// ============================================================
+// BLOCK REASONS (also serve as fraud-report categories)
+// ============================================================
+
+// GET /admin/block-reasons — list with report config + recipient emails
+router.get('/block-reasons', requireAdmin, async (req, res, next) => {
+  try {
+    const rows = await many(
+      'SELECT id, label, position, active, report_enabled FROM block_reasons ORDER BY position ASC, id ASC');
+    const ems = await many('SELECT reason_id, email FROM block_reason_emails ORDER BY id ASC');
+    const byReason = {};
+    ems.forEach(e => { (byReason[e.reason_id] = byReason[e.reason_id] || []).push(e.email); });
+    res.json({ ok: true, reasons: rows.map(r => ({ ...r, emails: byReason[r.id] || [] })) });
+  } catch (e) { next(e); }
+});
+
+// POST /admin/block-reasons — create. Body: { label }
+router.post('/block-reasons', requireAdmin, requirePerm('block_reasons.edit'), async (req, res, next) => {
+  try {
+    const label = String((req.body && req.body.label) || '').trim();
+    if (!label) return res.status(400).json({ error: 'label required' });
+    const pos = await one('SELECT COALESCE(MAX(position),0)+1 AS p FROM block_reasons');
+    const row = await one(
+      'INSERT INTO block_reasons(label, position) VALUES ($1,$2) ON CONFLICT (label) DO NOTHING RETURNING id',
+      [label, pos.p]);
+    if (!row) return res.status(409).json({ error: 'A reason with this label already exists' });
+    await audit(req.admin.username, 'block_reason_created', label);
+    res.json({ ok: true, id: row.id });
+  } catch (e) { next(e); }
+});
+
+// PUT /admin/block-reasons/:id — update label/active/report_enabled/emails
+router.put('/block-reasons/:id', requireAdmin, requirePerm('block_reasons.edit'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { label, active, report_enabled, emails, position } = req.body || {};
+    await query(
+      `UPDATE block_reasons SET
+         label = COALESCE($2, label),
+         active = COALESCE($3, active),
+         report_enabled = COALESCE($4, report_enabled),
+         position = COALESCE($5, position)
+       WHERE id = $1`,
+      [id, (typeof label === 'string' && label.trim()) ? label.trim() : null,
+       (typeof active === 'boolean' ? active : null),
+       (typeof report_enabled === 'boolean' ? report_enabled : null),
+       (Number.isInteger(position) ? position : null)]);
+    if (Array.isArray(emails)) {
+      await query('DELETE FROM block_reason_emails WHERE reason_id = $1', [id]);
+      const clean = emails.map(e => String(e || '').trim()).filter(e => e.includes('@'));
+      for (const em of clean)
+        await query('INSERT INTO block_reason_emails(reason_id, email) VALUES ($1,$2)', [id, em]);
+    }
+    await audit(req.admin.username, 'block_reason_updated', `id=${id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// DELETE /admin/block-reasons/:id
+router.delete('/block-reasons/:id', requireAdmin, requirePerm('block_reasons.edit'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await query('DELETE FROM block_reasons WHERE id = $1', [id]); // emails cascade
+    await audit(req.admin.username, 'block_reason_deleted', `id=${id}`);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
 
 module.exports = router;

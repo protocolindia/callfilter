@@ -296,6 +296,17 @@ public class RecentCallsActivity extends AppCompatActivity {
             Toast.makeText(this, "Reporting needs an internet connection", Toast.LENGTH_SHORT).show();
             return;
         }
+        if (auth.getEmail() == null || auth.getEmail().isEmpty()) {
+            new AlertDialog.Builder(this, R.style.DarkDialog)
+                .setTitle("Email required")
+                .setMessage("Please add your email in your Profile before reporting. "
+                    + "You'll get a confirmation of your report by email.")
+                .setPositiveButton("Open Profile", (d, w) ->
+                    startActivity(new android.content.Intent(this, ProfileActivity.class)))
+                .setNegativeButton("Cancel", null)
+                .show();
+            return;
+        }
         BackendClient.get(AuthManager.BACKEND_URL + "/api/fraud-categories",
             new BackendClient.Callback() {
                 public void onResult(boolean ok, org.json.JSONObject resp, String err) {
@@ -337,6 +348,8 @@ public class RecentCallsActivity extends AppCompatActivity {
             body.put("number", number);
             if (categoryId > 0) body.put("category_id", categoryId);
             body.put("reporter", auth.getFullNumber());
+            if (auth.getEmail() != null && !auth.getEmail().isEmpty())
+                body.put("reporter_email", auth.getEmail());
             String cName = ContactsCacheManager.getInstance(this).getName(number);
             if (cName != null && !cName.isEmpty()) body.put("caller_name", cName);
             BackendClient.post(AuthManager.BACKEND_URL + "/api/report-fraud", body,

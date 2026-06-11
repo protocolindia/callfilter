@@ -1395,14 +1395,43 @@ router.get('/razorpay/status', async (req, res, next) => {
 
 
 // GET /api/block-reasons — list of categorization labels for post-call popup.
-// Admin defines these in Settings → Block reasons (newline-separated).
+// Now sourced from the structured block_reasons table (falls back to setting).
 router.get('/block-reasons', async (req, res, next) => {
   try {
-    const raw = (await getSetting('block_reasons')) || '';
-    const reasons = raw.split(/\r?\n/)
-      .map(s => s.trim())
-      .filter(Boolean);
+    let reasons = [];
+    try {
+      const rows = await many(
+        'SELECT label FROM block_reasons WHERE active = TRUE ORDER BY position ASC, id ASC');
+      reasons = rows.map(r => r.label);
+    } catch (_) {}
+    if (!reasons.length) {
+      const raw = (await getSetting('block_reasons')) || '';
+      reasons = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    }
     res.json({ ok: true, reasons });
+  } catch (e) { next(e); }
+});
+
+// GET /api/fraud-categories — report categories = report-enabled block reasons.
+router.get('/fraud-categories', async (req, res, next) => {
+  try {
+    const rows = await many(
+      `SELECT id, label AS name FROM block_reasons
+        WHERE active = TRUE AND report_enabled = TRUE
+        ORDER BY position ASC, id ASC`);
+    res.json({ ok: true, categories: rows });
+  } catch (e) { next(e); }
+});
+
+// POST /api/profile/email — set the user's email (editable in app profile).
+router.post('/profile/email', async (req, res, next) => {
+  try {
+    const { user_id, email } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id required' });
+    const clean = String(email || '').trim();
+    if (clean && !clean.includes('@')) return res.status(400).json({ error: 'invalid email' });
+    await query('UPDATE users SET email = $2 WHERE id = $1', [user_id, clean || null]);
+    res.json({ ok: true, email: clean });
   } catch (e) { next(e); }
 });
 
@@ -1567,44 +1596,66 @@ router.post('/report-fraud', async (req, res, next) => {
   try {
     const { user_id, number, category_id, category, note, reporter,
             caller_name, block_reason } = req.body || {};
+    let reporter_email = String((req.body && req.body.reporter_email) || '').trim();
     if (!number || !String(number).trim())
       return res.status(400).json({ error: 'number required' });
 
-    // Resolve the category (by id, or fall back to first active one).
-    let cat = null;
-    if (category_id) cat = await one('SELECT * FROM fraud_categories WHERE id = $1', [category_id]);
-    if (!cat) cat = await one('SELECT * FROM fraud_categories WHERE active = TRUE ORDER BY position ASC, id ASC LIMIT 1');
+    // Email is mandatory to report. Use the supplied one, else the stored one.
+    if (!reporter_email && user_id) {
+      const u = await one('SELECT email FROM users WHERE id = $1', [user_id]);
+      if (u && u.email) reporter_email = u.email;
+    }
+    if (!reporter_email || !reporter_email.includes('@'))
+      return res.status(400).json({ error: 'email_required' });
+
+    // Resolve the category = a report-enabled block reason.
+    let reason = null;
+    if (category_id) reason = await one('SELECT * FROM block_reasons WHERE id = $1', [category_id]);
+    if (!reason) reason = await one(
+      'SELECT * FROM block_reasons WHERE active = TRUE AND report_enabled = TRUE ORDER BY position ASC, id ASC LIMIT 1');
+    const categoryName = reason ? reason.label : (category || 'fraud');
 
     const row = await one(
       `INSERT INTO fraud_reports(user_id, number, category, category_id, note,
                                  reporter, caller_name, block_reason)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, created_at`,
-      [user_id || null, String(number).trim(),
-       cat ? cat.name : (category || 'fraud'), cat ? cat.id : null,
-       note || null, reporter || null, caller_name || null, block_reason || null]);
+      [user_id || null, String(number).trim(), categoryName, reason ? reason.id : null,
+       note || null, reporter || null, caller_name || null, block_reason || categoryName]);
 
     let emailed = false;
     try {
       const { sendMail } = require('./mailer');
+      const s = {};
+      (await many('SELECT key, value FROM settings')).forEach(r => { s[r.key] = r.value; });
+      const vars = {
+        number, reporter: reporter || ('user #' + (user_id || 'unknown')),
+        reporter_email, category: categoryName,
+        caller_name: caller_name || '', block_reason: block_reason || categoryName,
+        note: note || '', date: new Date(row.created_at).toLocaleString(), report_id: row.id,
+      };
+
+      // 1) Email the reason's recipients using the SHARED recipient template.
       let recipients = [];
-      if (cat) {
-        const ems = await many('SELECT email FROM fraud_category_emails WHERE category_id = $1', [cat.id]);
+      if (reason) {
+        const ems = await many('SELECT email FROM block_reason_emails WHERE reason_id = $1', [reason.id]);
         recipients = ems.map(e => e.email).filter(Boolean);
       }
       if (recipients.length) {
-        const vars = {
-          number, reporter: reporter || ('user #' + (user_id || 'unknown')),
-          category: cat ? cat.name : (category || 'fraud'),
-          caller_name: caller_name || '', block_reason: block_reason || '',
-          note: note || '', date: new Date(row.created_at).toLocaleString(),
-          report_id: row.id,
-        };
-        const subject = renderTemplate(cat ? cat.subject : 'Fraud report: {{number}}', vars);
-        const html = renderTemplate(cat ? cat.template_html : '', vars)
-          || `Fraud report for ${number}`;
-        const r = await sendMail({ to: recipients, subject, html });
+        const r = await sendMail({
+          to: recipients,
+          subject: renderTemplate(s.fraud_recipient_subject || 'Fraud report: {{number}}', vars),
+          html: renderTemplate(s.fraud_recipient_template || '', vars) || `Fraud report for ${number}`,
+        });
         emailed = !!r.ok;
       }
+
+      // 2) Confirmation to the reporting user using the SHARED user template.
+      await sendMail({
+        to: reporter_email,
+        subject: renderTemplate(s.fraud_user_subject || 'We received your fraud report', vars),
+        html: renderTemplate(s.fraud_user_template || '', vars)
+          || `Thank you for reporting ${number}.`,
+      });
     } catch (mailErr) {
       console.warn('fraud report email failed:', mailErr.message);
     }

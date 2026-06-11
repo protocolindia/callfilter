@@ -95,6 +95,58 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- Email card (editable; required to report fraud) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginTop="14dp">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="EMAIL"
+                    android:textSize="11sp"
+                    android:textColor="@color/muted"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.1"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Required to report fraud calls"
+                    android:textSize="11sp"
+                    android:textColor="@color/subtext"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="8dp"/>
+                <EditText
+                    android:id="@+id/profileEmailInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="you@example.com"
+                    android:inputType="textEmailAddress"
+                    android:textColor="@color/text"
+                    android:textColorHint="@color/muted"
+                    android:background="@drawable/input_bg"
+                    android:padding="12dp"/>
+                <TextView
+                    android:id="@+id/profileEmailSave"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Save email"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/white"
+                    android:background="@drawable/btn_accent"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="20dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:layout_marginTop="10dp"
+                    android:clickable="true"
+                    android:focusable="true"/>
+            </LinearLayout>
+
             <!-- Subscription card -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -412,7 +464,7 @@
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="CyberGuard AI · v5.0"
+                android:text="CyberGuard AI · v5.1"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"
