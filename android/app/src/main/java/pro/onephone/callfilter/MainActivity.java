@@ -47,23 +47,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // If the app crashed last run, show the captured stack trace so it can
-        // be diagnosed (instead of just dropping to the launcher).
-        android.content.SharedPreferences cp = getSharedPreferences("crash_prefs", MODE_PRIVATE);
-        final String lastCrash = cp.getString("last_crash", null);
-        if (lastCrash != null) {
-            cp.edit().remove("last_crash").commit();
-            android.widget.ScrollView sv = new android.widget.ScrollView(this);
-            android.widget.TextView tv = new android.widget.TextView(this);
-            tv.setText("App crashed last time:\n\n" + lastCrash);
-            tv.setTextIsSelectable(true);
-            tv.setPadding(36, 48, 36, 48);
-            tv.setTextSize(11);
-            sv.addView(tv);
-            setContentView(sv);
-            return; // don't run the (possibly crashing) startup this time
-        }
-
         AuthManager auth = AuthManager.getInstance(this);
         if (!auth.isLoggedIn()) {
             startActivity(new Intent(this, LoginActivity.class));
@@ -563,17 +546,29 @@ public class MainActivity extends AppCompatActivity {
     private void ensureContactsPermission() {
         if (Build.VERSION.SDK_INT < 23) return;
         android.content.SharedPreferences p = getSharedPreferences("ui_prefs", MODE_PRIVATE);
-        if (p.getBoolean("contacts_asked", false)) return;
-        if (checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) return;
-        p.edit().putBoolean("contacts_asked", true).apply();
+
+        // Essentials for the post-call "Block this number?" popup (core feature):
+        // Phone + Call Log give the number after a call ends; Contacts lets us
+        // recognise known callers. Requested together, once, with explanation.
+        java.util.List<String> need = new java.util.ArrayList<>();
+        if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+            need.add(Manifest.permission.READ_CONTACTS);
+        if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED)
+            need.add(Manifest.permission.READ_PHONE_STATE);
+        if (checkSelfPermission(Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED)
+            need.add(Manifest.permission.READ_CALL_LOG);
+        if (need.isEmpty()) return;
+        if (p.getBoolean("essentials_asked_v2", false)) return;
+        p.edit().putBoolean("essentials_asked_v2", true).apply();
+
+        final String[] perms = need.toArray(new String[0]);
         new AlertDialog.Builder(this)
-            .setTitle("Recognise your contacts")
-            .setMessage("CyberGuard uses your contacts to recognise known callers and to power "
-                + "Contacts-Only Mode (allow only people you know). Your contacts stay on your "
-                + "device unless you turn on cloud sync.")
-            .setPositiveButton("Allow", (d, w) ->
-                requestPermissions(new String[]{ Manifest.permission.READ_CONTACTS }, 106))
-            .setNegativeButton("Skip", null)
+            .setTitle("Allow call & contact access")
+            .setMessage("To show the \"Block this number?\" prompt after a call from an unknown "
+                + "number, CyberGuard needs Phone and Call Log access. Contacts access lets it "
+                + "recognise known callers. Everything is processed on your device.")
+            .setPositiveButton("Allow", (d, w) -> requestPermissions(perms, 106))
+            .setNegativeButton("Not now", null)
             .show();
     }
 
@@ -678,6 +673,11 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this,
                     "Contacts permission denied — sync stays off.", Toast.LENGTH_LONG).show();
             }
+        } else if (requestCode == 106) {
+            // Essentials batch (contacts/phone/call-log). Warm the cache and
+            // register the contacts observer now that permissions may be granted.
+            try { ContactsCacheManager.getInstance(this).warmUp(); } catch (Throwable ignored) {}
+            refreshUI();
         }
     }
 }

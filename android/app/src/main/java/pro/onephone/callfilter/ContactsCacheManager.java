@@ -197,17 +197,28 @@ public class ContactsCacheManager {
     /** Register ContentObserver to auto-refresh when contacts DB changes. */
     private void registerObserver() {
         if (observer != null) return;
-        observer = new ContentObserver(new Handler(Looper.getMainLooper())) {
-            @Override public void onChange(boolean selfChange) {
-                Log.d(TAG, "Contacts changed — scheduling refresh");
-                // Invalidate and refresh in background
-                loadedAt.set(0L);
-                refreshAsync();
-            }
-        };
-        ctx.getContentResolver().registerContentObserver(
-            ContactsContract.Contacts.CONTENT_URI, true, observer);
-        Log.d(TAG, "ContentObserver registered");
+        // registerContentObserver on the contacts URI requires READ_CONTACTS on
+        // some devices (e.g. Samsung). Skip until the permission is granted to
+        // avoid a SecurityException crash; it will be registered on a later warmUp.
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_CONTACTS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        try {
+            observer = new ContentObserver(new Handler(Looper.getMainLooper())) {
+                @Override public void onChange(boolean selfChange) {
+                    Log.d(TAG, "Contacts changed \u2014 scheduling refresh");
+                    loadedAt.set(0L);
+                    refreshAsync();
+                }
+            };
+            ctx.getContentResolver().registerContentObserver(
+                ContactsContract.Contacts.CONTENT_URI, true, observer);
+            Log.d(TAG, "ContentObserver registered");
+        } catch (Throwable t) {
+            observer = null;
+            Log.w(TAG, "registerObserver failed: " + t.getMessage());
+        }
     }
 
     /** Normalize: keep last 10 digits for fuzzy match. */
