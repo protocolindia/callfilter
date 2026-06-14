@@ -42,7 +42,6 @@
         <activity android:name=".OtpActivity"          android:exported="false"/>
         <activity android:name=".SetPinActivity"       android:exported="false"/>
         <activity android:name=".LoginActivity"        android:exported="false"/>
-        <activity android:name=".PermissionsActivity"  android:exported="false"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

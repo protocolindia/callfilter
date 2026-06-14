@@ -509,12 +509,51 @@ public class MainActivity extends AppCompatActivity {
             RoleManager rm = (RoleManager) getSystemService(Context.ROLE_SERVICE);
             if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)
                 && !rm.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)) {
-                Intent intent = rm.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING);
-                try {
-                    startActivityForResult(intent, REQUEST_ROLE);
-                } catch (Exception ignored) {}
+                android.content.SharedPreferences p = getSharedPreferences("ui_prefs", MODE_PRIVATE);
+                boolean explained = p.getBoolean("role_explained", false);
+                if (!explained) {
+                    // First time: explain WHY before sending the system role prompt.
+                    p.edit().putBoolean("role_explained", true).apply();
+                    new AlertDialog.Builder(this)
+                        .setTitle("Allow CyberGuard to block calls")
+                        .setMessage("To detect and block unwanted calls, please set CyberGuard "
+                            + "as your Caller ID & spam app on the next screen. All call "
+                            + "screening happens on your device.")
+                        .setPositiveButton("Continue", (d, w) -> requestScreeningRole(rm))
+                        .setNegativeButton("Not now", null)
+                        .show();
+                } else {
+                    requestScreeningRole(rm);
+                }
             }
         }
+        ensureContactsPermission();
+    }
+
+    private void requestScreeningRole(RoleManager rm) {
+        try {
+            Intent intent = rm.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING);
+            startActivityForResult(intent, REQUEST_ROLE);
+        } catch (Exception ignored) {}
+    }
+
+    // Contacts is an essential permission (recognise known callers, Contacts-Only
+    // Mode). Ask once, with explanation, on first launch.
+    private void ensureContactsPermission() {
+        if (Build.VERSION.SDK_INT < 23) return;
+        android.content.SharedPreferences p = getSharedPreferences("ui_prefs", MODE_PRIVATE);
+        if (p.getBoolean("contacts_asked", false)) return;
+        if (checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) return;
+        p.edit().putBoolean("contacts_asked", true).apply();
+        new AlertDialog.Builder(this)
+            .setTitle("Recognise your contacts")
+            .setMessage("CyberGuard uses your contacts to recognise known callers and to power "
+                + "Contacts-Only Mode (allow only people you know). Your contacts stay on your "
+                + "device unless you turn on cloud sync.")
+            .setPositiveButton("Allow", (d, w) ->
+                requestPermissions(new String[]{ Manifest.permission.READ_CONTACTS }, 106))
+            .setNegativeButton("Skip", null)
+            .show();
     }
 
     private void showAccountMenu(View anchor) {

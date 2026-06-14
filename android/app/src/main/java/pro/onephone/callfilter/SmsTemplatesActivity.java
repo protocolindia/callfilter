@@ -7,6 +7,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import java.util.List;
@@ -15,6 +16,8 @@ import java.util.List;
 public class SmsTemplatesActivity extends AppCompatActivity {
 
     @Override
+    private androidx.appcompat.widget.SwitchCompat autoReplySwitch;
+
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sms_templates);
@@ -24,7 +27,48 @@ public class SmsTemplatesActivity extends AppCompatActivity {
         Button add = findViewById(R.id.btnAddSmsTemplate);
         add.setOnClickListener(v -> showEditor(-1, ""));
 
+        // Auto-reply enable/disable. SEND_SMS is requested only when turning ON.
+        autoReplySwitch = findViewById(R.id.autoReplySwitch);
+        SmsAutoResponder smsR = SmsAutoResponder.getInstance(this);
+        autoReplySwitch.setChecked(smsR.isEnabled());
+        autoReplySwitch.setOnCheckedChangeListener((btn, isChecked) -> {
+            if (isChecked) {
+                if (checkSelfPermission(android.Manifest.permission.SEND_SMS)
+                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    // Don't enable yet — ask first, enable in the permission result.
+                    autoReplySwitch.setChecked(false);
+                    new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Allow sending SMS?")
+                        .setMessage("Auto-reply needs permission to send SMS. CyberGuard only "
+                            + "SENDS replies during Block All Now \u2014 it never reads your inbox.")
+                        .setPositiveButton("Allow", (d, w) ->
+                            requestPermissions(new String[]{ android.Manifest.permission.SEND_SMS }, 301))
+                        .setNegativeButton("Cancel", null)
+                        .show();
+                } else {
+                    smsR.setEnabled(true);
+                }
+            } else {
+                smsR.setEnabled(false);
+            }
+        });
+
         render();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 301) {
+            boolean granted = grantResults.length > 0
+                && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            SmsAutoResponder.getInstance(this).setEnabled(granted);
+            if (autoReplySwitch != null) autoReplySwitch.setChecked(granted);
+            if (!granted) {
+                Toast.makeText(this, "SMS permission denied \u2014 auto-reply stays off",
+                    Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private void render() {

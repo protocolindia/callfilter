@@ -100,6 +100,14 @@ public class ContactsCacheManager {
     /** True if cache has been loaded at least once. */
     public boolean isReady() { return loadedAt.get() > 0L; }
 
+    /** Blocks until the first contacts load completes. MUST be called off the
+     *  main thread. Triggers a load if one hasn't started. */
+    public void awaitFirstLoad(long timeoutMs) {
+        if (loadedAt.get() == 0L) refreshAsync();
+        try { firstLoad.await(timeoutMs, TimeUnit.MILLISECONDS); }
+        catch (InterruptedException ignored) {}
+    }
+
     /** Trigger async background refresh. */
     public void refreshAsync() {
         if (loading.compareAndSet(false, true)) {

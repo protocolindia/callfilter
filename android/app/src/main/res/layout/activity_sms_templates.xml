@@ -46,6 +46,42 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <!-- Enable / disable auto-reply (requests SEND_SMS only when ON) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/card_bg"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Auto-reply SMS"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Send an SMS to blocked callers during Block All Now. Off by default. Needs SMS permission."
+                        android:textSize="12sp"
+                        android:textColor="@color/subtext"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/autoReplySwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"/>
+            </LinearLayout>
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

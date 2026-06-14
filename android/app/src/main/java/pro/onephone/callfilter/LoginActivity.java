@@ -125,7 +125,7 @@ public class LoginActivity extends AppCompatActivity {
         String pin = pinInput.getText().toString();
         if (auth.checkPin(pin)) {
             auth.markLoggedIn();
-            startActivity(new Intent(this, PermissionsActivity.class));
+            startActivity(new Intent(this, MainActivity.class));
             finish();
         } else {
             Toast.makeText(this, "Incorrect PIN", Toast.LENGTH_SHORT).show();

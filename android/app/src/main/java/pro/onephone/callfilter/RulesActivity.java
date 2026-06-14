@@ -93,6 +93,12 @@ public class RulesActivity extends AppCompatActivity {
         super.onResume();
         loadCallLogNames();
         refresh();
+        // The contacts cache may not be warm yet on first open. Wait for it off
+        // the main thread, then re-render so rules show contact names.
+        new Thread(() -> {
+            ContactsCacheManager.getInstance(this).awaitFirstLoad(5000);
+            runOnUiThread(this::refresh);
+        }).start();
     }
 
     // ---------- Add-rule form ----------

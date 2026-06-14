@@ -36,6 +36,18 @@ public class CallBlockerService extends CallScreeningService {
         //   Settings → Apps → Default apps → Caller ID & spam app → CallFilter
         Log.d(TAG, "=== onScreenCall ENTERED, number=" + number + " ===");
 
+        // On Android 10+ this callback also fires for OUTGOING calls. We only
+        // screen/block INCOMING calls — never touch or log outgoing ones.
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                if (callDetails.getCallDirection() != Call.Details.DIRECTION_INCOMING) {
+                    Log.d(TAG, "Outgoing call — not screening, allowing");
+                    respondToCall(callDetails, new CallResponse.Builder().build());
+                    return;
+                }
+            }
+        } catch (Exception ignored) {}
+
         // If the user is signed out, do nothing — let every call through.
         if (!AuthManager.getInstance(this).isLoggedIn()) {
             Log.d(TAG, "User signed out — screening disabled, allowing call");

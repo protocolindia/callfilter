@@ -186,6 +186,13 @@ public class SmsAutoResponder {
         if (!"block_all".equals(rType)) return;
         if (number == null || number.isEmpty()) return;
         if (number.equalsIgnoreCase("Unknown") || number.equalsIgnoreCase("Private")) return;
+        // Never send without the runtime permission (it may have been revoked).
+        if (androidx.core.content.ContextCompat.checkSelfPermission(appCtx,
+                android.Manifest.permission.SEND_SMS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Auto-SMS skipped: SEND_SMS not granted");
+            return;
+        }
 
         final String msg = getMessage();
         if (msg == null || msg.trim().isEmpty()) return;
