@@ -47,6 +47,23 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // If the app crashed last run, show the captured stack trace so it can
+        // be diagnosed (instead of just dropping to the launcher).
+        android.content.SharedPreferences cp = getSharedPreferences("crash_prefs", MODE_PRIVATE);
+        final String lastCrash = cp.getString("last_crash", null);
+        if (lastCrash != null) {
+            cp.edit().remove("last_crash").commit();
+            android.widget.ScrollView sv = new android.widget.ScrollView(this);
+            android.widget.TextView tv = new android.widget.TextView(this);
+            tv.setText("App crashed last time:\n\n" + lastCrash);
+            tv.setTextIsSelectable(true);
+            tv.setPadding(36, 48, 36, 48);
+            tv.setTextSize(11);
+            sv.addView(tv);
+            setContentView(sv);
+            return; // don't run the (possibly crashing) startup this time
+        }
+
         AuthManager auth = AuthManager.getInstance(this);
         if (!auth.isLoggedIn()) {
             startActivity(new Intent(this, LoginActivity.class));
@@ -505,6 +522,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkBlockingStatus() {
+      try {
         if (Build.VERSION.SDK_INT >= 29) {
             RoleManager rm = (RoleManager) getSystemService(Context.ROLE_SERVICE);
             if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)
@@ -528,6 +546,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         ensureContactsPermission();
+      } catch (Throwable t) {
+        android.util.Log.w("MainActivity", "checkBlockingStatus failed: " + t.getMessage());
+      }
     }
 
     private void requestScreeningRole(RoleManager rm) {
