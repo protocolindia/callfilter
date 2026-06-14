@@ -110,12 +110,12 @@ public class ProfileActivity extends AppCompatActivity {
                 Toast.makeText(this, "Please enter a valid email", Toast.LENGTH_SHORT).show();
                 return;
             }
-            AuthManager auth = AuthManager.getInstance(this);
-            auth.setEmail(email);
-            if (auth.isBackendEnabled() && !auth.getUserId().isEmpty()) {
+            AuthManager am = AuthManager.getInstance(this);
+            am.setEmail(email);
+            if (am.isBackendEnabled() && !am.getUserId().isEmpty()) {
                 try {
                     org.json.JSONObject body = new org.json.JSONObject();
-                    body.put("user_id", Long.parseLong(auth.getUserId()));
+                    body.put("user_id", Long.parseLong(am.getUserId()));
                     body.put("email", email);
                     BackendClient.post(AuthManager.BACKEND_URL + "/api/profile/email", body,
                         new BackendClient.Callback() {

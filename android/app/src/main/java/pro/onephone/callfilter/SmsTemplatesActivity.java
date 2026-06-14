@@ -15,9 +15,9 @@ import java.util.List;
 /** Standalone screen to manage auto-reply SMS templates. */
 public class SmsTemplatesActivity extends AppCompatActivity {
 
-    @Override
     private androidx.appcompat.widget.SwitchCompat autoReplySwitch;
 
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sms_templates);
