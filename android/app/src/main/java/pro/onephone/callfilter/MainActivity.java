@@ -120,9 +120,6 @@ public class MainActivity extends AppCompatActivity {
                 } else if (id == R.id.nav_rules) {
                     startActivity(new Intent(this, RulesActivity.class));
                     return true;
-                } else if (id == R.id.nav_sms) {
-                    startActivity(new Intent(this, SmsProtectionActivity.class));
-                    return true;
                 }
                 return false;
             });
@@ -472,10 +469,6 @@ public class MainActivity extends AppCompatActivity {
         GlobalBlocklistManager.getInstance(this).pullEnabledReasonsAsync();
         // Pull blocked-call history from cloud (restores after reinstall/new version)
         SyncManager.getInstance(this).pullBlockedCallsFromCloud();
-        // Pull SMS auto-reply templates from cloud
-        SmsAutoResponder.getInstance(this).pullFromCloudAsync();
-        // Refresh SMS phishing/spam detection rules from cloud
-        SmsThreatDetector.getInstance(this).syncRulesAsync();
         // Restore phone book from cloud on a fresh device (writes to Contacts)
         SyncManager.getInstance(this).restoreContactsFromCloudAsync();
         // Refresh the admin contacts-sync policy; if disabled, stop local syncing.

@@ -32,13 +32,6 @@ public class ProfileActivity extends AppCompatActivity {
 
 
 
-        // Auto-Reply SMS Templates - navigate to separate screen
-        View rowTpl = findViewById(R.id.rowSmsTemplates);
-        if (rowTpl != null) {
-            rowTpl.setOnClickListener(v ->
-                startActivity(new android.content.Intent(this, SmsTemplatesActivity.class)));
-        }
-
         // Sign out
         View btnLogout = findViewById(R.id.btnLogout);
         if (btnLogout != null) {

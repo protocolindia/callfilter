@@ -430,6 +430,7 @@
                 android:gravity="center_vertical"
                 android:background="@drawable/card_bg"
                 android:padding="16dp"
+                android:visibility="gone"
                 android:layout_marginBottom="12dp"
                 android:clickable="true"
                 android:focusable="true">
@@ -464,7 +465,7 @@
                 android:id="@+id/tvAppVersion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="CyberGuard AI · v6.1"
+                android:text="CyberGuard AI · v6.2"
                 android:textSize="11sp"
                 android:textColor="@color/muted"
                 android:gravity="center"
