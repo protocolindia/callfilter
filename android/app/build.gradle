@@ -16,8 +16,8 @@ android {
         applicationId "pro.onephone.callfilter"
         minSdk 26
         targetSdk 34
-        versionCode 128
-        versionName "6.2"
+        versionCode 129
+        versionName "6.3"
 
         buildConfigField "String", "BACKEND_URL", "\"https://api.app.onephone.pro\""
     }
@@ -49,7 +49,7 @@ android {
     productFlavors {
         playstore {
             dimension "distribution"
-            buildConfigField "String", "BILLING_PROVIDER", "\"play\""
+            buildConfigField "String", "BILLING_PROVIDER", "\"razorpay\""
         }
         sideload {
             dimension "distribution"
@@ -97,7 +97,7 @@ dependencies {
     // (it's small and lets PlayBillingManager compile in all variants)
     implementation 'com.android.billingclient:billing:7.1.1'
     // Razorpay Checkout SDK — only in sideload flavor
-    sideloadImplementation 'com.razorpay:checkout:1.6.41'
+    implementation 'com.razorpay:checkout:1.6.41'
     // SMS User Consent API — auto-reads the incoming OTP with a one-tap popup
     implementation 'com.google.android.gms:play-services-auth-api-phone:18.1.0'
     // Firebase Cloud Messaging — wakes the app to refresh the global blocklist.
