@@ -39,12 +39,11 @@ public interface BillingProvider {
     final class Factory {
         private Factory() {}
         public static BillingProvider get(Context ctx) {
-            String provider = BuildConfig.BILLING_PROVIDER;
-            if ("razorpay".equalsIgnoreCase(provider)) {
-                return RazorpayBillingManager.getInstance(ctx);
-            }
-            // Default to Play Billing
-            return PlayBillingProviderAdapter.getInstance(ctx);
+            // Payments go through Razorpay only (one-time payment, no auto-renewal).
+            // Google Play Billing is deliberately not used in this product, so we do
+            // NOT branch on BuildConfig.BILLING_PROVIDER here — a stale flavor value
+            // must never silently fall back to Play Billing ("Product not found").
+            return RazorpayBillingManager.getInstance(ctx);
         }
     }
 }
